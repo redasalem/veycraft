@@ -6,7 +6,7 @@ Consolidated platform playbooks live under `skills/platforms/` (`last_verified: 
 
 - **LinkedIn Jobs (`linkedin`)**: [`skills/platforms/linkedin.md`](../skills/platforms/linkedin.md)
 - **Wellfound / AngelList (`wellfound`)**: [`skills/platforms/wellfound.md`](../skills/platforms/wellfound.md)
-- **Global & DACH Aggregators (`indeed`, `glassdoor`, `dice`, `ziprecruiter`, `stepstone`)**: [`skills/platforms/global-boards.md`](../skills/platforms/global-boards.md)
+- **Global, DACH & India Aggregators (`indeed`, `glassdoor`, `dice`, `ziprecruiter`, `stepstone`, `naukri`)**: [`skills/platforms/global-boards.md`](../skills/platforms/global-boards.md)
 - **Remote-First Boards (`weworkremotely`, `remoteok`, `welcometothejungle`, `builtin`, `dailyremote`)**: [`skills/platforms/remote-boards.md`](../skills/platforms/remote-boards.md)
 - **MENA Regional Boards (`wuzzuf`, `bayt`, `gulftalent`)**: [`skills/platforms/mena-boards.md`](../skills/platforms/mena-boards.md)
 - **B2B & Remote Contract Networks (`toptal`, `braintrust`, `lemon`, `gunio`, `contra`, `arc`, `turing`)**: [`skills/platforms/b2b-contract-networks.md`](../skills/platforms/b2b-contract-networks.md)

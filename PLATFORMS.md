@@ -69,6 +69,7 @@
 | **Europe (DACH)** | **StepStone (`.de` / `.at` / `.ch`)** | DE / EN | Core / Router | [`skills/platforms/global-boards.md`](skills/platforms/global-boards.md) |
 | **Europe (DACH)** | **Xing / SwissDevJobs** | DE / EN | Help Wanted | [`skills/platforms/global-boards.md`](skills/platforms/global-boards.md) |
 | **Europe (Nordics / NL / UK)** | **Otta / Cord / Honeypot** | EN | Help Wanted | [`skills/platforms/remote-boards.md`](skills/platforms/remote-boards.md) |
+| **APAC (India)** | **Naukri** | English | Core / Router | [`skills/platforms/global-boards.md`](skills/platforms/global-boards.md) |
 | **APAC (IN / SG / JP)** | **Instahyre / NodeFlair / TokyoDev / JapanDev** | EN / JP | Help Wanted | [`skills/platforms/global-boards.md`](skills/platforms/global-boards.md) |
 | **LATAM** | **Get on Board / Torrey / Revelo** | ES / PT / EN | Help Wanted | [`skills/platforms/remote-boards.md`](skills/platforms/remote-boards.md) |
 

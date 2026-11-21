@@ -182,6 +182,20 @@ targets:
     automation_mode: "manual_apply_or_ats_redirect"
     filter_notes: "DACH entry point (.de default EUR; replace host with .at EUR or .ch CHF as confirmed). Separate required GDPR consent from optional Talentpool/marketing opt-ins and optional Anschreiben. Offline/synthetic-verified only (max_per_platform: 0 until live-verified)."
     live_verified: false
+  - name: "Naukri (India) — configure before enabling"
+    platform: "naukri"
+    enabled: false
+    url: "https://www.naukri.com/frontend-engineer-jobs"
+    auth_check_url: "https://www.naukri.com/mnjuser/homepage"
+    auth_required: true
+    max_results: 15
+    category: "APAC (India)"
+    search_url_template: "https://www.naukri.com/{{ROLE_SLUG}}-jobs"
+    query_parameters: {}
+    playbook: "skills/platforms/global-boards.md"
+    automation_mode: "manual_apply_or_ats_redirect"
+    filter_notes: "India role-slug entry point (distinct from GCC naukrigulf.com). Verify CTC/Expected CTC (INR/LPA), notice period/immediate-joiner flags, and location preferences in fresh browser_snapshot; trip 24h circuit breaker on CAPTCHA/OTP/429. Offline/synthetic-verified only (max_per_platform: 0 until live-verified)."
+    live_verified: false
   - name: "Wuzzuf — configure before enabling"
     platform: "wuzzuf"
     enabled: false

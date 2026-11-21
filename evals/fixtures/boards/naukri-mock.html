@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Naukri India Synthetic Offline Fixture — Regional Board Regression</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 840px; margin: 24px auto; padding: 0 16px; color: #111827; }
+    header, section, form, nav { border: 1px solid #d1d5db; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #eef2ff; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    .danger { background: #fee2e2; border: 1px solid #dc2626; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    .field { margin-bottom: 10px; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    .checkbox-row label { display: inline; font-weight: 400; margin-left: 6px; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body data-platform="naukri" data-synthetic-host="www.naukri.example" data-auth-check-url="https://www.naukri.example/mnjuser/homepage">
+  <header aria-label="Candidate Homepage Navigation" data-auth-state="signed-in">
+    <h1>Naukri India — Synthetic Offline Fixture</h1>
+    <p>Offline regression fixture only (synthetic host: <code>www.naukri.example</code>). Not proof of live Naukri compatibility. Zero live network requests.</p>
+    <nav aria-label="Account Menu">
+      <a href="#mnjuser-homepage" data-signed-in-indicator="true">My Naukri Profile (Alex Rivera)</a>
+      <button type="button" id="nk-toggle-gate" aria-expanded="false" aria-controls="naukri-account-gate">Simulate Login / OTP Wall</button>
+      <button type="button" id="nk-toggle-cb" aria-expanded="false" aria-controls="naukri-circuit-breaker-banner">Simulate Anti-Bot / CAPTCHA Banner</button>
+    </nav>
+  </header>
+
+  <section id="naukri-account-gate" aria-label="Login or Mobile OTP Gate" data-auth-gate="sign-in-or-otp-required" hidden>
+    <h2>Login, Register, or Mobile OTP Verification Required</h2>
+    <p>Session expired or OTP verification requested. Automated login, account creation, OTP entry, or terms acceptance is prohibited.</p>
+    <button type="button" data-account-action="sign-in">Login</button>
+    <button type="button" data-account-action="create-account">Register</button>
+    <div class="field">
+      <label for="nk-otp-input">Mobile OTP Verification Code (Manual Owner Action Only)</label>
+      <input id="nk-otp-input" name="mobile_otp" type="text" data-otp-challenge="true" autocomplete="off" placeholder="Do not automate OTP">
+    </div>
+    <div class="field checkbox-row">
+      <input type="checkbox" id="nk-legal-terms" name="account_legal_terms" data-legal-terms="true">
+      <label for="nk-legal-terms">I agree to the synthetic Naukri Terms and Conditions and Privacy Policy</label>
+    </div>
+  </section>
+
+  <section id="naukri-circuit-breaker-banner" class="danger" role="alert" aria-label="Anti-Bot Security Challenge" data-circuit-breaker-signal="captcha-or-rate-limit" hidden>
+    <h2>Verify you are human — HTTP 429 / Unusual Activity Detected</h2>
+    <p>Anti-bot challenge triggered. Trip 24-hour circuit breaker for <code>naukri</code> in <code>logs/circuit-breaker.json</code> immediately with zero retries.</p>
+  </section>
+
+  <section aria-label="Naukri India Job Search Filters">
+    <form role="search" id="nk-search-form" aria-label="Search India Jobs">
+      <div class="field">
+        <label for="nk-keyword">Skills, Designations, Companies</label>
+        <input id="nk-keyword" name="q" type="text" placeholder="Senior Full-Stack Engineer" value="Senior Full-Stack Engineer">
+      </div>
+      <div class="field">
+        <label for="nk-experience">Experience (Years)</label>
+        <select id="nk-experience" name="experience_years">
+          <option value="5" selected>5 Years</option>
+          <option value="3">3 Years</option>
+          <option value="8">8+ Years</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="nk-salary-filter">Salary Band (INR / LPA)</label>
+        <select id="nk-salary-filter" name="salary_lpa_band">
+          <option value="25-50" selected>25–50 LPA (INR)</option>
+          <option value="15-25">15–25 LPA (INR)</option>
+          <option value="50+">50+ LPA (INR)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="nk-location-filter">Location</label>
+        <select id="nk-location-filter" name="location">
+          <option value="Bengaluru" selected>Bengaluru</option>
+          <option value="Hyderabad">Hyderabad</option>
+          <option value="Pune">Pune</option>
+          <option value="Remote">Remote (India)</option>
+        </select>
+      </div>
+      <button type="submit">Apply Filters</button>
+    </form>
+  </section>
+
+  <section aria-label="Naukri Search Results" id="nk-results-list" data-active-page="1">
+    <h2>Search Results</h2>
+    <div id="nk-page-status" role="status" aria-live="polite">Showing Page 1 of 2 (2 synthetic listings)</div>
+
+    <article class="job-card" data-posting-id="naukri:nk-64210" data-employer-type="direct" data-employer-name="DeccanCloud Payments Pvt Ltd">
+      <h3><a href="#nk-jd-64210">Senior Backend Engineer (Node.js / TypeScript)</a></h3>
+      <p><strong>Employer:</strong> DeccanCloud Payments Pvt Ltd <span class="badge" data-attribution-badge="direct">Direct Employer</span></p>
+      <p><strong>Location:</strong> Bengaluru (Hybrid) | <strong>Compensation:</strong> 32–44 LPA (INR) | <strong>Posted:</strong> 2026-11-20</p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="nk-jd-64210">Expand Job Description</button>
+      <div id="nk-jd-64210" role="region" aria-label="Full Job Description — naukri:nk-64210" hidden>
+        <p>Design resilient Node.js, TypeScript, and PostgreSQL payment settlement services. Recruiter screening collects Current CTC, Expected CTC (in LPA), notice period, and preferred city.</p>
+        <a href="#naukri-recruiter-screening-form" data-apply-type="on-board-recruiter">Apply (Recruiter Screening)</a>
+      </div>
+    </article>
+
+    <article class="job-card" data-posting-id="naukri:nk-64288" data-employer-type="agency" data-employer-name="ApexTech Placement Consultancy">
+      <h3><a href="#nk-jd-64288">Staff Platform Engineer (Cloud &amp; Reliability)</a></h3>
+      <p><strong>Employer:</strong> ApexTech Placement Consultancy <span class="badge" data-attribution-badge="agency">Placement Consultancy / Agency</span></p>
+      <p><strong>Location:</strong> Hyderabad (Onsite) | <strong>Compensation:</strong> Not disclosed | <strong>Posted:</strong> 2026-11-19</p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="nk-jd-64288">Expand Job Description</button>
+      <div id="nk-jd-64288" role="region" aria-label="Full Job Description — naukri:nk-64288" hidden>
+        <p>Confidential enterprise client hiring through an external placement consultancy. Application redirects to employer ATS.</p>
+        <a href="#external-ats-handoff" data-apply-type="external-ats" data-external-ats-host="careers.deccanbank.myworkdayjobs.example" data-external-ats-engine="workday">Apply on Company Site</a>
+      </div>
+    </article>
+
+    <nav aria-label="Search Results Pagination" id="nk-pagination">
+      <button type="button" data-page-nav="prev" disabled>Previous</button>
+      <a href="#page-1" data-page-number="1" aria-current="page">1</a>
+      <a href="#page-2" data-page-number="2">2</a>
+      <button type="button" data-page-nav="next">Next</button>
+    </nav>
+  </section>
+
+  <form id="naukri-recruiter-screening-form" aria-label="Naukri Recruiter Screening Form (Pre-Handoff)" data-manual-handoff="true" action="#local-only">
+    <h2>Recruiter Screening Questionnaire — Pre-Handoff (naukri:nk-64210)</h2>
+
+    <div id="nk-cv-overwrite-warning" class="warning" role="note" data-profile-overwrite-warning="true">
+      <strong>Shared Naukri Profile Warning:</strong> Uploading a resume or updating CTC/notice here may overwrite your default Naukri profile. Pause as <code>needs_review</code> instead of silently mutating shared profile data.
+    </div>
+
+    <div class="field">
+      <label for="nk-resume">Upload Tailored Resume (PDF)</label>
+      <input id="nk-resume" name="resume" type="file" accept=".pdf,.doc,.docx" required>
+      <span id="nk-upload-status" role="status" aria-live="polite">No file attached</span>
+    </div>
+
+    <div class="field">
+      <label for="nk-current-ctc">Current CTC (INR LPA — Optional, Never Fabricate)</label>
+      <input id="nk-current-ctc" name="current_ctc_lpa" type="number" step="0.1" min="0" placeholder="Verified Current CTC in LPA only">
+    </div>
+
+    <div class="field">
+      <label for="nk-expected-ctc">Expected CTC (INR LPA)</label>
+      <input id="nk-expected-ctc" name="expected_ctc_lpa" type="number" step="0.1" min="0" placeholder="Verified Expected CTC in LPA" required>
+    </div>
+
+    <div class="field">
+      <label for="nk-ctc-unit">CTC Unit &amp; Currency (Do Not Silently Convert)</label>
+      <select id="nk-ctc-unit" name="ctc_currency_unit" required>
+        <option value="">Select unit...</option>
+        <option value="INR_LPA">INR — Lakhs Per Annum (LPA)</option>
+        <option value="INR_MONTHLY">INR — Monthly</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="nk-notice-period">Notice Period</label>
+      <select id="nk-notice-period" name="notice_period" required>
+        <option value="">Select notice period...</option>
+        <option value="immediate">Immediate Joiner</option>
+        <option value="15_days">15 Days or less</option>
+        <option value="1_month">1 Month</option>
+        <option value="2_months">2 Months</option>
+        <option value="3_months">3 Months</option>
+        <option value="serving_notice">Serving Notice Period</option>
+      </select>
+    </div>
+
+    <div class="field checkbox-row">
+      <input id="nk-immediate-joiner" name="immediate_joiner_flag" type="checkbox" data-immediate-joiner="true">
+      <label for="nk-immediate-joiner">Mark as Immediate Joiner (check ONLY if verified true)</label>
+    </div>
+
+    <div class="field">
+      <label for="nk-current-location">Current City / Location</label>
+      <input id="nk-current-location" name="current_location" type="text" placeholder="e.g., Bengaluru" required>
+    </div>
+
+    <div class="field">
+      <label for="nk-preferred-locations">Preferred Work Locations</label>
+      <select id="nk-preferred-locations" name="preferred_locations" required>
+        <option value="">Select preferred location...</option>
+        <option value="Bengaluru">Bengaluru</option>
+        <option value="Hyderabad">Hyderabad</option>
+        <option value="Pune">Pune</option>
+        <option value="Delhi_NCR">Delhi NCR</option>
+        <option value="Remote_India">Remote (India)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="nk-relocate">Willing to Relocate?</label>
+      <select id="nk-relocate" name="willing_to_relocate" required>
+        <option value="">Select relocation preference...</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+
+    <div aria-hidden="true" style="display:none">
+      <label for="nk-honeypot">Leave this field blank</label>
+      <input id="nk-honeypot" name="website_url_honeypot" type="text" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div class="warning" data-manual-handoff-notice="true">
+      Manual Handoff Required: Naukri is unverified (`max_per_platform: 0`). Review Live DOM Read-Back Table and submit manually.
+    </div>
+
+    <button type="submit" aria-disabled="true" data-requires-manual-handoff="true" data-one-click-guarded="true">Apply Now (Manual Handoff Required)</button>
+  </form>
+
+  <script>
+    (function () {
+      function bindToggle(btnId, sectionId) {
+        const btn = document.getElementById(btnId);
+        const sec = document.getElementById(sectionId);
+        btn.addEventListener('click', function () {
+          const opening = sec.hasAttribute('hidden');
+          if (opening) sec.removeAttribute('hidden');
+          else sec.setAttribute('hidden', '');
+          btn.setAttribute('aria-expanded', String(opening));
+        });
+      }
+      bindToggle('nk-toggle-gate', 'naukri-account-gate');
+      bindToggle('nk-toggle-cb', 'naukri-circuit-breaker-banner');
+
+      document.querySelectorAll('.expand-card').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const target = document.getElementById(btn.getAttribute('aria-controls'));
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          if (expanded) target.setAttribute('hidden', '');
+          else target.removeAttribute('hidden');
+        });
+      });
+
+      const results = document.getElementById('nk-results-list');
+      const pageStatus = document.getElementById('nk-page-status');
+      const pagination = document.getElementById('nk-pagination');
+      function setPage(nextPage) {
+        const page = Math.max(1, Math.min(2, nextPage));
+        results.setAttribute('data-active-page', String(page));
+        pagination.querySelectorAll('a[data-page-number]').forEach(function (link) {
+          if (Number(link.getAttribute('data-page-number')) === page) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        pagination.querySelector('[data-page-nav="prev"]').disabled = page === 1;
+        pagination.querySelector('[data-page-nav="next"]').disabled = page === 2;
+        pageStatus.textContent = 'Showing Page ' + page + ' of 2 (2 synthetic listings)';
+      }
+      pagination.addEventListener('click', function (event) {
+        event.preventDefault();
+        const cur = Number(results.getAttribute('data-active-page') || '1');
+        if (event.target.matches('[data-page-nav="next"]')) setPage(cur + 1);
+        else if (event.target.matches('[data-page-nav="prev"]')) setPage(cur - 1);
+        else if (event.target.matches('a[data-page-number]')) setPage(Number(event.target.getAttribute('data-page-number')));
+      });
+
+      document.getElementById('nk-search-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+      document.getElementById('naukri-recruiter-screening-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>

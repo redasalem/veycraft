@@ -24,6 +24,8 @@ max_per_platform:
   gulftalent: 0
   # Unverified DACH board defaults to 0 (manual_apply + needs_review until live-verified)
   stepstone: 0
+  # Unverified India board defaults to 0 (manual_apply + needs_review until live-verified)
+  naukri: 0
   greenhouse: 3
   lever: 3
   workday: 0

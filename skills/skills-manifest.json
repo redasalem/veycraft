@@ -603,13 +603,13 @@
     },
     {
       "name": "global-boards",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "category": "platform",
-      "description": "Load when a target is Indeed, Glassdoor, Dice, ZipRecruiter, or StepStone (DACH: .de, .at, .ch) and jobs must be discovered, expanded, localized (German/English), GDPR-checked, and routed without assuming quick-apply is reversible.",
+      "description": "Load when a target is Indeed, Glassdoor, Dice, ZipRecruiter, StepStone (DACH: .de, .at, .ch), or Naukri (India) and jobs must be discovered, expanded, localized, compliance-checked, and routed without assuming quick-apply is reversible.",
       "triggers": [
-        "target.platform in indeed/glassdoor/dice/ziprecruiter/stepstone",
-        "job URL on Indeed, Glassdoor, Dice, ZipRecruiter, or StepStone (.de, .at, .ch)",
-        "DACH or European StepStone job search"
+        "target.platform in indeed/glassdoor/dice/ziprecruiter/stepstone/naukri",
+        "job URL on Indeed, Glassdoor, Dice, ZipRecruiter, StepStone (.de, .at, .ch), or Naukri (India)",
+        "DACH StepStone or India Naukri regional job search"
       ],
       "requires_mcp": [
         "playwright"
@@ -620,13 +620,14 @@
       "requires_skills": [
         "discover-and-triage",
         "condition-based-browser-waiting",
-        "multilingual-adaptation"
+        "multilingual-adaptation",
+        "circuit-breaker-and-antiban"
       ],
       "verification": [
-        "stable posting IDs captured per board (including stepstone:<tld>:<id> for .de/.at/.ch)",
-        "quick-apply / Schnellbewerbung buttons treated as final submits behind fill-and-apply or manual handoff",
+        "stable posting IDs captured per board (including stepstone:<tld>:<id> and naukri:<id>)",
+        "quick-apply / Schnellbewerbung / Naukri recruiter-apply treated as final submits behind fill-and-apply or manual handoff",
         "sponsored/duplicate listings deduplicated by canonical URL and platform salary estimates attributed separately",
-        "DACH GDPR required privacy consent separated from optional marketing/Talentpool opt-ins and optional Anschreiben detected"
+        "DACH GDPR/Anschreiben and India CTC (LPA)/notice/immediate-joiner/circuit-breaker stop rules enforced"
       ],
       "path": "skills/platforms/global-boards.md",
       "last_verified": "2026-11-21"

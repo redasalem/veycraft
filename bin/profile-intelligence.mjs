@@ -110,7 +110,7 @@ export const PLATFORM_ADAPTERS = Object.freeze({
   }),
   job_boards: Object.freeze({
     platform_id: 'job_boards',
-    display_name: 'Job Boards (Wuzzuf / Bayt / GulfTalent / StepStone / Indeed / Glassdoor / Remote Boards)',
+    display_name: 'Job Boards (Wuzzuf / Bayt / GulfTalent / StepStone / Naukri / Indeed / Glassdoor / Remote Boards)',
     supported_sections: ['headline', 'summary', 'experience', 'skills', 'preferences'],
     capabilities: Object.freeze({ read: true, draft: true, fill: true, save: false, verify: false }),
     required_permissions: ['signed_in_browser_session', 'explicit_owner_approve'],
@@ -169,6 +169,7 @@ const PLATFORM_ALIASES = {
   bayt: 'job_boards',
   gulftalent: 'job_boards',
   stepstone: 'job_boards',
+  naukri: 'job_boards',
   remoteok: 'job_boards',
   job_boards: 'job_boards',
   github: 'portfolio',
