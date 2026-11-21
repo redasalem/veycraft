@@ -94,12 +94,14 @@ Read `eeo_and_compliance_defaults` (or `eeo`) from `context/form-answers.yaml`:
 - [ ] Live DOM Read-Back Table displayed and hard `APPROVE` + `3–9 s` human pacing boundary respected (`dry_run` stopped before Submit)
 
 ### Proactive Apply Offer
-After tailoring a CV or reviewing a job posting, proactively ask the user:
-> *"Would you like me to fill out the application and submit it on your behalf? I am ready — just give me your permission (`APPROVE`) after reviewing the filled fields."*
-Never submit without explicit `APPROVE`.
+After tailoring a CV or reviewing a job posting, you may proactively offer to prepare and fill out the application up to the review step:
+> *"Would you like me to prepare and fill out the application fields for you? I will stop before final submission to show you the complete Live DOM Read-Back Table and wait for your explicit job-specific `APPROVE`."*
+Never submit without displaying the Live DOM Read-Back Table and receiving explicit, fresh, job-specific `APPROVE`.
 
-### End-to-End Auto-Fill on User Apply Command
-When the user explicitly instructs the AI to apply (e.g., "apply", "قدم", or `APPROVE`), do NOT pause at intermediate pages (e.g., Page 2/4 or Page 3/4) to ask for confirmation on each step:
-1. Advance through **all** Easy Apply or external ATS form steps automatically.
-2. Fill every field using verified `context/cv.md` and `context/form-answers.yaml`, framing truthful answers to present the strongest eligible fit.
-3. Only pause if a genuinely unknown/legal required question or CAPTCHA appears. Selecting a job to apply to (e.g. `"1"`, `"قدم"`, `"apply"`) counts as full authorization to fill AND click `Submit` / `Apply` directly without asking for a second `APPROVE`.
+### Multi-Step Form Filling (Hard Stop Before Final Submit)
+Selecting a job or expressing intent to apply (e.g., `"1"`, `"APPLY 1"`, `"APPLY ALL GREEN"`, `"apply"`, or `"قدم"`) authorizes **preparation and non-submitting form filling ONLY — NEVER final submission**:
+1. You may advance through safe **intermediate non-submitting pages** (e.g., Page 1/4 → Page 2/4 → Page 3/4) using verified `context/cv.md`, `context/resume-data.json`, and `context/form-answers.yaml` without pausing per intermediate step.
+2. Pause immediately if any unknown/legal required question, account-creation/terms wall, or CAPTCHA/2FA challenge appears.
+3. **Unconditional Hard Stop Before Submit:** Stop before ANY final `Submit` / `Apply` (or one-click apply) action, take a fresh `browser_snapshot`, display the complete **Live DOM Read-Back Table**, run `node ./bin/cli.mjs pre-submit`, and wait for a **separate, explicit, fresh, job-specific `APPROVE`** in chat (`dry_run: true` must never permit submission).
+4. **No Implicit or Carried-Over Consent:** No inferred, ambiguous, previous-turn, blanket, batch, or general approval may authorize submission. Any material field, attachment, consent, or page-state change invalidates prior approval and requires a fresh read-back and new `APPROVE`.
+5. **Submit Once & Verify:** Only after valid approval (and `dry_run: false`), reserve `needs_review` + `submission_uncertain: true`, click Submit **once**, and verify the post-submit receipt/state in a fresh `browser_snapshot` (`skills/meta-self-verification.md`).
