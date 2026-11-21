@@ -74,7 +74,7 @@ Route everyday user requests to the **smallest skill group** below without requi
 | Board | `wellfound` | `target.platform == wellfound`, Wellfound startups & founder notes | `skills/platforms/wellfound.md` |
 | Family | `global-boards` | `indeed`, `glassdoor`, `dice`, `ziprecruiter` | `skills/platforms/global-boards.md` |
 | Family | `remote-boards` | `weworkremotely`, `remoteok`, `welcometothejungle`, `builtin`, `dailyremote` | `skills/platforms/remote-boards.md` |
-| Family | `mena-boards` | `wuzzuf`, `bayt`, MENA regional authorization & currency checks | `skills/platforms/mena-boards.md` |
+| Family | `mena-boards` | `wuzzuf`, `bayt`, `gulftalent`, MENA/GCC authorization, bilingual & currency checks | `skills/platforms/mena-boards.md` |
 | Family | `b2b-contract-networks` | `toptal`, `braintrust`, `lemon`, `gunio`, `contra`, `arc`, `turing` | `skills/platforms/b2b-contract-networks.md` |
 | Router | `ats-engines` | Unified ATS dispatcher (`#grnhse_iframe`, portal listboxes) | `skills/platforms/ats-engines.md` |
 | ATS | `ashby` | `jobs.ashbyhq.com` | `skills/ats/ashby.md` |

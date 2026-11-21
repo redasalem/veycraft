@@ -656,12 +656,13 @@
     },
     {
       "name": "mena-boards",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "category": "platform",
-      "description": "Load when a target is Wuzzuf, Bayt or LinkedIn for MENA roles and location, language, nationality or authorization rules must be read carefully.",
+      "description": "Load when a target is Wuzzuf, Bayt, GulfTalent, or LinkedIn for MENA/GCC roles and signed-in auth checks, pagination, external ATS redirects, bilingual Arabic/English listings, or nationality/visa/notice/salary-currency rules must be handled safely.",
       "triggers": [
-        "target.platform in wuzzuf/bayt",
-        "MENA region search"
+        "target.platform in wuzzuf/bayt/gulftalent",
+        "MENA or GCC region search",
+        "job URL on Wuzzuf, Bayt, or GulfTalent"
       ],
       "requires_mcp": [
         "playwright"
@@ -670,15 +671,18 @@
         "readiness gates passed, auth verified via Playwright MCP, and context loaded"
       ],
       "requires_skills": [
-        "discover-and-triage"
+        "discover-and-triage",
+        "condition-based-browser-waiting",
+        "multilingual-adaptation"
       ],
       "verification": [
-        "nationality/residency/language requirements captured verbatim",
-        "location matched against confirmed regions",
-        "authorization answers taken only from verified facts"
+        "auth_check_url verified as signed-in or stopped cleanly on Sign In / Create Account gate",
+        "job card expanded, pagination verified via fresh browser_snapshot, and external ATS redirects routed safely",
+        "nationality, current residency, visa status, sponsorship, notice period, and salary currency/period captured as distinct verified facts",
+        "Arabic/English bilingual requirements preserved verbatim with zero invisible BiDi characters"
       ],
       "path": "skills/platforms/mena-boards.md",
-      "last_verified": "2026-11-18"
+      "last_verified": "2026-11-21"
     },
     {
       "name": "remote-boards",

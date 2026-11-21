@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bayt Synthetic Offline Fixture — Bilingual MENA Board Regression</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 24px auto; padding: 0 16px; color: #111827; }
+    header, section, form, nav { border: 1px solid #d1d5db; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #ecfeff; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    .rtl-block { border-right: 3px solid #0284c7; padding: 8px 12px; background: #f8fafc; margin-top: 8px; }
+    .field { margin-bottom: 10px; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body data-platform="bayt" data-synthetic-host="www.bayt.example" data-auth-check-url="https://www.bayt.example/en/myworkspace/">
+  <header aria-label="My Workspace Navigation" data-auth-state="signed-in">
+    <h1>Bayt — Synthetic Bilingual MENA Job Board Fixture</h1>
+    <p>Offline regression fixture only (synthetic host: <code>www.bayt.example</code>). Zero live network requests.</p>
+    <nav aria-label="Workspace Menu">
+      <a href="#my-workspace" data-signed-in-indicator="true">My Workspace (Alex Rivera)</a>
+      <button type="button" id="bt-toggle-gate" aria-expanded="false" aria-controls="bayt-account-gate">Simulate Sign-In Wall</button>
+    </nav>
+  </header>
+
+  <section id="bayt-account-gate" aria-label="Account Sign-In Gate" data-auth-gate="sign-in-required" hidden>
+    <h2>Sign In or Register Required</h2>
+    <p>Your Bayt session expired. Manual sign-in is required; automated account creation or terms acceptance is prohibited.</p>
+    <button type="button" data-account-action="sign-in">Log In</button>
+    <button type="button" data-account-action="create-account">Register</button>
+    <div class="field">
+      <input type="checkbox" id="bt-legal-terms" name="account_legal_terms" data-legal-terms="true">
+      <label for="bt-legal-terms">I agree to the synthetic Bayt Terms of Use and Privacy Policy</label>
+    </div>
+  </section>
+
+  <section aria-label="Bayt Search Filters">
+    <form role="search" id="bt-search-form" aria-label="Search MENA Jobs">
+      <div class="field">
+        <label for="bt-keyword">Job Title or Skills</label>
+        <input id="bt-keyword" name="q" type="text" placeholder="Full-Stack Engineer" value="Full-Stack Engineer">
+      </div>
+      <div class="field">
+        <label for="bt-country">Country</label>
+        <select id="bt-country" name="country">
+          <option value="EG" selected>Egypt (Cairo / Remote)</option>
+          <option value="AE">United Arab Emirates</option>
+          <option value="SA">Saudi Arabia</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="bt-seniority">Career Level</label>
+        <select id="bt-seniority" name="career_level">
+          <option value="mid_senior" selected>Mid-Career / Senior</option>
+          <option value="lead">Management / Lead</option>
+        </select>
+      </div>
+      <button type="submit">Search Jobs</button>
+    </form>
+  </section>
+
+  <section aria-label="Bayt Job Search Results" id="bt-results-list" data-active-page="1">
+    <h2>Search Results</h2>
+    <div id="bt-page-status" role="status" aria-live="polite">Showing Page 1 of 2 (2 synthetic listings)</div>
+
+    <article class="job-card" data-posting-id="bayt:bt-55102" data-employer-type="direct" data-employer-name="NileCloud Systems">
+      <h3><a href="#bt-jd-55102">Senior Full-Stack Engineer — مهندس برمجيات أول</a></h3>
+      <p><strong>Employer:</strong> NileCloud Systems <span class="badge" data-attribution-badge="direct">Direct Employer</span></p>
+      <p><strong>Location:</strong> Cairo, Egypt (Hybrid) | <strong>Posted:</strong> 2026-11-20</p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="bt-jd-55102">Expand Job Description</button>
+      <div id="bt-jd-55102" role="region" aria-label="Full Job Description — bayt:bt-55102" hidden>
+        <p>English Summary: Build production web applications with TypeScript, React, Node.js, and PostgreSQL.</p>
+        <div class="rtl-block" lang="ar" dir="rtl" data-bilingual-rtl="true">
+          <p>المتطلبات الأساسية: خبرة عملية في تطوير تطبيقات الويب باستخدام TypeScript و Node.js و React و PostgreSQL مع اختبارات Playwright.</p>
+        </div>
+        <a href="#bayt-screening-form" data-apply-type="on-board">Apply Now</a>
+      </div>
+    </article>
+
+    <article class="job-card" data-posting-id="bayt:bt-55190" data-employer-type="agency" data-employer-name="Confidential Employer (Staffing Agency)">
+      <h3><a href="#bt-jd-55190">Lead Backend Engineer (Payments)</a></h3>
+      <p><strong>Employer:</strong> Confidential Employer (Staffing Agency) <span class="badge" data-attribution-badge="agency">Recruitment Agency</span></p>
+      <p><strong>Location:</strong> Dubai, UAE (Onsite) | <strong>Posted:</strong> 2026-11-18</p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="bt-jd-55190">Expand Job Description</button>
+      <div id="bt-jd-55190" role="region" aria-label="Full Job Description — bayt:bt-55190" hidden>
+        <p>Confidential staffing agency listing redirecting applicants to the hiring employer ATS portal.</p>
+        <a href="#external-ats-handoff" data-apply-type="external-ats" data-external-ats-host="boards.greenhouse.example" data-external-ats-engine="greenhouse">Apply on Company Site</a>
+      </div>
+    </article>
+
+    <nav aria-label="Search Results Pagination" id="bt-pagination">
+      <button type="button" data-page-nav="prev" disabled>Previous</button>
+      <a href="#page-1" data-page-number="1" aria-current="page">1</a>
+      <a href="#page-2" data-page-number="2">2</a>
+      <button type="button" data-page-nav="next">Next</button>
+    </nav>
+  </section>
+
+  <form id="bayt-screening-form" aria-label="Bayt Screening Questionnaire" data-manual-handoff="true" action="#local-only">
+    <h2>Bayt Application &amp; Screening Questionnaire (bayt:bt-55102)</h2>
+
+    <div id="bt-cv-overwrite-warning" class="warning" role="note" data-profile-overwrite-warning="true">
+      <strong>Shared Profile CV Warning:</strong> Replacing your CV here updates your default Bayt profile CV. Stop and log <code>needs_review</code> instead of silently overwriting shared profile data.
+    </div>
+
+    <div class="field">
+      <label for="bt-resume">Attach Tailored CV (PDF)</label>
+      <input id="bt-resume" name="resume" type="file" accept=".pdf,.doc,.docx" required>
+      <span id="bt-upload-status" role="status" aria-live="polite">No file attached</span>
+    </div>
+
+    <div class="field">
+      <label for="bt-nationality">Nationality</label>
+      <select id="bt-nationality" name="nationality" required>
+        <option value="">Select nationality...</option>
+        <option value="Egyptian">Egyptian</option>
+        <option value="Emirati">Emirati</option>
+        <option value="Saudi">Saudi</option>
+        <option value="Lebanese">Lebanese</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bt-residence">Current Country of Residence</label>
+      <select id="bt-residence" name="residence_country" required>
+        <option value="">Select current residence...</option>
+        <option value="Egypt">Egypt</option>
+        <option value="UAE">United Arab Emirates</option>
+        <option value="Saudi Arabia">Saudi Arabia</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bt-visa-status">Visa &amp; Work Authorization Status</label>
+      <select id="bt-visa-status" name="visa_status" required>
+        <option value="">Select visa status...</option>
+        <option value="citizen">Local Citizen</option>
+        <option value="transferable_iqama">Transferable Residence / Iqama</option>
+        <option value="needs_visa">Requires New Work Visa</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bt-sponsorship">Require Visa Sponsorship?</label>
+      <select id="bt-sponsorship" name="requires_sponsorship" required>
+        <option value="">Select sponsorship need...</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bt-notice-period">Notice Period</label>
+      <select id="bt-notice-period" name="notice_period" required>
+        <option value="">Select notice period...</option>
+        <option value="immediate">Immediate</option>
+        <option value="1_month">1 Month</option>
+        <option value="2_months">2 Months</option>
+        <option value="3_months">3 Months</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bt-salary-amount">Expected Salary Amount</label>
+      <input id="bt-salary-amount" name="expected_salary_amount" type="number" min="0" placeholder="Enter verified amount">
+    </div>
+
+    <div class="field">
+      <label for="bt-salary-currency">Salary Currency</label>
+      <select id="bt-salary-currency" name="salary_currency" required>
+        <option value="">Select currency...</option>
+        <option value="EGP">EGP (Egyptian Pound)</option>
+        <option value="AED">AED (UAE Dirham)</option>
+        <option value="SAR">SAR (Saudi Riyal)</option>
+        <option value="USD">USD (US Dollar)</option>
+      </select>
+    </div>
+
+    <fieldset id="bt-salary-period-group" data-salary-period-control="true">
+      <legend>Salary Pay Period (Do Not Silently Annualize)</legend>
+      <label><input type="radio" name="salary_period" value="monthly" checked> Monthly</label>
+      <label><input type="radio" name="salary_period" value="annual"> Annual</label>
+    </fieldset>
+
+    <div class="field rtl-block" lang="ar" dir="rtl" data-bilingual-question="true">
+      <label for="bt-bilingual-q">اذكر سنوات خبرتك الفعلية في TypeScript و PostgreSQL دون المبالغة:</label>
+      <input id="bt-bilingual-q" name="bilingual_experience_answer" type="text" placeholder="أدخل سنوات الخبرة المؤكدة فقط">
+    </div>
+
+    <div aria-hidden="true" style="display:none">
+      <label for="bt-honeypot">Leave this field blank</label>
+      <input id="bt-honeypot" name="website_url_honeypot" type="text" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div class="warning" data-manual-handoff-notice="true">
+      Manual Handoff Required: Bayt is unverified (`max_per_platform: 0`). Any one-click or final submit requires manual review and explicit owner action.
+    </div>
+
+    <button type="submit" aria-disabled="true" data-requires-manual-handoff="true" data-one-click-guarded="true">Easy Apply / Submit (Manual Handoff Required)</button>
+  </form>
+
+  <script>
+    (function () {
+      const gateBtn = document.getElementById('bt-toggle-gate');
+      const gateSection = document.getElementById('bayt-account-gate');
+      gateBtn.addEventListener('click', function () {
+        const opening = gateSection.hasAttribute('hidden');
+        if (opening) gateSection.removeAttribute('hidden');
+        else gateSection.setAttribute('hidden', '');
+        gateBtn.setAttribute('aria-expanded', String(opening));
+      });
+
+      document.querySelectorAll('.expand-card').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const target = document.getElementById(btn.getAttribute('aria-controls'));
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          if (expanded) target.setAttribute('hidden', '');
+          else target.removeAttribute('hidden');
+        });
+      });
+
+      const results = document.getElementById('bt-results-list');
+      const pageStatus = document.getElementById('bt-page-status');
+      const pagination = document.getElementById('bt-pagination');
+      function setPage(nextPage) {
+        const page = Math.max(1, Math.min(2, nextPage));
+        results.setAttribute('data-active-page', String(page));
+        pagination.querySelectorAll('a[data-page-number]').forEach(function (link) {
+          if (Number(link.getAttribute('data-page-number')) === page) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        pagination.querySelector('[data-page-nav="prev"]').disabled = page === 1;
+        pagination.querySelector('[data-page-nav="next"]').disabled = page === 2;
+        pageStatus.textContent = 'Showing Page ' + page + ' of 2 (2 synthetic listings)';
+      }
+      pagination.addEventListener('click', function (event) {
+        event.preventDefault();
+        const cur = Number(results.getAttribute('data-active-page') || '1');
+        if (event.target.matches('[data-page-nav="next"]')) setPage(cur + 1);
+        else if (event.target.matches('[data-page-nav="prev"]')) setPage(cur - 1);
+        else if (event.target.matches('a[data-page-number]')) setPage(Number(event.target.getAttribute('data-page-number')));
+      });
+
+      document.getElementById('bt-search-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+      document.getElementById('bayt-screening-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>
