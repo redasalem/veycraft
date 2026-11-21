@@ -22,6 +22,8 @@ max_per_platform:
   # Unverified MENA boards default to 0 (manual_apply + needs_review until live-verified)
   bayt: 0
   gulftalent: 0
+  # Unverified DACH board defaults to 0 (manual_apply + needs_review until live-verified)
+  stepstone: 0
   greenhouse: 3
   lever: 3
   workday: 0
