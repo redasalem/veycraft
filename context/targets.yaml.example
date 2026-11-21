@@ -195,8 +195,23 @@ targets:
     search_url_template: "https://www.bayt.com/en/international/jobs/{{ROLE_SLUG}}-jobs/"
     query_parameters: {}
     playbook: "skills/platforms/mena-boards.md"
-    automation_mode: "full_form_or_manual_fallback"
-    filter_notes: "International category entry point; verify role slug and set a confirmed country using accessible controls."
+    automation_mode: "manual_apply_or_ats_redirect"
+    filter_notes: "International category entry point; verify role slug and set a confirmed country using accessible controls. Offline/synthetic-verified only (max_per_platform: 0 until live-verified)."
+    live_verified: false
+  - name: "GulfTalent — configure before enabling"
+    platform: "gulftalent"
+    enabled: false
+    url: "https://www.gulftalent.com/jobs/search?pos_ref=Frontend%20Engineer"
+    auth_check_url: "https://www.gulftalent.com/account/"
+    auth_required: true
+    max_results: 15
+    category: "MENA"
+    search_url_template: "https://www.gulftalent.com/jobs/search?pos_ref={{ROLE_ENCODED}}"
+    query_parameters:
+      "pos_ref": "{{ROLE_ENCODED}}"
+    playbook: "skills/platforms/mena-boards.md"
+    automation_mode: "manual_apply_or_ats_redirect"
+    filter_notes: "GCC/MENA keyword search; verify country/city, agency vs. direct employer attribution, and external ATS redirects in fresh browser_snapshot. Offline/synthetic-verified only (max_per_platform: 0 until live-verified)."
     live_verified: false
   - name: "Greenhouse — Google discovery only"
     platform: "greenhouse"

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GulfTalent Synthetic Offline Fixture — MENA / GCC Board Regression</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 24px auto; padding: 0 16px; color: #111827; }
+    header, section, form, nav { border: 1px solid #d1d5db; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #eef2ff; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    .field { margin-bottom: 10px; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body data-platform="gulftalent" data-synthetic-host="www.gulftalent.example" data-auth-check-url="https://www.gulftalent.example/account/">
+  <header aria-label="Candidate Account Navigation" data-auth-state="signed-in">
+    <h1>GulfTalent — Synthetic GCC Job Board Fixture</h1>
+    <p>Offline regression fixture only (synthetic host: <code>www.gulftalent.example</code>). Zero live network requests.</p>
+    <nav aria-label="Account Menu">
+      <a href="#account-dashboard" data-signed-in-indicator="true">My Account (Alex Rivera)</a>
+      <button type="button" id="gt-toggle-gate" aria-expanded="false" aria-controls="gulftalent-account-gate">Simulate Sign-In Wall</button>
+    </nav>
+  </header>
+
+  <section id="gulftalent-account-gate" aria-label="Account Sign-In Gate" data-auth-gate="sign-in-required" hidden>
+    <h2>Sign In or Create Account Required</h2>
+    <p>Your candidate session expired. Manual sign-in is required; automated account creation or terms acceptance is prohibited.</p>
+    <button type="button" data-account-action="sign-in">Sign In</button>
+    <button type="button" data-account-action="create-account">Create Account</button>
+    <div class="field">
+      <input type="checkbox" id="gt-legal-terms" name="account_legal_terms" data-legal-terms="true">
+      <label for="gt-legal-terms">I agree to the synthetic GulfTalent Terms of Service and Candidate Privacy Policy</label>
+    </div>
+  </section>
+
+  <section aria-label="Job Search Filters">
+    <form role="search" id="gt-search-form" aria-label="Search GCC Jobs">
+      <div class="field">
+        <label for="gt-keyword">Job Title or Keywords</label>
+        <input id="gt-keyword" name="q" type="text" placeholder="Senior Full-Stack Engineer" value="Senior Full-Stack Engineer">
+      </div>
+      <div class="field">
+        <label for="gt-country">Country / GCC Location</label>
+        <select id="gt-country" name="country">
+          <option value="UAE" selected>United Arab Emirates (Dubai / Abu Dhabi)</option>
+          <option value="SA">Saudi Arabia (Riyadh / Jeddah)</option>
+          <option value="QA">Qatar (Doha)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="gt-recency">Date Posted</label>
+        <select id="gt-recency" name="posted">
+          <option value="7d" selected>Past 7 days</option>
+          <option value="24h">Past 24 hours</option>
+          <option value="30d">Past 30 days</option>
+        </select>
+      </div>
+      <button type="submit">Apply Filters</button>
+    </form>
+  </section>
+
+  <section aria-label="GulfTalent Job Search Results" id="gt-results-list" data-active-page="1">
+    <h2>Search Results</h2>
+    <div id="gt-page-status" role="status" aria-live="polite">Showing Page 1 of 2 (2 synthetic listings)</div>
+
+    <article class="job-card" data-posting-id="gulftalent:gt-90412" data-employer-type="direct" data-employer-name="Oasis FinTech Holdings">
+      <h3><a href="#gt-jd-90412">Senior Backend Engineer (Node.js / TypeScript)</a></h3>
+      <p><strong>Employer:</strong> Oasis FinTech Holdings <span class="badge" data-attribution-badge="direct">Direct Employer</span></p>
+      <p><strong>Location:</strong> Dubai, UAE (Hybrid) | <strong>Posted:</strong> 2026-11-20</p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="gt-jd-90412">Expand Job Description</button>
+      <div id="gt-jd-90412" role="region" aria-label="Full Job Description — gulftalent:gt-90412" hidden>
+        <p>Build high-throughput TypeScript, Node.js, and PostgreSQL settlement APIs for regional payment rails. Requires UAE work eligibility or verified visa transferability.</p>
+        <a href="#gulftalent-screening-form" data-apply-type="on-board">Apply on GulfTalent</a>
+      </div>
+    </article>
+
+    <article class="job-card" data-posting-id="gulftalent:gt-90488" data-employer-type="agency" data-employer-name="Confidential Recruitment Agency">
+      <h3><a href="#gt-jd-90488">Staff Platform Engineer (Cloud &amp; Data)</a></h3>
+      <p><strong>Employer:</strong> Confidential Recruitment Agency <span class="badge" data-attribution-badge="agency">Recruitment Agency</span></p>
+      <p><strong>Location:</strong> Riyadh, Saudi Arabia (Onsite) | <strong>Posted:</strong> 2026-11-19</p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="gt-jd-90488">Expand Job Description</button>
+      <div id="gt-jd-90488" role="region" aria-label="Full Job Description — gulftalent:gt-90488" hidden>
+        <p>Confidential GCC enterprise hiring through an external agency. Application redirects to the employer ATS portal.</p>
+        <a href="#external-ats-handoff" data-apply-type="external-ats" data-external-ats-host="cloudpay.myworkdayjobs.example" data-external-ats-engine="workday">Apply on Company Site</a>
+      </div>
+    </article>
+
+    <nav aria-label="Search Results Pagination" id="gt-pagination">
+      <button type="button" data-page-nav="prev" disabled>Previous</button>
+      <a href="#page-1" data-page-number="1" aria-current="page">1</a>
+      <a href="#page-2" data-page-number="2">2</a>
+      <button type="button" data-page-nav="next">Next</button>
+    </nav>
+  </section>
+
+  <form id="gulftalent-screening-form" aria-label="GulfTalent Pre-Handoff Screening Form" data-manual-handoff="true" action="#local-only">
+    <h2>Pre-Handoff Screening Form (gulftalent:gt-90412)</h2>
+
+    <div id="gt-cv-overwrite-warning" class="warning" role="note" data-profile-overwrite-warning="true">
+      <strong>Profile CV Warning:</strong> Uploading a new CV here may replace your shared GulfTalent profile CV. Pause as <code>needs_review</code> if shared-profile overwrite is forced.
+    </div>
+
+    <div class="field">
+      <label for="gt-resume">Upload Tailored CV (PDF)</label>
+      <input id="gt-resume" name="resume" type="file" accept=".pdf,.doc,.docx" required>
+      <span id="gt-upload-status" role="status" aria-live="polite">No file attached</span>
+    </div>
+
+    <div class="field">
+      <label for="gt-nationality">Nationality / Citizenship</label>
+      <select id="gt-nationality" name="nationality" required>
+        <option value="">Select nationality...</option>
+        <option value="Egyptian">Egyptian</option>
+        <option value="Emirati">Emirati</option>
+        <option value="Saudi">Saudi</option>
+        <option value="Jordanian">Jordanian</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="gt-residence">Current Country of Residence</label>
+      <select id="gt-residence" name="residence_country" required>
+        <option value="">Select current residence...</option>
+        <option value="Egypt">Egypt</option>
+        <option value="UAE">United Arab Emirates</option>
+        <option value="Saudi Arabia">Saudi Arabia</option>
+        <option value="Qatar">Qatar</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="gt-visa-status">GCC / Work Visa Status</label>
+      <select id="gt-visa-status" name="visa_status" required>
+        <option value="">Select visa status...</option>
+        <option value="citizen">GCC Citizen</option>
+        <option value="transferable_residence">Transferable Residence Visa</option>
+        <option value="visit_visa">Visit Visa</option>
+        <option value="no_gcc_visa">No Current GCC Visa</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="gt-sponsorship">Require Employer Visa Sponsorship?</label>
+      <select id="gt-sponsorship" name="requires_sponsorship" required>
+        <option value="">Select sponsorship need...</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="gt-notice-period">Notice Period</label>
+      <select id="gt-notice-period" name="notice_period" required>
+        <option value="">Select notice period...</option>
+        <option value="immediate">Immediate</option>
+        <option value="1_month">1 Month</option>
+        <option value="2_months">2 Months</option>
+        <option value="3_months">3 Months</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="gt-salary-amount">Expected Salary Amount</label>
+      <input id="gt-salary-amount" name="expected_salary_amount" type="number" min="0" placeholder="Enter verified amount">
+    </div>
+
+    <div class="field">
+      <label for="gt-salary-currency">Salary Currency</label>
+      <select id="gt-salary-currency" name="salary_currency" required>
+        <option value="">Select currency...</option>
+        <option value="AED">AED (UAE Dirham)</option>
+        <option value="SAR">SAR (Saudi Riyal)</option>
+        <option value="QAR">QAR (Qatari Riyal)</option>
+        <option value="USD">USD (US Dollar)</option>
+      </select>
+    </div>
+
+    <fieldset id="gt-salary-period-group" data-salary-period-control="true">
+      <legend>Salary Pay Period (Do Not Silently Convert)</legend>
+      <label><input type="radio" name="salary_period" value="monthly" checked> Monthly</label>
+      <label><input type="radio" name="salary_period" value="annual"> Annual</label>
+    </fieldset>
+
+    <div aria-hidden="true" style="display:none">
+      <label for="gt-honeypot">Leave this field blank</label>
+      <input id="gt-honeypot" name="website_url_honeypot" type="text" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div class="warning" data-manual-handoff-notice="true">
+      Manual Handoff Required: GulfTalent is unverified (`max_per_platform: 0`). Review Live DOM Read-Back Table and submit manually.
+    </div>
+
+    <button type="submit" aria-disabled="true" data-requires-manual-handoff="true">Submit Application (Manual Handoff Required)</button>
+  </form>
+
+  <script>
+    (function () {
+      const gateBtn = document.getElementById('gt-toggle-gate');
+      const gateSection = document.getElementById('gulftalent-account-gate');
+      gateBtn.addEventListener('click', function () {
+        const opening = gateSection.hasAttribute('hidden');
+        if (opening) gateSection.removeAttribute('hidden');
+        else gateSection.setAttribute('hidden', '');
+        gateBtn.setAttribute('aria-expanded', String(opening));
+      });
+
+      document.querySelectorAll('.expand-card').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const target = document.getElementById(btn.getAttribute('aria-controls'));
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          if (expanded) target.setAttribute('hidden', '');
+          else target.removeAttribute('hidden');
+        });
+      });
+
+      const results = document.getElementById('gt-results-list');
+      const pageStatus = document.getElementById('gt-page-status');
+      const pagination = document.getElementById('gt-pagination');
+      function setPage(nextPage) {
+        const page = Math.max(1, Math.min(2, nextPage));
+        results.setAttribute('data-active-page', String(page));
+        pagination.querySelectorAll('a[data-page-number]').forEach(function (link) {
+          if (Number(link.getAttribute('data-page-number')) === page) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        pagination.querySelector('[data-page-nav="prev"]').disabled = page === 1;
+        pagination.querySelector('[data-page-nav="next"]').disabled = page === 2;
+        pageStatus.textContent = 'Showing Page ' + page + ' of 2 (2 synthetic listings)';
+      }
+      pagination.addEventListener('click', function (event) {
+        event.preventDefault();
+        const cur = Number(results.getAttribute('data-active-page') || '1');
+        if (event.target.matches('[data-page-nav="next"]')) setPage(cur + 1);
+        else if (event.target.matches('[data-page-nav="prev"]')) setPage(cur - 1);
+        else if (event.target.matches('a[data-page-number]')) setPage(Number(event.target.getAttribute('data-page-number')));
+      });
+
+      document.getElementById('gt-search-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+      document.getElementById('gulftalent-screening-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>

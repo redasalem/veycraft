@@ -19,7 +19,9 @@ max_per_platform:
   remoteok: 3
   builtin: 3
   welcometothejungle: 3
-  bayt: 3
+  # Unverified MENA boards default to 0 (manual_apply + needs_review until live-verified)
+  bayt: 0
+  gulftalent: 0
   greenhouse: 3
   lever: 3
   workday: 0

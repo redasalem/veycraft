@@ -8,7 +8,7 @@ Consolidated platform playbooks live under `skills/platforms/` (`last_verified: 
 - **Wellfound / AngelList (`wellfound`)**: [`skills/platforms/wellfound.md`](../skills/platforms/wellfound.md)
 - **Global Aggregators (`indeed`, `glassdoor`, `dice`, `ziprecruiter`)**: [`skills/platforms/global-boards.md`](../skills/platforms/global-boards.md)
 - **Remote-First Boards (`weworkremotely`, `remoteok`, `welcometothejungle`, `builtin`, `dailyremote`)**: [`skills/platforms/remote-boards.md`](../skills/platforms/remote-boards.md)
-- **MENA Regional Boards (`wuzzuf`, `bayt`)**: [`skills/platforms/mena-boards.md`](../skills/platforms/mena-boards.md)
+- **MENA Regional Boards (`wuzzuf`, `bayt`, `gulftalent`)**: [`skills/platforms/mena-boards.md`](../skills/platforms/mena-boards.md)
 - **B2B & Remote Contract Networks (`toptal`, `braintrust`, `lemon`, `gunio`, `contra`, `arc`, `turing`)**: [`skills/platforms/b2b-contract-networks.md`](../skills/platforms/b2b-contract-networks.md)
 - **Unified Employer ATS Dispatcher**: [`skills/platforms/ats-engines.md`](../skills/platforms/ats-engines.md)
 
