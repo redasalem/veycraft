@@ -72,7 +72,7 @@ Route everyday user requests to the **smallest skill group** below without requi
 |---|---|---|---|
 | Board | `linkedin` | `target.platform == linkedin`, LinkedIn Jobs & Easy Apply | `skills/platforms/linkedin.md` |
 | Board | `wellfound` | `target.platform == wellfound`, Wellfound startups & founder notes | `skills/platforms/wellfound.md` |
-| Family | `global-boards` | `indeed`, `glassdoor`, `dice`, `ziprecruiter` | `skills/platforms/global-boards.md` |
+| Family | `global-boards` | `indeed`, `glassdoor`, `dice`, `ziprecruiter`, `stepstone` (DACH: `.de`/`.at`/`.ch`) | `skills/platforms/global-boards.md` |
 | Family | `remote-boards` | `weworkremotely`, `remoteok`, `welcometothejungle`, `builtin`, `dailyremote` | `skills/platforms/remote-boards.md` |
 | Family | `mena-boards` | `wuzzuf`, `bayt`, `gulftalent`, MENA/GCC authorization, bilingual & currency checks | `skills/platforms/mena-boards.md` |
 | Family | `b2b-contract-networks` | `toptal`, `braintrust`, `lemon`, `gunio`, `contra`, `arc`, `turing` | `skills/platforms/b2b-contract-networks.md` |

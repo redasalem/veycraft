@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>StepStone DACH Synthetic Offline Fixture — Regional Board Regression</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 840px; margin: 24px auto; padding: 0 16px; color: #111827; }
+    header, section, form, nav { border: 1px solid #d1d5db; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #eef2ff; }
+    .warning { background: #fef3c7; border: 1px solid #f59e0b; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    .field { margin-bottom: 10px; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    .checkbox-row label { display: inline; font-weight: 400; margin-left: 6px; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body data-platform="stepstone" data-synthetic-host="www.stepstone.example" data-dach-domains=".de,.at,.ch" data-auth-check-url="https://www.stepstone.example/my-account/">
+  <header aria-label="Konto Navigation" data-auth-state="signed-in">
+    <h1>StepStone DACH — Synthetic Offline Fixture (.de / .at / .ch)</h1>
+    <p>Offline regression fixture only (synthetic host: <code>www.stepstone.example</code>). Not proof of live StepStone compatibility. Zero live network requests.</p>
+    <nav aria-label="Account Menu">
+      <a href="#mein-konto" data-signed-in-indicator="true">Mein Konto (Alex Rivera)</a>
+      <button type="button" id="st-toggle-gate" aria-expanded="false" aria-controls="stepstone-account-gate">Simulate Sign-In Wall</button>
+    </nav>
+  </header>
+
+  <section id="stepstone-account-gate" aria-label="Anmeldung erforderlich" data-auth-gate="sign-in-required" hidden>
+    <h2>Anmelden oder Konto erstellen</h2>
+    <p>Session expired. Manual login required; automated account creation or legal terms acceptance is prohibited.</p>
+    <button type="button" data-account-action="sign-in">Anmelden</button>
+    <button type="button" data-account-action="create-account">Konto erstellen</button>
+    <div class="field checkbox-row">
+      <input type="checkbox" id="st-legal-terms" name="account_legal_terms" data-legal-terms="true">
+      <label for="st-legal-terms">Ich akzeptiere die synthetischen Nutzungsbedingungen (Terms of Service)</label>
+    </div>
+  </section>
+
+  <section aria-label="DACH Jobsuche Filter">
+    <form role="search" id="st-search-form" aria-label="StepStone DACH Jobsuche">
+      <div class="field">
+        <label for="st-keyword">Jobtitel oder Stichwort</label>
+        <input id="st-keyword" name="q" type="text" placeholder="Senior Full-Stack Engineer" value="Senior Full-Stack Engineer">
+      </div>
+      <div class="field">
+        <label for="st-country">DACH Land / Domain</label>
+        <select id="st-country" name="dach_country">
+          <option value="de" selected>Deutschland (.de — EUR)</option>
+          <option value="at">Österreich (.at — EUR)</option>
+          <option value="ch">Schweiz (.ch — CHF)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="st-workmode">Arbeitsmodell</label>
+        <select id="st-workmode" name="work_mode">
+          <option value="hybrid" selected>Hybrid / Homeoffice möglich</option>
+          <option value="remote">100% Homeoffice</option>
+          <option value="onsite">Vor Ort</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="st-lang">Anzeigensprache</label>
+        <select id="st-lang" name="listing_language">
+          <option value="de_en" selected>Deutsch &amp; English</option>
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <button type="submit">Filter anwenden</button>
+    </form>
+  </section>
+
+  <section aria-label="StepStone Suchergebnisse" id="st-results-list" data-active-page="1">
+    <h2>Suchergebnisse</h2>
+    <div id="st-page-status" role="status" aria-live="polite">Seite 1 von 2 (2 synthetische Stellenanzeigen)</div>
+
+    <article class="job-card" data-posting-id="stepstone:de:st-81204" data-employer-type="direct" data-employer-name="RheinTech GmbH">
+      <h3><a href="#st-jd-81204">Senior Backend Engineer (m/w/d) — TypeScript &amp; Node.js</a></h3>
+      <p><strong>Arbeitgeber:</strong> RheinTech GmbH <span class="badge" data-attribution-badge="direct">Direct Employer</span></p>
+      <p><strong>Standort:</strong> Berlin, Deutschland (Hybrid) | <strong>Veröffentlicht:</strong> 2026-11-20</p>
+      <p><span class="badge" data-salary-attribution="platform-estimate">StepStone Gehaltsschätzung: 75.000–88.000 EUR/Jahr (nicht vom Arbeitgeber bestätigt)</span></p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="st-jd-81204">Stellenbeschreibung erweitern</button>
+      <div id="st-jd-81204" role="region" aria-label="Vollständige Stellenbeschreibung — stepstone:de:st-81204" lang="de" hidden>
+        <p>Ihre Aufgaben: Entwicklung skalierbarer Zahlungs-APIs mit TypeScript, Node.js, PostgreSQL und automatisierten CI/CD-Pipelines. Englisch als Teamsprache, Deutschkenntnisse von Vorteil.</p>
+        <a href="#stepstone-easy-apply-form" data-apply-type="on-board">Schnellbewerbung (Easy Apply)</a>
+      </div>
+    </article>
+
+    <article class="job-card" data-posting-id="stepstone:ch:st-81299" data-employer-type="agency" data-employer-name="AlpenRecruit Personalberatung AG">
+      <h3><a href="#st-jd-81299">Staff Platform Engineer (Cloud Infrastructure)</a></h3>
+      <p><strong>Arbeitgeber:</strong> AlpenRecruit Personalberatung AG <span class="badge" data-attribution-badge="agency">Personalberatung / Recruitment Agency</span></p>
+      <p><strong>Standort:</strong> Zürich, Schweiz (Hybrid) | <strong>Veröffentlicht:</strong> 2026-11-19</p>
+      <p><span class="badge" data-salary-attribution="employer-stated">Employer-Stated Range: 135,000–150,000 CHF/year</span></p>
+      <button type="button" class="expand-card" aria-expanded="false" aria-controls="st-jd-81299">Expand Job Description</button>
+      <div id="st-jd-81299" role="region" aria-label="Full Job Description — stepstone:ch:st-81299" lang="en" hidden>
+        <p>Confidential Swiss financial services client represented by a recruitment agency. Requires verified Swiss work permit (B/C) or EU/EFTA authorization. Application redirects to employer ATS.</p>
+        <a href="#external-ats-handoff" data-apply-type="external-ats" data-external-ats-host="careers.alpenbank.myworkdayjobs.example" data-external-ats-engine="workday">Auf Unternehmensseite bewerben (Apply on Company Site)</a>
+      </div>
+    </article>
+
+    <nav aria-label="Suchergebnisse Seitennavigation" id="st-pagination">
+      <button type="button" data-page-nav="prev" disabled>Zurück</button>
+      <a href="#page-1" data-page-number="1" aria-current="page">1</a>
+      <a href="#page-2" data-page-number="2">2</a>
+      <button type="button" data-page-nav="next">Weiter</button>
+    </nav>
+  </section>
+
+  <form id="stepstone-easy-apply-form" aria-label="StepStone Schnellbewerbung (Pre-Handoff)" data-manual-handoff="true" action="#local-only">
+    <h2>Schnellbewerbung — Pre-Handoff Form (stepstone:de:st-81204)</h2>
+
+    <div id="st-cv-overwrite-warning" class="warning" role="note" data-profile-overwrite-warning="true">
+      <strong>Profil-Lebenslauf Hinweis:</strong> Das Hochladen eines neuen Lebenslaufs kann Ihren gespeicherten StepStone-Profil-Lebenslauf überschreiben. Bei erzwungenem Überschreiben als <code>needs_review</code> pausieren.
+    </div>
+
+    <div class="field">
+      <label for="st-resume">Lebenslauf / CV hochladen (PDF, Pflichtfeld)</label>
+      <input id="st-resume" name="resume" type="file" accept=".pdf,.doc,.docx" required>
+      <span id="st-upload-status" role="status" aria-live="polite">Keine Datei angehängt</span>
+    </div>
+
+    <div class="field" data-anschreiben="optional">
+      <label for="st-anschreiben-file">Anschreiben / Cover Letter (Optional / Freiwillig)</label>
+      <input id="st-anschreiben-file" name="anschreiben_file" type="file" accept=".pdf,.doc,.docx">
+    </div>
+
+    <div class="field" data-anschreiben="optional">
+      <label for="st-anschreiben-text">Kurzes Anschreiben / Nachricht an das Recruiting-Team (Optional)</label>
+      <textarea id="st-anschreiben-text" name="anschreiben_text" rows="3" placeholder="Optionales, faktenbasiertes Anschreiben (Deutsch oder Englisch)"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="st-work-auth">Arbeitserlaubnis / DACH Work Authorization</label>
+      <select id="st-work-auth" name="dach_work_authorization" required>
+        <option value="">Bitte wählen...</option>
+        <option value="eu_eea">EU / EWR Staatsangehörigkeit oder gültige Arbeitserlaubnis (DE/AT)</option>
+        <option value="ch_permit">Schweizer Arbeitsbewilligung (B / C / Schweizer Bürger)</option>
+        <option value="needs_sponsorship">Benötigt Visum / EU Blue Card Sponsoring</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="st-salary-amount">Gehaltsvorstellung (Brutto)</label>
+      <input id="st-salary-amount" name="expected_salary_amount" type="number" min="0" placeholder="Bestätigten Betrag eingeben">
+    </div>
+
+    <div class="field">
+      <label for="st-salary-currency">Währung (EUR / CHF — nicht automatisch umrechnen)</label>
+      <select id="st-salary-currency" name="salary_currency" required>
+        <option value="">Währung wählen...</option>
+        <option value="EUR">EUR (Euro — DE / AT)</option>
+        <option value="CHF">CHF (Schweizer Franken — CH)</option>
+      </select>
+    </div>
+
+    <fieldset id="st-salary-period-group" data-salary-period-control="true">
+      <legend>Gehaltszeitraum (Do Not Silently Convert)</legend>
+      <label><input type="radio" name="salary_period" value="annual" checked> Jährlich (Annual)</label>
+      <label><input type="radio" name="salary_period" value="monthly"> Monatlich (Monthly)</label>
+    </fieldset>
+
+    <fieldset id="st-consent-group" aria-label="Datenschutz und Einwilligungen (DSGVO / GDPR)">
+      <legend>Datenschutz (DSGVO / GDPR) &amp; Optionale Einwilligungen</legend>
+      <div class="field checkbox-row">
+        <input id="st-gdpr-required" name="gdpr_privacy_consent" type="checkbox" data-consent-type="required-gdpr" required>
+        <label for="st-gdpr-required">Ich habe die Datenschutzerklärung zur Verarbeitung meiner Bewerbungsdaten gemäß DSGVO (GDPR) zur Kenntnis genommen (Pflichtfeld).</label>
+      </div>
+      <div class="field checkbox-row">
+        <input id="st-talent-pool" name="talent_pool_opt_in" type="checkbox" data-consent-type="optional-talent-pool">
+        <label for="st-talent-pool">Optional: Meine Daten für zukünftige Stellen im Talentpool speichern</label>
+      </div>
+      <div class="field checkbox-row">
+        <input id="st-marketing-alerts" name="marketing_job_alerts" type="checkbox" data-consent-type="optional-marketing">
+        <label for="st-marketing-alerts">Optional: Job-Alerts, Newsletter und Marketing-E-Mails abonnieren</label>
+      </div>
+      <div class="field checkbox-row">
+        <input id="st-profile-visibility" name="recruiter_profile_visibility" type="checkbox" data-consent-type="optional-visibility">
+        <label for="st-profile-visibility">Optional: Kandidatenprofil für Recruiter sichtbar schalten</label>
+      </div>
+    </fieldset>
+
+    <div aria-hidden="true" style="display:none">
+      <label for="st-honeypot">Leave this field blank</label>
+      <input id="st-honeypot" name="website_url_honeypot" type="text" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div class="warning" data-manual-handoff-notice="true">
+      Manual Handoff Required: StepStone is unverified (`max_per_platform: 0`). Review Live DOM Read-Back Table and submit manually.
+    </div>
+
+    <button type="submit" aria-disabled="true" data-requires-manual-handoff="true" data-one-click-guarded="true">Bewerbung absenden (Manual Handoff Required)</button>
+  </form>
+
+  <script>
+    (function () {
+      const gateBtn = document.getElementById('st-toggle-gate');
+      const gateSection = document.getElementById('stepstone-account-gate');
+      gateBtn.addEventListener('click', function () {
+        const opening = gateSection.hasAttribute('hidden');
+        if (opening) gateSection.removeAttribute('hidden');
+        else gateSection.setAttribute('hidden', '');
+        gateBtn.setAttribute('aria-expanded', String(opening));
+      });
+
+      document.querySelectorAll('.expand-card').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const target = document.getElementById(btn.getAttribute('aria-controls'));
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          if (expanded) target.setAttribute('hidden', '');
+          else target.removeAttribute('hidden');
+        });
+      });
+
+      const results = document.getElementById('st-results-list');
+      const pageStatus = document.getElementById('st-page-status');
+      const pagination = document.getElementById('st-pagination');
+      function setPage(nextPage) {
+        const page = Math.max(1, Math.min(2, nextPage));
+        results.setAttribute('data-active-page', String(page));
+        pagination.querySelectorAll('a[data-page-number]').forEach(function (link) {
+          if (Number(link.getAttribute('data-page-number')) === page) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        pagination.querySelector('[data-page-nav="prev"]').disabled = page === 1;
+        pagination.querySelector('[data-page-nav="next"]').disabled = page === 2;
+        pageStatus.textContent = 'Seite ' + page + ' von 2 (2 synthetische Stellenanzeigen)';
+      }
+      pagination.addEventListener('click', function (event) {
+        event.preventDefault();
+        const cur = Number(results.getAttribute('data-active-page') || '1');
+        if (event.target.matches('[data-page-nav="next"]')) setPage(cur + 1);
+        else if (event.target.matches('[data-page-nav="prev"]')) setPage(cur - 1);
+        else if (event.target.matches('a[data-page-number]')) setPage(Number(event.target.getAttribute('data-page-number')));
+      });
+
+      document.getElementById('st-search-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+      document.getElementById('stepstone-easy-apply-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -168,6 +168,20 @@ targets:
     automation_mode: "full_form_or_manual_fallback"
     filter_notes: "Past-day intent; location/work-mode still require confirmation in the current UI."
     live_verified: false
+  - name: "StepStone DACH (.de / .at / .ch) — configure before enabling"
+    platform: "stepstone"
+    enabled: false
+    url: "https://www.stepstone.de/jobs/frontend-engineer"
+    auth_check_url: "https://www.stepstone.de/my-account/"
+    auth_required: true
+    max_results: 15
+    category: "Europe (DACH)"
+    search_url_template: "https://www.stepstone.de/jobs/{{ROLE_SLUG}}"
+    query_parameters: {}
+    playbook: "skills/platforms/global-boards.md"
+    automation_mode: "manual_apply_or_ats_redirect"
+    filter_notes: "DACH entry point (.de default EUR; replace host with .at EUR or .ch CHF as confirmed). Separate required GDPR consent from optional Talentpool/marketing opt-ins and optional Anschreiben. Offline/synthetic-verified only (max_per_platform: 0 until live-verified)."
+    live_verified: false
   - name: "Wuzzuf — configure before enabling"
     platform: "wuzzuf"
     enabled: false

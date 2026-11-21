@@ -59,7 +59,7 @@ All platform playbooks carry `last_verified: "2026-11-18"` in YAML frontmatter (
 |---|---|---|
 | **LinkedIn Jobs** | `https://www.linkedin.com/jobs/search/?keywords={{ROLE_ENCODED}}&f_WT=2&f_TPR=r86400` | [`skills/platforms/linkedin.md`](../skills/platforms/linkedin.md) |
 | **Wellfound (AngelList)** | `https://wellfound.com/role/r/{{ROLE_SLUG}}` | [`skills/platforms/wellfound.md`](../skills/platforms/wellfound.md) |
-| **Indeed / Glassdoor / Dice / ZipRecruiter** | Global search templates in [`context/targets.yaml.example`](../context/targets.yaml.example) | [`skills/platforms/global-boards.md`](../skills/platforms/global-boards.md) |
+| **Indeed / Glassdoor / Dice / ZipRecruiter / StepStone (DACH)** | Global & DACH search templates in [`context/targets.yaml.example`](../context/targets.yaml.example) | [`skills/platforms/global-boards.md`](../skills/platforms/global-boards.md) |
 | **WeWorkRemotely / RemoteOK / Welcome to the Jungle / BuiltIn** | Remote search templates in [`context/targets.yaml.example`](../context/targets.yaml.example) | [`skills/platforms/remote-boards.md`](../skills/platforms/remote-boards.md) |
 | **Wuzzuf / Bayt / GulfTalent (MENA / GCC)** | Search templates in [`context/targets.yaml.example`](../context/targets.yaml.example) | [`skills/platforms/mena-boards.md`](../skills/platforms/mena-boards.md) |
 | **Toptal / Braintrust / Lemon.io / Gun.io / Contra / Arc.dev / Turing** | Curated B2B contract portals + rate-card floor checks | [`skills/platforms/b2b-contract-networks.md`](../skills/platforms/b2b-contract-networks.md) |
