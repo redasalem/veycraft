@@ -40,3 +40,9 @@ This directory contains the deterministic evaluation suite that checks whether a
 | `EVAL-18` | `04-fill-and-apply` | ATS Form Payload | EEO set to `"Decline to self-identify"`, `gdpr_consent: true`, `marketing_opt_in: false` |
 | `EVAL-19` | `04-fill-and-apply` | ATS Form Payload | Final DOM Read-Back Table verified (`+1` country code, `resume.pdf`, salary `$155,000`) & paused for `APPROVE` |
 | `EVAL-20` | `24-circuit-breaker-and-antiban` | Circuit Breaker State | 24-hour platform cooldown schema validated (`status: "tripped"`, `cooldown_until == tripped_at + 24h`) |
+
+## Extended ATS Regression Suites (`eval --journeys` / `npm test`)
+
+To keep the `EVAL-01..20` JSON schema 100% backwards-compatible with external model outputs (`eval --file`), extended multi-step ATS regression suites run via `node ./bin/cli.mjs eval --journeys`:
+
+- **Workday Wizard & ARIA Portal Regression ([`evals/workday-fixture.test.mjs`](workday-fixture.test.mjs)):** Verifies [`evals/fixtures/forms/workday-mock.html`](fixtures/forms/workday-mock.html) (4-step wizard `My Information` → `My Experience` → `Voluntary Disclosures` → `Review`, React-Select-style `role="combobox"` + detached portal `role="listbox"` outside `</form>`, `role="alert"` step validation, required/optional inputs, CV upload, hidden `website_url_honeypot`, account-gate & manual-handoff markers, zero external network assets), enforces `manual_apply` + `needs_review` policy invariants in `skills/ats/workday.md` and `skills/platforms/ats-engines.md`, and confirms dynamic `proof` discovery.

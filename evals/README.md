@@ -16,7 +16,8 @@
   3. [`03-ghost-expired-job.md`](fixtures/jds/03-ghost-expired-job.md) (`>90` days old + closed banner)
   4. [`04-blacklist-duplicate.md`](fixtures/jds/04-blacklist-duplicate.md) (blacklisted company/domain + cross-board duplicate fingerprint)
   5. [`05-stretch-mismatch.md`](fixtures/jds/05-stretch-mismatch.md) (Tier C stack & onsite authorization mismatch)
-- [`fixtures/forms/`](fixtures/forms/greenhouse-mock.html) — Self-contained local HTML ATS form mocks (`greenhouse-mock.html`, `lever-mock.html`, `ashby-mock.html`) with file inputs, EEO dropdowns, GDPR checkboxes, and hidden honeypot inputs.
+- [`fixtures/forms/`](fixtures/forms/greenhouse-mock.html) — Self-contained local HTML ATS form mocks (`greenhouse-mock.html`, `lever-mock.html`, `ashby-mock.html`, `workday-mock.html`) covering file inputs, EEO dropdowns, GDPR checkboxes, hidden honeypots, and Workday multi-step wizard / React-Select ARIA `combobox` + detached portal `listbox` / account-gate manual-handoff regression checks.
+- [`workday-fixture.test.mjs`](workday-fixture.test.mjs) — Zero-dependency `node:test` regression suite (run automatically via `node ./bin/cli.mjs eval --journeys` / `npm test`) verifying `workday-mock.html`, detached portal listboxes, account-gate manual-handoff policy in `skills/ats/workday.md` & `skills/platforms/ats-engines.md`, and dynamic `proof` output while preserving `EVAL-01..20` compatibility.
 - [`results/baseline-verified-run.json`](results/baseline-verified-run.json) — Static CI reference payload verifying that the 20 grading checks catch regressions.
 - [`results/live-agent-eval-run.json`](results/live-agent-eval-run.json) — Live Gemini agent session output executing [`PROMPT.md`](PROMPT.md) against all fixtures (`20/20` PASS via `--file`).
 

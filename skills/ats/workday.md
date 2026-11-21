@@ -27,7 +27,13 @@ Use to hand Workday jobs to the owner.
 
 ## Deterministic Step-by-Step Execution
 
-Detect myworkdayjobs.com/myworkdaysite.com or taleo.net/oraclecloud.com respectively. Snapshot posting and preserve canonical ID. Set apply_type:manual_apply, status:needs_review, reason: complex/account-gated portal. Do not create accounts, accept new legal terms or click Submit automatically. CAPTCHA/2FA/login walls abort the whole run. Log locally and sync to Notion.
+Detect `myworkdayjobs.com` / `myworkdaysite.com` or `taleo.net` / `oraclecloud.com` respectively. Snapshot posting and preserve canonical ID. Always set `apply_type: manual_apply`, `status: needs_review`, reason: `complex/account-gated portal`. Do not create accounts, sign in automatically, accept new legal terms, or click Submit automatically. CAPTCHA/2FA/login walls abort the whole run. Log locally and sync to Notion.
+
+### Account-Gate Detection & Read-Only / Pre-Handoff Snapshot Rules
+The rules below apply strictly to **read-only inspection, pre-handoff verification, and offline synthetic regression testing** (`evals/fixtures/forms/workday-mock.html`) — they **never** override the mandatory `manual_apply` + `needs_review` handoff policy:
+1. **Account Gate First (Immediate Handoff):** If `browser_snapshot` shows a `Sign In` / `Create Account` gate or candidate account terms checkbox, stop automation immediately, log `apply_type: manual_apply` + `status: needs_review`, keep the tab open, and deliver the tailored resume path plus copy-paste answers to the owner.
+2. **ARIA Combobox & Detached Portal Listbox Verification (`skills/18-condition-based-browser-waiting.md`):** On React-Select / Workday custom dropdowns, verify `role="combobox"` carries `aria-expanded="true"` after activation and wait for the detached `role="listbox"` portal (mounted outside `<form>` at document root) and its `role="option"` entries to render in a fresh `browser_snapshot` before resolving any option ref.
+3. **Wizard Step Validation & Error Recovery:** Across multi-step Workday wizards (`My Information` -> `My Experience` -> `Voluntary Disclosures` -> `Review`), verify `aria-current="step"` advances cleanly and inspect any `role="alert"` step-validation error banner before retrying or escalating to `needs_review`. Never touch hidden honeypot inputs (`website_url_honeypot`).
 
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 

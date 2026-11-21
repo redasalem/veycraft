@@ -1826,8 +1826,9 @@ function cmdEval() {
     const { version } = readPackageMeta();
     console.log(paint('36', `\nVeycraft — Synthetic Task-Journey Test Matrix (v${version})`));
     const testFiles = [journeyTest];
-    const profileTest = path.join(evalRoot, 'profile-intelligence.test.mjs');
-    if (fs.existsSync(profileTest)) testFiles.push(profileTest);
+    for (const entry of fs.readdirSync(evalRoot).filter(f => f.endsWith('.test.mjs')).sort()) {
+      testFiles.push(path.join(evalRoot, entry));
+    }
     const res = spawnSync(process.execPath, ['--test', ...testFiles], {
       stdio: 'inherit',
       env: { ...process.env, JHO_CLI_PATH: fileURLToPath(import.meta.url) },
@@ -1900,6 +1901,7 @@ function cmdProof() {
     return base.charAt(0).toUpperCase() + base.slice(1);
   });
   const atsLabel = atsNames.length > 0 ? atsNames.join(' · ') : 'None found';
+  const atsLabelFontSize = atsLabel.length > 30 ? '8.6' : atsLabel.length > 22 ? '10' : '11';
   const liveEvalFile = path.join(evalRoot, 'results', 'live-agent-eval-run.json');
   const liveEvalSummary = fs.existsSync(liveEvalFile)
     ? (() => {
@@ -1944,7 +1946,7 @@ function cmdProof() {
     '    <rect x="626" y="128" width="182" height="118" rx="12" fill="#0f172a" stroke="#1e293b"/>',
     `    <text x="644" y="176" fill="#fbbf24" font-size="34" font-weight="800">${atsCount}</text>`,
     '    <text x="644" y="202" fill="#e2e8f0" font-size="13" font-weight="700">ATS HTML Fixtures</text>',
-    `    <text x="644" y="222" fill="#94a3b8" font-size="11">${escapeXml(atsLabel)}</text>`,
+    `    <text x="644" y="222" fill="#94a3b8" font-size="${atsLabelFontSize}">${escapeXml(atsLabel)}</text>`,
     '  </g>',
     '  <rect x="32" y="264" width="776" height="44" rx="10" fill="#064e3b" fill-opacity="0.35" stroke="#34d399" stroke-opacity="0.35"/>',
     '  <text x="48" y="291" fill="#a7f3d0" font-family="Consolas,ui-monospace,monospace" font-size="12.5">Explicit Job-Specific APPROVE Required · No Score-Based Auto-Submit · Local-First</text>',

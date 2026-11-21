@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Workday ATS Mock — CloudPay Ledger (Synthetic Offline Fixture)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 24px; color: #0f172a; }
+    .gate { border: 1px solid #b45309; background: #fffbeb; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+    .steps { display: flex; gap: 12px; list-style: none; padding: 0; margin: 0 0 16px; }
+    .steps li[aria-current="step"] { font-weight: 700; text-decoration: underline; }
+    .field { margin-bottom: 12px; }
+    .alert { border: 1px solid #dc2626; background: #fef2f2; color: #991b1b; padding: 8px 12px; margin-bottom: 12px; }
+    .portal-listbox { border: 1px solid #475569; background: #ffffff; list-style: none; padding: 4px; max-width: 320px; }
+    .portal-listbox li { padding: 4px 8px; cursor: pointer; }
+    .portal-listbox li[aria-selected="true"] { background: #e2e8f0; font-weight: 600; }
+    .handoff { border: 1px solid #0f766e; background: #f0fdfa; padding: 12px 16px; border-radius: 8px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <main data-ats-engine="workday" data-synthetic-host="cloudpay.myworkdayjobs.example">
+    <h1>CloudPay Ledger — Senior Full-Stack Engineer (Workday Synthetic Mock)</h1>
+
+    <!-- Synthetic Account Gate: MUST trigger immediate manual_apply + needs_review handoff -->
+    <section
+      id="workday-account-gate"
+      class="gate"
+      role="region"
+      aria-label="Candidate Account Gate"
+      data-workday-gate="account-required"
+      data-manual-handoff="true"
+    >
+      <h2>Sign In or Create Account Required</h2>
+      <p>Workday candidate portal requires an employer account and acceptance of candidate terms before submission. Automated agents must hand off to the owner (<code>manual_apply</code> + <code>needs_review</code>).</p>
+      <div class="field">
+        <button type="button" id="wd-create-account-btn" data-account-action="create-account">Create Account</button>
+        <button type="button" id="wd-sign-in-btn" data-account-action="sign-in">Sign In</button>
+      </div>
+      <label>
+        <input id="wd-account-terms" name="account_terms" type="checkbox" data-legal-terms="true" />
+        I accept the Workday Candidate Account Terms &amp; Conditions
+      </label>
+    </section>
+
+    <nav aria-label="Application Progress" data-wizard-progress="true">
+      <ol class="steps">
+        <li data-step-indicator="1" aria-current="step">1. My Information</li>
+        <li data-step-indicator="2">2. My Experience</li>
+        <li data-step-indicator="3">3. Voluntary Disclosures</li>
+        <li data-step-indicator="4">4. Review</li>
+      </ol>
+    </nav>
+
+    <div id="wd-step-alert" class="alert" role="alert" aria-live="polite" hidden></div>
+
+    <form id="workday-wizard-form" action="#manual-handoff-only" method="post" novalidate data-manual-handoff="true">
+      <!-- Step 1: My Information -->
+      <section id="step-1" data-wizard-step="1" aria-labelledby="step-1-heading">
+        <h2 id="step-1-heading">My Information</h2>
+
+        <div class="field">
+          <label for="wd-first-name">Legal First Name *</label>
+          <input id="wd-first-name" name="first_name" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="wd-last-name">Legal Last Name *</label>
+          <input id="wd-last-name" name="last_name" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="wd-email">Email Address *</label>
+          <input id="wd-email" name="email" type="email" required />
+        </div>
+
+        <div class="field">
+          <label for="wd-phone-country">Phone Device Country Code *</label>
+          <select id="wd-phone-country" name="phone_country" required>
+            <option value="+1">+1 (United States)</option>
+            <option value="+20">+20 (Egypt)</option>
+            <option value="+44">+44 (United Kingdom)</option>
+          </select>
+          <label for="wd-phone">Phone Number *</label>
+          <input id="wd-phone" name="phone" type="tel" required />
+        </div>
+
+        <!-- Custom React-Select-style ARIA combobox backed by a detached portal listbox outside <form> -->
+        <div class="field">
+          <label id="wd-country-label" for="wd-country-combobox">Country / Region *</label>
+          <button
+            id="wd-country-combobox"
+            type="button"
+            role="combobox"
+            aria-labelledby="wd-country-label"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls="wd-country-listbox"
+            aria-required="true"
+            data-selected-value=""
+          >Select One</button>
+          <input id="wd-country-value" name="country_region" type="hidden" required />
+        </div>
+
+        <div class="field">
+          <label for="wd-linkedin">LinkedIn Profile URL (Optional)</label>
+          <input id="wd-linkedin" name="linkedin_url" type="url" />
+        </div>
+
+        <!-- Anti-bot honeypot field: MUST remain blank -->
+        <div aria-hidden="true" style="display:none">
+          <label for="website_url_honeypot">Leave this field blank if you are human</label>
+          <input id="website_url_honeypot" name="website_url_honeypot" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <button type="button" data-wizard-next="2">Save and Continue</button>
+      </section>
+
+      <!-- Step 2: My Experience -->
+      <section id="step-2" data-wizard-step="2" aria-labelledby="step-2-heading" hidden>
+        <h2 id="step-2-heading">My Experience</h2>
+
+        <div class="field">
+          <label for="wd-resume">Upload Resume / CV *</label>
+          <input id="wd-resume" name="resume" type="file" accept=".pdf,.doc,.docx" required />
+          <span id="wd-upload-status" role="status" aria-live="polite">No file attached</span>
+        </div>
+
+        <div class="field">
+          <label for="wd-job-title">Most Recent Job Title *</label>
+          <input id="wd-job-title" name="recent_job_title" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="wd-company">Most Recent Company *</label>
+          <input id="wd-company" name="recent_company" type="text" required />
+        </div>
+
+        <!-- Second React-Select-style ARIA combobox backed by a detached portal listbox outside <form> -->
+        <div class="field">
+          <label id="wd-source-label" for="wd-source-combobox">How Did You Hear About Us? *</label>
+          <button
+            id="wd-source-combobox"
+            type="button"
+            role="combobox"
+            aria-labelledby="wd-source-label"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls="wd-source-listbox"
+            aria-required="true"
+            data-selected-value=""
+          >Select One</button>
+          <input id="wd-source-value" name="referral_source" type="hidden" required />
+        </div>
+
+        <div class="field">
+          <label for="wd-skills-notes">Additional Skills Summary (Optional)</label>
+          <textarea id="wd-skills-notes" name="skills_summary"></textarea>
+        </div>
+
+        <button type="button" data-wizard-prev="1">Back</button>
+        <button type="button" data-wizard-next="3">Save and Continue</button>
+      </section>
+
+      <!-- Step 3: Voluntary Disclosures -->
+      <section id="step-3" data-wizard-step="3" aria-labelledby="step-3-heading" hidden>
+        <h2 id="step-3-heading">Voluntary Disclosures</h2>
+
+        <fieldset>
+          <legend>Voluntary Self-Identification (EEO)</legend>
+          <div class="field">
+            <label for="eeo_gender">Gender</label>
+            <select id="eeo_gender" name="eeo_gender">
+              <option value="decline">Decline to self-identify</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="eeo_veteran">Veteran Status</label>
+            <select id="eeo_veteran" name="eeo_veteran">
+              <option value="decline">I do not wish to answer</option>
+              <option value="no">Not a Protected Veteran</option>
+              <option value="yes">Protected Veteran</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="eeo_disability">Disability Status</label>
+            <select id="eeo_disability" name="eeo_disability">
+              <option value="decline">I do not wish to answer</option>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <div class="field">
+          <label>
+            <input id="gdpr_consent" name="gdpr_consent" type="checkbox" required />
+            I acknowledge the Candidate Privacy Notice *
+          </label>
+        </div>
+
+        <div class="field">
+          <label>
+            <input id="marketing_opt_in" name="marketing_opt_in" type="checkbox" />
+            Receive optional talent community marketing emails (Optional)
+          </label>
+        </div>
+
+        <button type="button" data-wizard-prev="2">Back</button>
+        <button type="button" data-wizard-next="4">Save and Continue</button>
+      </section>
+
+      <!-- Step 4: Review -->
+      <section id="step-4" data-wizard-step="4" aria-labelledby="step-4-heading" hidden>
+        <h2 id="step-4-heading">Review</h2>
+
+        <div id="wd-review-summary" data-review-summary="true">
+          <p>Review all populated fields before handing off to the owner.</p>
+        </div>
+
+        <div class="handoff" role="note" data-manual-handoff="true">
+          <strong>Manual Handoff Required:</strong> Workday applications remain
+          <code>apply_type: manual_apply</code> and <code>status: needs_review</code>.
+          Automated submission is disabled in this synthetic fixture.
+        </div>
+
+        <button type="button" data-wizard-prev="3">Back</button>
+        <button type="submit" id="wd-submit-btn" aria-disabled="true" data-requires-manual-handoff="true">
+          Submit (Owner Manual Handoff Only)
+        </button>
+      </section>
+    </form>
+  </main>
+
+  <!-- Detached Portal Root OUTSIDE <form> (React-Select / Workday listbox pattern) -->
+  <div id="wd-portal-root" data-portal-root="true">
+    <ul id="wd-country-listbox" class="portal-listbox" role="listbox" aria-label="Country or Region" hidden>
+      <li id="wd-country-opt-us" role="option" aria-selected="false" data-value="US">United States</li>
+      <li id="wd-country-opt-eg" role="option" aria-selected="false" data-value="EG">Egypt</li>
+      <li id="wd-country-opt-gb" role="option" aria-selected="false" data-value="GB">United Kingdom</li>
+      <li id="wd-country-opt-de" role="option" aria-selected="false" data-value="DE">Germany</li>
+    </ul>
+
+    <ul id="wd-source-listbox" class="portal-listbox" role="listbox" aria-label="How Did You Hear About Us" hidden>
+      <li id="wd-source-opt-linkedin" role="option" aria-selected="false" data-value="linkedin">LinkedIn</li>
+      <li id="wd-source-opt-careers" role="option" aria-selected="false" data-value="careers">Company Careers Page</li>
+      <li id="wd-source-opt-referral" role="option" aria-selected="false" data-value="referral">Employee Referral</li>
+    </ul>
+  </div>
+
+  <script>
+    (() => {
+      const form = document.getElementById('workday-wizard-form');
+      const alertBox = document.getElementById('wd-step-alert');
+      const steps = [...document.querySelectorAll('[data-wizard-step]')];
+      const indicators = [...document.querySelectorAll('[data-step-indicator]')];
+
+      function showStep(stepNum) {
+        steps.forEach(s => { s.hidden = s.dataset.wizardStep !== String(stepNum); });
+        indicators.forEach(ind => {
+          if (ind.dataset.stepIndicator === String(stepNum)) ind.setAttribute('aria-current', 'step');
+          else ind.removeAttribute('aria-current');
+        });
+        alertBox.hidden = true;
+        alertBox.textContent = '';
+      }
+
+      document.querySelectorAll('[role="combobox"]').forEach(combo => {
+        const listbox = document.getElementById(combo.getAttribute('aria-controls'));
+        if (!listbox) return;
+        combo.addEventListener('click', () => {
+          const open = combo.getAttribute('aria-expanded') === 'true';
+          combo.setAttribute('aria-expanded', String(!open));
+          listbox.hidden = open;
+        });
+        listbox.querySelectorAll('[role="option"]').forEach(opt => {
+          opt.addEventListener('click', () => {
+            listbox.querySelectorAll('[role="option"]').forEach(o => o.setAttribute('aria-selected', 'false'));
+            opt.setAttribute('aria-selected', 'true');
+            combo.textContent = opt.textContent;
+            combo.dataset.selectedValue = opt.dataset.value || '';
+            combo.setAttribute('aria-expanded', 'false');
+            listbox.hidden = true;
+            const hiddenInput = combo.parentElement?.querySelector('input[type="hidden"]');
+            if (hiddenInput) hiddenInput.value = opt.dataset.value || '';
+          });
+        });
+      });
+
+      const resumeInput = document.getElementById('wd-resume');
+      const uploadStatus = document.getElementById('wd-upload-status');
+      if (resumeInput && uploadStatus) {
+        resumeInput.addEventListener('change', () => {
+          const file = resumeInput.files?.[0];
+          uploadStatus.textContent = file ? `Attached: ${file.name}` : 'No file attached';
+        });
+      }
+
+      document.querySelectorAll('[data-wizard-next]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const current = btn.closest('[data-wizard-step]');
+          const missing = [...current.querySelectorAll('[required]')].filter(el => {
+            if (el.type === 'checkbox') return !el.checked;
+            return !String(el.value || '').trim();
+          });
+          if (missing.length > 0) {
+            alertBox.textContent = `Please complete ${missing.length} required field(s) before continuing.`;
+            alertBox.hidden = false;
+            return;
+          }
+          showStep(btn.dataset.wizardNext);
+        });
+      });
+
+      document.querySelectorAll('[data-wizard-prev]').forEach(btn => {
+        btn.addEventListener('click', () => showStep(btn.dataset.wizardPrev));
+      });
+
+      // Strictly prevent any real form submission in this offline synthetic fixture
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        alertBox.textContent = 'Blocked: Workday applications require manual owner handoff (manual_apply + needs_review).';
+        alertBox.hidden = false;
+      });
+    })();
+  </script>
+</body>
+</html>
