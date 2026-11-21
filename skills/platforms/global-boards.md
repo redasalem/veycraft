@@ -1,12 +1,12 @@
 ---
 name: global-boards
-version: "1.3.0"
+version: "1.4.0"
 last_verified: "2026-11-21"
-description: Load when a target is Indeed, Glassdoor, Dice, ZipRecruiter, or StepStone (DACH: .de, .at, .ch) and jobs must be discovered, expanded, localized (German/English), GDPR-checked, and routed without assuming quick-apply is reversible.
+description: Load when a target is Indeed, Glassdoor, Dice, ZipRecruiter, StepStone (DACH: .de, .at, .ch), or Naukri (India) and jobs must be discovered, expanded, localized, compliance-checked, and routed without assuming quick-apply is reversible.
 triggers:
-  - target.platform in indeed/glassdoor/dice/ziprecruiter/stepstone
-  - job URL on Indeed, Glassdoor, Dice, ZipRecruiter, or StepStone (.de, .at, .ch)
-  - DACH or European StepStone job search
+  - target.platform in indeed/glassdoor/dice/ziprecruiter/stepstone/naukri
+  - job URL on Indeed, Glassdoor, Dice, ZipRecruiter, StepStone (.de, .at, .ch), or Naukri (India)
+  - DACH StepStone or India Naukri regional job search
 requires_mcp:
   - playwright
 preconditions:
@@ -15,22 +15,23 @@ requires_skills:
   - discover-and-triage
   - condition-based-browser-waiting
   - multilingual-adaptation
+  - circuit-breaker-and-antiban
 verification:
-  - stable posting IDs captured per board (including stepstone:<tld>:<id> for .de/.at/.ch)
-  - quick-apply / Schnellbewerbung buttons treated as final submits behind fill-and-apply or manual handoff
+  - stable posting IDs captured per board (including stepstone:<tld>:<id> and naukri:<id>)
+  - quick-apply / Schnellbewerbung / Naukri recruiter-apply treated as final submits behind fill-and-apply or manual handoff
   - sponsored/duplicate listings deduplicated by canonical URL and platform salary estimates attributed separately
-  - DACH GDPR required privacy consent separated from optional marketing/Talentpool opt-ins and optional Anschreiben detected
+  - DACH GDPR/Anschreiben and India CTC (LPA)/notice/immediate-joiner/circuit-breaker stop rules enforced
 ---
-# Global & DACH job boards
+# Global, DACH & India job boards
 
 ## When to Use & Preconditions
 
-Use for global aggregators (`indeed`, `glassdoor`, `dice`, `ziprecruiter`) and **StepStone DACH** (`stepstone` across `.de`, `.at`, `.ch`).
+Use for global aggregators (`indeed`, `glassdoor`, `dice`, `ziprecruiter`), **StepStone DACH** (`stepstone` across `.de`, `.at`, `.ch`), and **Naukri India** (`naukri`).
 
-- **Load when:** `target.platform` in `indeed`, `glassdoor`, `dice`, `ziprecruiter`, `stepstone`; job URL on any of these boards; DACH regional StepStone search.
+- **Load when:** `target.platform` in `indeed`, `glassdoor`, `dice`, `ziprecruiter`, `stepstone`, `naukri`; job URL on any of these boards; DACH StepStone or India Naukri search.
 - **Preconditions (stop if any is false):**
   - readiness gates passed, auth verified via Playwright MCP, and context loaded
-- **Requires skills:** `discover-and-triage`, `condition-based-browser-waiting`, `multilingual-adaptation`. **MCP:** `playwright`.
+- **Requires skills:** `discover-and-triage`, `condition-based-browser-waiting`, `multilingual-adaptation`, `circuit-breaker-and-antiban`. **MCP:** `playwright`.
 
 ## Deterministic Step-by-Step Execution
 
@@ -43,6 +44,7 @@ Enforce all `AGENTS.md` Hard Guardrails (`#1–#10`), `skills/15-multilingual-ad
 | **Dice** (`dice`) | Title/keyword and location search with employment type and remote filters when present; capture `dice:<verified-posting-id>`. | Read recruiter vs. direct employer identity, contract duration, clearance, and US work-authorization requirements explicitly. Route external ATS or internal form through `skills/04-fill-and-apply.md`. |
 | **ZipRecruiter** (`ziprecruiter`) | Snapshot search/list, verify posting ID from job page/link as `ziprecruiter:<id>`. | **"1-Click Apply" can submit immediately.** Never click it in `dry_run: true`; in live mode require full final DOM Read-Back & `APPROVE` gate BEFORE clicking. |
 | **StepStone DACH** (`stepstone`) | Regional hosts `.de` (Germany, `EUR`), `.at` (Austria, `EUR`), `.ch` (Switzerland, `CHF`). Capture canonical `stepstone:<tld>:<verified-posting-id>` and full URL. | Offline/synthetic-verified only (`max_per_platform.stepstone: 0`, `manual_apply` + `needs_review`). Separate *Schnellbewerbung* (Easy Apply) from external ATS redirects, optional *Anschreiben*, and GDPR vs. marketing opt-ins (details below). |
+| **Naukri India** (`naukri`) | India host `www.naukri.com` (`INR` / `LPA`). Capture canonical `naukri:<verified-posting-id>` and full URL (distinct from GCC `naukrigulf.com`). | Offline/synthetic-verified only (`max_per_platform.naukri: 0`, `manual_apply` + `needs_review`). Separate recruiter-apply / chatbot screening from external ATS redirects; enforce CTC/LPA, notice/immediate-joiner, and circuit-breaker stop rules (details below). |
 
 ### StepStone (`stepstone` — DACH: `.de`, `.at`, `.ch`)
 
@@ -70,6 +72,31 @@ Enforce all `AGENTS.md` Hard Guardrails (`#1–#10`), `skills/15-multilingual-ad
    - **GDPR / *DSGVO* Consent vs. Optional Opt-Ins:** Strictly distinguish required candidate data-processing privacy consent (*Datenschutzerklärung* / `gdpr_privacy_consent`) from optional checkboxes (*Talentpool*, *Job-Alert*, newsletter, marketing emails, or *Kandidatenprofil sichtbar machen* recruiter visibility). Never check optional marketing, *Talentpool*, visibility, or account-terms boxes; if a required privacy/terms clause is ambiguous -> `needs_review`.
    - **Shared Profile CV Overwrite & Honeypots:** If uploading warns that it will overwrite the shared StepStone profile CV -> stop and log `needs_review` (never silently replace shared profile data). Always leave hidden honeypot inputs (`website_url_honeypot`) strictly empty.
 
+### Naukri (`naukri` — India)
+
+> **Truthful Verification Status:** Live-tested: **UNVERIFIED** (no live Naukri browsing, login, OTP entry, scraping, or live submission performed; accessibility-snapshot patterns and safety contracts are modeled against offline synthetic fixture [`evals/fixtures/boards/naukri-mock.html`](../../evals/fixtures/boards/naukri-mock.html)). Because Naukri is not live-verified, it ships with `enabled: false`, `live_verified: false`, `max_per_platform.naukri: 0`, and `apply_type: manual_apply` + `status: needs_review` handoff until explicitly live-verified by the owner. *(Note: Naukri India `www.naukri.com` is distinct from GCC `naukrigulf.com`.)*
+
+1. **Auth Check (`auth_check_url`) & Login / Mobile-OTP Stop Rules:**
+   - Check `logs/circuit-breaker.json` first (`skills/24-circuit-breaker-and-antiban.md`); if `"naukri"` has an active 24-hour cooldown (`status: "tripped"`), skip immediately.
+   - Open configured `auth_check_url` (`https://www.naukri.com/mnjuser/homepage`) and inspect a fresh `browser_snapshot` via strict semantic locator priority **`Role -> Label -> Placeholder -> Text`** (`skills/18-condition-based-browser-waiting.md`, zero brittle CSS selectors or XPath).
+   - Confirm an observable signed-in candidate profile/homepage landmark. If a `Login` / `Register` wall, **mobile-number OTP / 2FA challenge**, or legal-terms agreement appears, stop immediately—never create accounts, sign in automatically, enter OTPs, or accept legal terms; leave the tab open and log `apply_type: manual_apply` + `status: needs_review`.
+2. **Discovery, Filter URLs, Full JD Expansion & Pagination:**
+   - Start from owner-confirmed role/location filter URLs (e.g., `https://www.naukri.com/{{ROLE_SLUG}}-jobs` with verified experience/location/work-mode filters) and refine only via accessible `role="search"` controls (`Experience`, `Salary (INR/LPA)`, `Location`, `Work mode`, `Freshness`); verify applied filter state in fresh `browser_snapshot`.
+   - Expand each job card via its title `link` or expand `button` (`aria-expanded="false"` -> verify `aria-expanded="true"` or full JD `role="region"` mount) and pause `>= 10` seconds to read the full JD. Capture canonical `naukri:<verified-posting-id>`, canonical URL, employer name, Indian city/work mode (`Remote`/`Hybrid`/`Onsite`), experience range, posted date (or `unknown`), and full requirements.
+   - Distinguish **direct employers** from placement consultancies / recruitment agencies (`skills/26-deduplication-and-blacklist-guard.md`). Paginate via the accessible pagination landmark (`role="navigation"`, `"Next"`), verifying `aria-current="page"` or result shift in a fresh `browser_snapshot` (with 3–9 s pacing jitter); stop at `max_results` or when `"Next"` is disabled/absent.
+3. **Recruiter-Apply / Screening Chatbot vs. External ATS Redirect Handling:**
+   - Inspect the Apply control's accessible name (`"Apply"` / `"Apply on Naukri"` vs. `"Apply on company site"`).
+   - **External ATS redirects:** Switch to the opened tab (`browser_tabs` + fresh `browser_snapshot`), verify HTTPS hostname and employer/role match, and route recognized employer ATS engines (`greenhouse`, `lever`, `ashby`, `smartrecruiters`, `breezyhr`) via `skills/platforms/ats-engines.md` while preserving `naukri:<id>` and logging the canonical ATS URL. Workday, Taleo, SAP SuccessFactors, Zoho Recruit, Darwinbox, account-gated, or unknown external portals MUST remain `apply_type: manual_apply` + `status: needs_review`.
+   - **On-board Recruiter-Apply / Chatbot Screening:** Naukri `"Apply"` may submit immediately using the saved Naukri profile or open an interactive recruiter screening questionnaire (asking Current/Expected CTC, notice period, and location). Never auto-submit or click unattended one-click apply; because Naukri is unverified (`max_per_platform.naukri: 0`), stop before final submit, present the Live DOM Read-Back Table + tailored resume path + grounded answers, and log `apply_type: manual_apply` + `status: needs_review`.
+4. **India-Specific Form & Profile Traps (CTC/LPA, Notice/Immediate Joiner, Location & CV Overwrite):**
+   - **Current CTC & Expected CTC (`INR` / `LPA`):** Keep `Current CTC`, `Expected CTC`, and unit (`LPA` — Lakhs Per Annum vs. monthly `INR` vs. `USD`) strictly separate and verified from `context/form-answers.yaml`. Never silently convert `USD` ↔ `INR` or `LPA` ↔ monthly figures, and never fabricate or guess `Current CTC`; if Current/Expected CTC is unverified or sensitive -> `needs_review`.
+   - **Notice Period & Immediate Joiner / Serving-Notice Flags:** Map enumerated options (`"Immediate Joiner"`, `"15 Days or less"`, `"1 Month"`, `"2 Months"`, `"3 Months"`, `"Serving Notice Period"`) strictly from verified `context/form-answers.yaml`. Never falsely tick `"Immediate Joiner"` or `"Negotiable notice"` without verified owner confirmation (`needs_review` if ambiguous).
+   - **Location Preferences:** Keep `current_location`, `preferred_locations` (e.g., Bengaluru, Hyderabad, Pune, Delhi NCR, Mumbai), work mode (`Remote`/`Hybrid`/`Onsite`), and `willing_to_relocate` as distinct verified owner facts—never assume relocation or onsite availability across Indian cities.
+   - **Shared Naukri Profile / CV Overwrite & Honeypots:** Never silently replace the candidate's default Naukri profile resume or mutate saved Naukri headline/CTC/notice fields when an apply flow warns of shared-profile overwrites (`needs_review`). Always leave hidden honeypot inputs (`website_url_honeypot`) strictly empty.
+5. **Anti-Bot / CAPTCHA / Rate-Limit Stop Signals (`skills/24-circuit-breaker-and-antiban.md`):**
+   - Immediately halt with **zero retries** if any `browser_snapshot`, title, or URL shows CAPTCHA, Cloudflare/Akamai/PerimeterX interstitials, `"Verify you are human"`, HTTP `429` / `403`, `"Unusual activity"`, rapid-apply throttle warnings, or an unexpected mid-run login/OTP redirect.
+   - Persist a 24-hour `"naukri"` cooldown (`status: "tripped"`, `tripped_at`, `cooldown_until`, `trigger_signal`, `url`) in `logs/circuit-breaker.json`, leave the tab open untouched, log `aborted` (`reason: "circuit_breaker_tripped"`), and alert the owner.
+
 ### Per-job procedure
 1. Verify named owner auth if required. Snapshot applied filters/result state; never assert an unavailable "last 24h" filter exists.
 2. Open full JD, extract employer/title/location/restrictions/date/description and canonical identity. Ratings, estimated pay, or promoted labels are separately attributed; unknown fields remain unknown.
@@ -81,15 +108,15 @@ Enforce all `AGENTS.md` Hard Guardrails (`#1–#10`), `skills/15-multilingual-ad
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 
 ### Anti-patterns
-- ❌ Assuming "Apply now" or *Schnellbewerbung* opens a safe draft → ✅ it may submit immediately; guard behind manual handoff / `APPROVE` gate.
+- ❌ Assuming "Apply now", *Schnellbewerbung*, or Naukri `"Apply"` opens a safe draft → ✅ it may submit immediately; guard behind manual handoff / `APPROVE` gate.
 - ❌ Ticking *Talentpool*, *Job-Alert*, recruiter visibility, or marketing boxes alongside required GDPR/DSGVO privacy consent → ✅ leave all optional boxes unchecked.
-- ❌ Silently converting `EUR` ↔ `CHF`, inferring Swiss work permits from EU residency, or overwriting a shared StepStone profile CV → ✅ keep facts separate and route unknowns/overwrites to `needs_review`.
-- ❌ Counting a sponsored repost as a new job or logging in through third-party SSO/auto-account creation → ✅ dedupe by canonical URL and require manual login only.
+- ❌ Silently converting `EUR` ↔ `CHF` or `USD` ↔ `INR`/`LPA`, fabricating Current CTC, falsely ticking `"Immediate Joiner"`, or overwriting a shared board profile CV → ✅ keep facts separate and route unknowns/overwrites to `needs_review`.
+- ❌ Retrying past CAPTCHA, OTP, or rate-limit banners or logging in through third-party SSO/auto-account creation → ✅ trip `skills/24-circuit-breaker-and-antiban.md` immediately and require manual login only.
 
 ### Self-verification check (before reporting this step complete)
-- [ ] stable posting IDs captured per board (including `stepstone:<tld>:<id>` for `.de`/`.at`/`.ch`)
-- [ ] quick-apply / *Schnellbewerbung* buttons treated as final submits behind `fill-and-apply` or manual handoff
+- [ ] stable posting IDs captured per board (including `stepstone:<tld>:<id>` and `naukri:<id>`)
+- [ ] quick-apply / *Schnellbewerbung* / Naukri recruiter-apply treated as final submits behind `fill-and-apply` or manual handoff
 - [ ] sponsored/duplicate listings deduplicated by canonical URL and platform salary estimates attributed separately
-- [ ] DACH GDPR required privacy consent separated from optional marketing/*Talentpool* opt-ins and optional *Anschreiben* detected
+- [ ] DACH GDPR/*Anschreiben* and India CTC (`LPA`)/notice/immediate-joiner/circuit-breaker stop rules enforced
 
 Evidence comes from a fresh snapshot, a file read, or a command exit code observed after the action (`skills/meta-self-verification.md`). If any box cannot be ticked, report the step as unverified or `needs_review` — never as done.
