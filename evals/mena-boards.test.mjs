@@ -14,6 +14,7 @@ const CLI = [
   path.join(os.homedir(), '.job-hunter-os', 'bin', 'cli.mjs'),
 ].find(p => p && fs.existsSync(p));
 assert.ok(CLI, 'Could not locate bin/cli.mjs');
+const PACKAGE_ROOT = path.resolve(path.dirname(CLI), '..');
 
 const engine = await import(pathToFileURL(path.join(path.dirname(CLI), 'profile-intelligence.mjs')).href);
 
@@ -285,9 +286,11 @@ test('7. Config, manifest, registry, guardrails, docs & Profile Intelligence ada
   assert.match(menaEntry.description, /Bayt/i);
   assert.ok(menaEntry.triggers.some(t => /gulftalent/i.test(t)), 'manifest triggers must include gulftalent');
 
-  // Registry & documentation parity
+  // Registry & documentation parity (PLATFORMS.md lives in PACKAGE_ROOT when running inside an isolated `init` workspace)
   for (const rel of ['skills/REGISTRY.md', 'PLATFORMS.md', 'docs/platform-registry.md', 'docs/SKILL_CATALOG.md']) {
-    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    const filePath = [path.join(ROOT, rel), path.join(PACKAGE_ROOT, rel)].find(p => fs.existsSync(p));
+    assert.ok(filePath, `Could not locate ${rel}`);
+    const text = fs.readFileSync(filePath, 'utf8');
     assert.match(text, /bayt/i, `${rel} must list Bayt`);
     assert.match(text, /gulftalent/i, `${rel} must list GulfTalent`);
     assert.match(text, /skills\/platforms\/mena-boards\.md/, `${rel} must reference skills/platforms/mena-boards.md`);
