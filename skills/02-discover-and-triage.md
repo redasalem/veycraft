@@ -70,7 +70,7 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
 
 ### Phase 2 — Mission Control / Ranked Comparison Briefing in Chat (Wait for Reply)
 
-Present one numbered table in chat (including source URL & verified date):
+Always sort the Mission Control table **strictly from highest match (`Score` / `Match %`) to lowest**, and present one numbered table in chat (including source URL & verified date):
 
 | # | Company & Role | Source & Verified Date | Score | Status | Verified Matches vs. Unknown/Gap Summary | Tailored files |
 |---|---|---|---|---|---|---|
@@ -102,7 +102,8 @@ Whenever presenting discovered jobs in the Mission Control table, always include
 ### Easy-Apply-First Discovery & Tailoring Handoff
 1. When starting a job search, inform the user upfront that we will **prioritize Easy Apply jobs first** and review each job description for fit.
 2. In the Mission Control table, include both **Match %** and **Tailored CV Needed?** (`Yes` / `No`, based on whether the existing base CV already covers the role's core stack or needs targeted keyword/summary alignment).
-3. If the user asks to create a tailored CV, ask first whether they prefer **(A) Local AI Tailoring** or **(B) External Web Tailoring (`https://www.resume-tailor-ai.tech/`)**, and then proceed with their chosen method.
+3. **Full-JD Fit Gate Before Tailoring:** Never tailor a CV or open a form for a role based on a search card alone. Expand and read the full JD first (checking for hidden country/residency locks, primary backend language mismatches, or unstated seniority jumps), state clearly whether the job is a genuine fit or `SKIP`, and only tailor after the owner confirms.
+4. If the user asks to create a tailored CV, ask first whether they prefer **(A) Local AI Tailoring** or **(B) External Web Tailoring (`https://www.resume-tailor-ai.tech/`)**, and then proceed with their chosen method.
 
 ### Fast-Track & Skip Aggregators
 To maximize speed and minimize friction:
