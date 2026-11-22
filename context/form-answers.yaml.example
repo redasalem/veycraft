@@ -16,6 +16,10 @@ questions:
     answer: "Yes"
   - match: ["english proficiency"]
     answer: "Professional working proficiency"
+  - match: ["school", "university", "institution"]
+    answer: "REPLACE_WITH_YOUR_UNIVERSITY_NAME"
+  - match: ["timezone", "time zone", "overlap"]
+    answer: "EET (UTC+2); available for 4+ hours daily overlap with UTC+3 / CET"
 skills_years:
   React: 5
   TypeScript: 4
