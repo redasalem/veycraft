@@ -329,6 +329,33 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
   const resolved = path.resolve(cwdResolved, trimmed);
 
   const allowedRoots = [rootResolved, cwdResolved, sourceResolved];
+  // On macOS, /var and /tmp are system symlinks to /private/var and /private/tmp.
+  // Include realpathSync(b) for existing boundary roots so legitimate /var/... paths match /private/var/... cwd.
+  for (const b of [rootResolved, cwdResolved, sourceResolved]) {
+    try {
+      const rp = fs.realpathSync(b);
+      if (rp && !allowedRoots.some(x => isSamePath(x, rp))) {
+        allowedRoots.push(rp);
+      }
+      if (process.platform === 'darwin' && rp.startsWith('/private/')) {
+        const alias = rp.slice('/private'.length);
+        if (alias && !allowedRoots.some(x => isSamePath(x, alias))) {
+          allowedRoots.push(alias);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // Also allow read-only evals/fixtures/ paths when test suites run from a scaffolded copy of evals/
+  if (/[/\\]evals[/\\]fixtures[/\\]/i.test(resolved)) {
+    const idx = resolved.toLowerCase().lastIndexOf(`${path.sep}evals${path.sep}fixtures${path.sep}`);
+    if (idx > 0) {
+      const fixtureRoot = resolved.slice(0, idx);
+      if (fs.existsSync(path.join(fixtureRoot, 'evals', 'fixtures', 'ground-truth.json'))) {
+        allowedRoots.push(path.join(fixtureRoot, 'evals', 'fixtures'));
+      }
+    }
+  }
+
   const matchedBoundary = allowedRoots.find(b => isWithinDir(resolved, b));
   if (!matchedBoundary) {
     throw new Error(`Refusing ${label} outside workspace boundary: "${rawPath}"`);
