@@ -356,7 +356,46 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
     }
   }
 
-  const matchedBoundary = allowedRoots.find(b => isWithinDir(resolved, b));
+  let matchedBoundary = allowedRoots.find(b => isWithinDir(resolved, b));
+  // On Windows (e.g., RUNNER~1 short 8.3 paths in Git Bash mktemp) or macOS (/var -> /private/var),
+  // if lexical match didn't trigger, check whether the existing parent directory's realpath is within an allowed root
+  // while walking the entire lexical ancestor chain with lstatSync to block any actual symlinks or junctions.
+  if (!matchedBoundary) {
+    let probe = resolved;
+    while (probe && !fs.existsSync(probe)) {
+      const parent = path.dirname(probe);
+      if (parent === probe) break;
+      probe = parent;
+    }
+    if (probe && fs.existsSync(probe)) {
+      let hasSymlinkInChain = false;
+      let cursor = probe;
+      while (cursor) {
+        try {
+          if (fs.lstatSync(cursor).isSymbolicLink()) {
+            hasSymlinkInChain = true;
+            break;
+          }
+        } catch {
+          break;
+        }
+        const parent = path.dirname(cursor);
+        if (parent === cursor) break;
+        cursor = parent;
+      }
+      if (!hasSymlinkInChain) {
+        try {
+          const realProbe = fs.realpathSync(probe);
+          const relTail = path.relative(probe, resolved);
+          const canonicalCandidate = relTail ? path.resolve(realProbe, relTail) : realProbe;
+          const realMatched = allowedRoots.find(b => isWithinDir(canonicalCandidate, b));
+          if (realMatched) {
+            matchedBoundary = probe;
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  }
   if (!matchedBoundary) {
     throw new Error(`Refusing ${label} outside workspace boundary: "${rawPath}"`);
   }
