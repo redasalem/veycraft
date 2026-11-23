@@ -3379,15 +3379,15 @@ test('20. SEC-04: relative path validation, workspace containment, third-party p
       // Windows without Developer Mode / elevation may disallow file symlinks; test directory junction as fallback
     }
     if (symlinkCreated) {
-      const rAuditSym = runCli(['audit', symFile], { cwd: work, home });
+      const rAuditSym = runCli(['audit', 'logs/symlink-resume.md'], { cwd: work, home });
       assert.notEqual(rAuditSym.status, 0, 'audit must reject symlinked file');
       assert.match(rAuditSym.stderr, /symbolic-link/i);
 
-      const rVerifySym = runCli(['verify', symFile], { cwd: work, home });
+      const rVerifySym = runCli(['verify', 'logs/symlink-resume.md'], { cwd: work, home });
       assert.notEqual(rVerifySym.status, 0, 'verify must reject symlinked file');
       assert.match(rVerifySym.stderr, /symbolic-link/i);
 
-      const rPreSym = runCli(['pre-submit', '--draft', symFile], { cwd: work, home });
+      const rPreSym = runCli(['pre-submit', '--draft', 'logs/symlink-resume.md'], { cwd: work, home });
       assert.notEqual(rPreSym.status, 0, 'pre-submit must reject symlinked draft');
       assert.match(rPreSym.stderr, /symbolic-link/i);
     }
@@ -3401,25 +3401,29 @@ test('20. SEC-04: relative path validation, workspace containment, third-party p
       // ignore if OS blocks symlink/junction creation
     }
     if (dirLinkCreated) {
-      const rVerifySymDir = runCli(['verify', symDir], { cwd: work, home });
+      const rVerifySymDir = runCli(['verify', 'logs/symlink-dir'], { cwd: work, home });
       assert.notEqual(rVerifySymDir.status, 0, 'verify must reject symlinked/junction directory');
       assert.match(rVerifySymDir.stderr, /symbolic-link/i);
 
-      const rAuditViaSymParent = runCli(['audit', path.join(symDir, 'outside-resume.md')], { cwd: work, home });
+      const rAuditViaSymParent = runCli(['audit', 'logs/symlink-dir/outside-resume.md'], { cwd: work, home });
       assert.notEqual(rAuditViaSymParent.status, 0, 'audit must reject file under symlinked parent directory');
       assert.match(rAuditViaSymParent.stderr, /symbolic-link/i);
 
-      assert.throws(
-        () => recordApplication(work, {
-          job_id: 'gh:sec04-sym',
-          company: 'SymCo',
-          title: 'Engineer',
-          status: 'discovered',
-          screenshot: 'logs/symlink-dir/outside-resume.md',
-        }, { home, nowIso, sourceRoot: REPO_ROOT }),
-        /symbolic-link/i,
-      );
-    }
+    assert.throws(
+      () => recordApplication(work, {
+        job_id: 'gh:sec04-sym',
+        company: 'SymCo',
+        title: 'Engineer',
+        status: 'discovered',
+        screenshot: 'logs/symlink-dir/outside-resume.md',
+      }, { home, nowIso, sourceRoot: REPO_ROOT }),
+      /symbolic-link/i,
+    );
+    fs.rmSync(symDir, { recursive: true, force: true });
+  }
+  if (symlinkCreated) {
+    fs.rmSync(symFile, { force: true });
+  }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -3798,12 +3802,12 @@ test('22. SEC-03: hardened extractDocxText enforces input size, entry count, com
       declaredUncompressedSize: 50,
     },
   ]);
-  assert.throws(
-    () => extractDocxText(corruptDeflateDocx),
-    /Corrupted deflate stream/i,
-  );
+    assert.throws(
+      () => extractDocxText(corruptDeflateDocx),
+      /Corrupted deflate stream/i,
+    );
 
-  // 11. Boundary-size cases: exact limit succeeds, 1 byte over limit fails closed
+    // 11. Boundary-size cases: exact limit succeeds, 1 byte over limit fails closed
   const boundaryXml = '<w:document><w:p><w:t>ExactBoundaryCheck</w:t></w:p></w:document>';
   const boundaryLen = Buffer.byteLength(boundaryXml, 'utf8');
   const boundaryDocx = buildCustomDocxZip([
