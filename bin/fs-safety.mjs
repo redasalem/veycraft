@@ -5,6 +5,10 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
+import dns from 'node:dns/promises';
+import http from 'node:http';
+import https from 'node:https';
+import net from 'node:net';
 
 export function normalizePathForCompare(p) {
   const resolved = path.resolve(p);
@@ -127,8 +131,11 @@ function classifyIpv4Octets(a, b, c, d) {
   if (a === 169 && b === 254) return 'link-local/metadata IPv4 range (169.254.0.0/16)';
   if (a === 172 && b >= 16 && b <= 31) return 'private IPv4 range (172.16.0.0/12)';
   if (a === 192 && b === 0 && c === 0) return 'IETF protocol assignment IPv4 range (192.0.0.0/24)';
+  if (a === 192 && b === 0 && c === 2) return 'documentation IPv4 range (192.0.2.0/24)';
   if (a === 192 && b === 168) return 'private IPv4 range (192.168.0.0/16)';
   if (a === 198 && (b === 18 || b === 19)) return 'benchmarking IPv4 range (198.18.0.0/15)';
+  if (a === 198 && b === 51 && c === 100) return 'documentation IPv4 range (198.51.100.0/24)';
+  if (a === 203 && b === 0 && c === 113) return 'documentation IPv4 range (203.0.113.0/24)';
   if (a >= 224) return 'multicast/reserved IPv4 range (224.0.0.0/3)';
   return null;
 }
@@ -249,10 +256,35 @@ function classifyIpv6Words(w) {
   if ((w[0] & 0xffc0) === 0xfec0) return 'site-local IPv6 address (fec0::/10)';
   // Multicast ff00::/8
   if ((w[0] & 0xff00) === 0xff00) return 'multicast IPv6 address (ff00::/8)';
+  // Teredo tunneling 2001:0000::/32 (can encapsulate obfuscated private/loopback IPv4)
+  if (w[0] === 0x2001 && w[1] === 0x0000) return 'Teredo tunneling IPv6 range (2001:0000::/32)';
+  // Discard-Only Prefix 100::/64 (RFC 6666)
+  if (w[0] === 0x0100 && w[1] === 0 && w[2] === 0 && w[3] === 0) return 'discard-only IPv6 range (100::/64)';
   // Documentation 2001:db8::/32
   if (w[0] === 0x2001 && w[1] === 0x0db8) return 'documentation IPv6 address (2001:db8::/32)';
 
   return null;
+}
+
+export function classifyIpAddress(rawIp) {
+  if (typeof rawIp !== 'string' || !rawIp.trim()) {
+    return 'empty or invalid IP address';
+  }
+  const clean = rawIp.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (clean.includes(':')) {
+    if (clean.includes('%')) return 'IPv6 zone-scoped link-local address';
+    const words = parseIpv6ToWords(clean);
+    if (!words) return 'malformed IPv6 address';
+    return classifyIpv6Words(words);
+  }
+  const ipv4Match = clean.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4Match) return 'malformed IPv4 address';
+  return classifyIpv4Octets(
+    Number(ipv4Match[1]),
+    Number(ipv4Match[2]),
+    Number(ipv4Match[3]),
+    Number(ipv4Match[4]),
+  );
 }
 
 export function isBlockedSsrfUrl(inputUrl) {
@@ -273,7 +305,7 @@ export function isBlockedSsrfUrl(inputUrl) {
   if (parsedUrl.username || parsedUrl.password) {
     return 'embedded URL credentials not allowed';
   }
-  const rawHost = String(parsedUrl.hostname || '').toLowerCase().replace(/\.$/, '');
+  const rawHost = String(parsedUrl.hostname || '').toLowerCase().replace(/\.+$/, '');
   const host = rawHost.replace(/^\[|\]$/g, '');
   if (!host) {
     return 'empty host';
@@ -321,16 +353,128 @@ export function isBlockedSsrfUrl(inputUrl) {
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
+async function defaultDnsLookup(hostname) {
+  return dns.lookup(hostname, { all: true, verbatim: true });
+}
+
+export async function resolveAndValidateSsrfHost(parsedUrl, { lookupImpl = defaultDnsLookup } = {}) {
+  const staticBlock = isBlockedSsrfUrl(parsedUrl);
+  if (staticBlock) {
+    throw new Error(`Blocked by SSRF guard (${staticBlock}): ${parsedUrl.href}`);
+  }
+  const normalizedHost = String(parsedUrl.hostname || '').toLowerCase().replace(/\.+$/, '').replace(/^\[|\]$/g, '');
+  const literalFamily = net.isIP(normalizedHost);
+  if (literalFamily === 4 || literalFamily === 6) {
+    const ipReason = classifyIpAddress(normalizedHost);
+    if (ipReason) {
+      throw new Error(`Blocked by SSRF guard (${ipReason}): ${parsedUrl.href}`);
+    }
+    return [{ address: normalizedHost, family: literalFamily }];
+  }
+
+  if (typeof lookupImpl !== 'function') {
+    throw new Error(`Blocked by SSRF guard (DNS lookup implementation unavailable for "${normalizedHost}"): ${parsedUrl.href}`);
+  }
+
+  let records;
+  try {
+    records = await lookupImpl(normalizedHost, { all: true, verbatim: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Blocked by SSRF guard (DNS lookup failed for "${normalizedHost}": ${msg}): ${parsedUrl.href}`);
+  }
+
+  const normalizedRecords = (Array.isArray(records) ? records : [records])
+    .filter(r => r && typeof r.address === 'string' && r.address.trim())
+    .map(r => {
+      const addr = r.address.trim();
+      const fam = r.family === 4 || r.family === 6 ? r.family : net.isIP(addr);
+      return { address: addr, family: fam };
+    });
+
+  if (normalizedRecords.length === 0) {
+    throw new Error(`Blocked by SSRF guard (DNS lookup returned no addresses for "${normalizedHost}"): ${parsedUrl.href}`);
+  }
+
+  for (const rec of normalizedRecords) {
+    const reason = classifyIpAddress(rec.address);
+    if (reason) {
+      throw new Error(`Blocked by SSRF guard (DNS for "${normalizedHost}" resolved to ${reason}: ${rec.address}): ${parsedUrl.href}`);
+    }
+    if (rec.family !== 4 && rec.family !== 6) {
+      throw new Error(`Blocked by SSRF guard (DNS for "${normalizedHost}" returned invalid address family for ${rec.address}): ${parsedUrl.href}`);
+    }
+  }
+
+  return normalizedRecords;
+}
+
+function pinnedHttpRequest(targetUrl, {
+  method = 'HEAD',
+  headers = {},
+  timeoutMs = 3500,
+  resolvedAddresses,
+}) {
+  const isHttps = targetUrl.protocol === 'https:';
+  const transport = isHttps ? https : http;
+  const normalizedHost = String(targetUrl.hostname || '').toLowerCase().replace(/\.+$/, '').replace(/^\[|\]$/g, '');
+  const primary = resolvedAddresses[0];
+
+  const pinnedLookup = (_hostname, optionsOrCb, maybeCb) => {
+    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+    const opts = typeof optionsOrCb === 'object' && optionsOrCb !== null ? optionsOrCb : {};
+    if (opts.all) {
+      cb(null, resolvedAddresses.map(r => ({ address: r.address, family: r.family })));
+    } else {
+      cb(null, primary.address, primary.family);
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const reqOpts = {
+      protocol: targetUrl.protocol,
+      hostname: normalizedHost,
+      port: targetUrl.port ? Number(targetUrl.port) : (isHttps ? 443 : 80),
+      path: `${targetUrl.pathname || '/'}${targetUrl.search || ''}`,
+      method,
+      headers,
+      agent: false,
+      lookup: pinnedLookup,
+      ...(isHttps && net.isIP(normalizedHost) === 0 ? { servername: normalizedHost } : {}),
+    };
+
+    const req = transport.request(reqOpts, res => {
+      // Drain response body without buffering to avoid memory blowup on HEAD/GET link checks
+      res.resume();
+      const rawHeaders = res.headers || {};
+      resolve({
+        status: res.statusCode || 0,
+        headers: {
+          get(name) {
+            const val = rawHeaders[String(name).toLowerCase()];
+            if (Array.isArray(val)) return val.join(', ');
+            return val === undefined ? null : String(val);
+          },
+        },
+      });
+    });
+
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
+    });
+    req.on('error', err => reject(err));
+    req.end();
+  });
+}
+
 export async function fetchUrlWithSafeRedirects(initialUrl, {
-  fetchImpl = typeof fetch === 'function' ? fetch : null,
+  fetchImpl = null,
+  lookupImpl = defaultDnsLookup,
   method = 'HEAD',
   maxRedirects = 5,
   timeoutMs = 3500,
   headers = { 'User-Agent': 'veycraft-link-check/2.0' },
 } = {}) {
-  if (typeof fetchImpl !== 'function') {
-    throw new Error('fetch implementation is not available.');
-  }
   let currentUrl;
   try {
     currentUrl = initialUrl instanceof URL ? new URL(initialUrl.href) : new URL(String(initialUrl));
@@ -346,18 +490,32 @@ export async function fetchUrlWithSafeRedirects(initialUrl, {
   const visited = new Set([currentUrl.href]);
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-      ? AbortSignal.timeout(timeoutMs)
-      : undefined;
-    const res = await fetchImpl(currentUrl.href, {
-      method: currentMethod,
-      redirect: 'manual',
-      ...(signal ? { signal } : {}),
-      headers,
-    });
+    // F-03: Resolve and validate all DNS addresses on EVERY hop before issuing any network request
+    const resolvedAddresses = await resolveAndValidateSsrfHost(currentUrl, { lookupImpl });
+
+    let res;
+    if (typeof fetchImpl === 'function') {
+      const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(timeoutMs)
+        : undefined;
+      res = await fetchImpl(currentUrl.href, {
+        method: currentMethod,
+        redirect: 'manual',
+        ...(signal ? { signal } : {}),
+        headers,
+        resolvedAddresses,
+      });
+    } else {
+      res = await pinnedHttpRequest(currentUrl, {
+        method: currentMethod,
+        headers,
+        timeoutMs,
+        resolvedAddresses,
+      });
+    }
 
     if (!REDIRECT_STATUS_CODES.has(res.status)) {
-      return { response: res, finalUrl: currentUrl.href, redirects: hop };
+      return { response: res, finalUrl: currentUrl.href, redirects: hop, resolvedAddresses };
     }
 
     if (hop >= maxRedirects) {
@@ -407,6 +565,43 @@ export const DOCX_LIMITS = Object.freeze({
   MAX_ENTRY_UNCOMPRESSED_BYTES: 5 * 1024 * 1024, // 5 MB max per-entry decompressed size
   MAX_TOTAL_UNCOMPRESSED_BYTES: 10 * 1024 * 1024, // 10 MB max cumulative decompressed size
 });
+
+export function readFileBoundedSync(filePath, maxBytes, label = 'file') {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    throw new Error(`Invalid maxBytes limit for ${label}: ${maxBytes}`);
+  }
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      throw new Error(`Expected regular file for ${label}: ${filePath}`);
+    }
+    if (stat.size > maxBytes) {
+      throw new Error(`Oversized ${label} (${stat.size} bytes exceeds ${maxBytes} byte limit).`);
+    }
+    if (stat.size === 0) {
+      return Buffer.alloc(0);
+    }
+    // Read bounded chunks up to maxBytes + 1 so concurrent file growth cannot cause unbounded allocation
+    const chunkSize = Math.min(65536, maxBytes + 1);
+    const chunks = [];
+    let totalRead = 0;
+    while (totalRead <= maxBytes) {
+      const toRead = Math.min(chunkSize, maxBytes + 1 - totalRead);
+      const buf = Buffer.allocUnsafe(toRead);
+      const bytesRead = fs.readSync(fd, buf, 0, toRead, null);
+      if (bytesRead === 0) break;
+      totalRead += bytesRead;
+      if (totalRead > maxBytes) {
+        throw new Error(`Oversized ${label} (exceeds ${maxBytes} byte limit).`);
+      }
+      chunks.push(bytesRead === toRead ? buf : buf.subarray(0, bytesRead));
+    }
+    return chunks.length === 1 ? chunks[0] : Buffer.concat(chunks, totalRead);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 function decodeDocxXmlEntities(str) {
   return String(str || '')
@@ -483,6 +678,7 @@ export function extractDocxText(rawBuf, limits = {}) {
     throw new Error('Corrupted .docx central directory bounds.');
   }
 
+  const cdStartOffset = cdOffset;
   const cdEndOffset = cdOffset + cdSize;
   const xmlParts = [];
   const seenNames = new Set();
@@ -521,14 +717,14 @@ export function extractDocxText(rawBuf, limits = {}) {
       throw new Error('ZIP64 .docx archives are not supported.');
     }
 
-    if (localHeaderOffset + 30 > cdEndOffset - cdSize || localHeaderOffset + 30 > rawBuf.length || rawBuf.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
+    if (localHeaderOffset + 30 > cdStartOffset || localHeaderOffset + 30 > rawBuf.length || rawBuf.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
       throw new Error('Corrupted .docx local file header.');
     }
     const lhNameLen = rawBuf.readUInt16LE(localHeaderOffset + 26);
     const lhExtraLen = rawBuf.readUInt16LE(localHeaderOffset + 28);
     const dataStart = localHeaderOffset + 30 + lhNameLen + lhExtraLen;
     const dataEnd = dataStart + compSize;
-    if (dataStart > rawBuf.length || dataEnd > rawBuf.length || dataEnd > eocdOffset - cdSize) {
+    if (dataStart > rawBuf.length || dataEnd > rawBuf.length || dataEnd > cdStartOffset) {
       throw new Error('Truncated or out-of-bounds .docx entry data.');
     }
 
@@ -575,13 +771,17 @@ export function extractDocxText(rawBuf, limits = {}) {
       if (compSize === 0) {
         throw new Error(`Corrupted .docx deflate entry "${fileName}" (0 compressed bytes).`);
       }
+      const inflateCap = Math.max(1, entryBudget);
       try {
-        xmlBuf = zlib.inflateRawSync(compressed, { maxOutputLength: entryBudget });
+        xmlBuf = zlib.inflateRawSync(compressed, { maxOutputLength: inflateCap });
       } catch (err) {
         if (err && (err.code === 'ERR_BUFFER_TOO_LARGE' || /maxOutputLength|Cannot create a Buffer larger than/i.test(String(err.message)))) {
           throw new Error(`Decompression limit exceeded for .docx entry "${fileName}" (max ${entryBudget} bytes).`);
         }
         throw new Error(`Corrupted deflate stream in .docx entry "${fileName}": ${err.message}`);
+      }
+      if (xmlBuf.length > entryBudget) {
+        throw new Error(`Decompression limit exceeded for .docx entry "${fileName}" (max ${entryBudget} bytes).`);
       }
       if (xmlBuf.length !== uncompSize) {
         throw new Error(`Corrupted .docx entry "${fileName}" (declared uncompressed size ${uncompSize} != actual ${xmlBuf.length}).`);

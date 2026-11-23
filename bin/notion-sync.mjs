@@ -14,6 +14,9 @@ import {
   isUsableJobId,
   computeApplicationId,
   isThirdPartyCvPath,
+  validateSafeWorkspaceRelativePath,
+  classifyCvRegistryEntryOwnership,
+  classifyApplicationOwnership,
   validateCvVersionsRegistry,
   validateDailyRun,
   validateCareerInsights,
@@ -294,12 +297,8 @@ function classifySourceChannel(rec) {
 function isUnsafeRelativeRef(relPath) {
   if (relPath === null || relPath === undefined) return false;
   if (typeof relPath !== 'string') return true;
-  const norm = relPath.replace(/\\/g, '/').trim();
-  if (!norm) return false;
-  if (norm.startsWith('/') || /^[A-Za-z]:\//.test(norm) || norm.startsWith('..') || norm.includes('/../')) {
-    return true;
-  }
-  return false;
+  if (relPath.length === 0) return false;
+  return !validateSafeWorkspaceRelativePath(relPath, { allowThirdParty: true }).valid;
 }
 
 function checkAllowedKeys(obj, allowedSet, label, errors) {
@@ -505,6 +504,52 @@ export function validateCvAttribution(raw, { allCvRegistry = null } = {}) {
     }
   }
 
+  // 2b. Application-level artifact paths (screenshot, follow_up.draft_rel, interviews[].dossier_rel, assessments[].blueprint_rel)
+  if (raw.screenshot !== undefined && raw.screenshot !== null) {
+    if (typeof raw.screenshot !== 'string' || isThirdPartyCvPath(raw.screenshot) || isUnsafeRelativeRef(raw.screenshot)) {
+      violations.push({
+        field_path: 'screenshot',
+        code: 'third_party_subject',
+        reason: 'Screenshot path references a third-party or unsafe directory.',
+      });
+    }
+  }
+  if (isObj(raw.follow_up) && raw.follow_up.draft_rel !== undefined && raw.follow_up.draft_rel !== null) {
+    if (typeof raw.follow_up.draft_rel !== 'string' || isThirdPartyCvPath(raw.follow_up.draft_rel) || isUnsafeRelativeRef(raw.follow_up.draft_rel)) {
+      violations.push({
+        field_path: 'follow_up.draft_rel',
+        code: 'third_party_subject',
+        reason: 'Follow-up draft path references a third-party or unsafe directory.',
+      });
+    }
+  }
+  if (Array.isArray(raw.interviews)) {
+    raw.interviews.forEach((iv, idx) => {
+      if (isObj(iv) && iv.dossier_rel !== undefined && iv.dossier_rel !== null) {
+        if (typeof iv.dossier_rel !== 'string' || isThirdPartyCvPath(iv.dossier_rel) || isUnsafeRelativeRef(iv.dossier_rel)) {
+          violations.push({
+            field_path: `interviews[${idx}].dossier_rel`,
+            code: 'third_party_subject',
+            reason: 'Interview dossier path references a third-party or unsafe directory.',
+          });
+        }
+      }
+    });
+  }
+  if (Array.isArray(raw.assessments)) {
+    raw.assessments.forEach((asmt, idx) => {
+      if (isObj(asmt) && asmt.blueprint_rel !== undefined && asmt.blueprint_rel !== null) {
+        if (typeof asmt.blueprint_rel !== 'string' || isThirdPartyCvPath(asmt.blueprint_rel) || isUnsafeRelativeRef(asmt.blueprint_rel)) {
+          violations.push({
+            field_path: `assessments[${idx}].blueprint_rel`,
+            code: 'third_party_subject',
+            reason: 'Assessment blueprint path references a third-party or unsafe directory.',
+          });
+        }
+      }
+    });
+  }
+
   // L1: Reject non-string or whitespace-only cv_version_id / base_cv_version_id (null, undefined, or "" means unattributed)
   let cvId = null;
   if (raw.cv_version_id !== undefined && raw.cv_version_id !== null) {
@@ -545,8 +590,56 @@ export function validateCvAttribution(raw, { allCvRegistry = null } = {}) {
     }
   }
 
+  // 2c. Reverse links from third-party / unverified CV registry entries (even when application cv_version_id is null)
+  if (allCvRegistry && isObj(allCvRegistry)) {
+    const revRegCheck = validateCvVersionsRegistry(allCvRegistry);
+    if (revRegCheck.valid) {
+      const revById = new Map();
+      for (const v of allCvRegistry.versions) {
+        if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+          revById.set(v.cv_version_id.trim(), v);
+        }
+      }
+      const appId = isUsableJobId(raw.job_id)
+        ? computeApplicationId(raw.job_id)
+        : (isNonEmptyString(raw.application_id) ? raw.application_id.trim() : null);
+      const jobKey = isUsableJobId(raw.job_id) ? raw.job_id.trim().toLowerCase() : null;
+      for (const v of allCvRegistry.versions) {
+        if (!classifyCvRegistryEntryOwnership(v, revById).isOwner) {
+          const matchesAppId = Boolean(appId && Array.isArray(v.application_ids) && v.application_ids.includes(appId));
+          const matchesTargetJob = Boolean(
+            jobKey &&
+            isUsableJobId(v.tailoring_metadata?.target_job_id) &&
+            v.tailoring_metadata.target_job_id.trim().toLowerCase() === jobKey,
+          );
+          if (matchesAppId || matchesTargetJob) {
+            violations.push({
+              field_path: matchesAppId ? 'cv_versions_registry.application_ids' : 'cv_versions_registry.tailoring_metadata.target_job_id',
+              code: 'third_party_subject',
+              reason: 'Application is reverse-linked from a third-party or unverified CV version registry entry.',
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+
   // Unattributed legacy v1 application (neither cv_version_id nor base_cv_version_id set)
   if (!cvId && !baseCvId) {
+    if (violations.length === 0) {
+      const validReg = allCvRegistry && isObj(allCvRegistry) && validateCvVersionsRegistry(allCvRegistry).valid
+        ? allCvRegistry
+        : null;
+      const centralOwn = classifyApplicationOwnership(raw, validReg);
+      if (!centralOwn.isOwner) {
+        violations.push({
+          field_path: 'ownership',
+          code: 'third_party_subject',
+          reason: `Centralized ownership check blocked record (${centralOwn.reason || 'unverified_ownership'}).`,
+        });
+      }
+    }
     return {
       valid: violations.length === 0,
       attributed: false,
@@ -679,6 +772,17 @@ export function validateCvAttribution(raw, { allCvRegistry = null } = {}) {
           reason: 'Application declares a base_cv_version_id that contradicts a root CV registry entry.',
         });
       }
+    }
+  }
+
+  if (violations.length === 0) {
+    const centralOwn = classifyApplicationOwnership(raw, allCvRegistry);
+    if (!centralOwn.isOwner) {
+      violations.push({
+        field_path: 'ownership',
+        code: 'third_party_subject',
+        reason: `Centralized ownership check blocked record (${centralOwn.reason || 'unverified_ownership'}).`,
+      });
     }
   }
 

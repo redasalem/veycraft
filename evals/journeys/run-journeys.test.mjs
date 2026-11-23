@@ -238,7 +238,8 @@ test('4. CV Edit (Preserving Original), Quick-Tailor Artifact Generation, Fact-C
     fs.writeFileSync(path.join(outDir, 'resume.txt'), txtV1);
     fs.writeFileSync(path.join(outDir, 'tailoring-notes.md'), notesV1);
 
-    const groundTruth = path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json');
+    const groundTruth = path.join(tmp, 'ground-truth.json');
+    fs.copyFileSync(path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json'), groundTruth);
     const verifyPass = runCli(['verify', outDir, '--facts', groundTruth], tmp);
     assert.equal(verifyPass.status, 0, verifyPass.stdout + verifyPass.stderr);
 
@@ -305,7 +306,9 @@ test('5. LinkedIn Profile Review & Improvement Prep, Multi-Source JD Analysis, A
         '- True Gaps (Excluded): Kubernetes',
       ].join('\n'),
     );
-    assert.equal(runCli(['verify', linkedinAuditOut, '--facts', path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json')], tmp).status, 0);
+    const linkedinGroundTruth = path.join(tmp, 'ground-truth.json');
+    fs.copyFileSync(path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json'), linkedinGroundTruth);
+    assert.equal(runCli(['verify', linkedinAuditOut, '--facts', linkedinGroundTruth], tmp).status, 0);
 
     // 5.2 Multi-source JD analysis & ranking against real fixture JDs (separating verified matches vs unknown requirements)
     const jd01 = fs.readFileSync(path.join(REPO_ROOT, 'evals', 'fixtures', 'jds', '01-strong-match.md'), 'utf8');

@@ -254,16 +254,18 @@ test('5. Integration & regression: registry, manifest, wrappers, CLI route, and 
   // CLI verify validates Profile Update Plan JSON deterministically
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jho-pie-verify-'));
   try {
+    const factsPath = path.join(tmp, 'ground-truth.json');
+    fs.copyFileSync(path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json'), factsPath);
     const goodPath = path.join(tmp, 'good-plan.json');
     fs.writeFileSync(goodPath, JSON.stringify(makeValidPlan(), null, 2));
-    const goodRun = runCli(['verify', goodPath, '--facts', path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json')], tmp);
+    const goodRun = runCli(['verify', goodPath, '--facts', factsPath], tmp);
     assert.equal(goodRun.status, 0, goodRun.stdout + goodRun.stderr);
 
     const badPlan = makeValidPlan();
     badPlan.changes[0].after = 'Built Kubernetes pipelines reducing cost by 99%.';
     const badPath = path.join(tmp, 'bad-plan.json');
     fs.writeFileSync(badPath, JSON.stringify(badPlan, null, 2));
-    const badRun = runCli(['verify', badPath, '--facts', path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json')], tmp);
+    const badRun = runCli(['verify', badPath, '--facts', factsPath], tmp);
     assert.notEqual(badRun.status, 0);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

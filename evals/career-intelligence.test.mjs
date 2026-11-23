@@ -24,9 +24,12 @@ const {
   refuseSymlink,
   writeAtomic,
   readJsonSafe,
+  classifyIpAddress,
   isBlockedSsrfUrl,
+  resolveAndValidateSsrfHost,
   fetchUrlWithSafeRedirects,
   DOCX_LIMITS,
+  readFileBoundedSync,
   extractDocxText,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'fs-safety.mjs')).href);
 
@@ -87,9 +90,16 @@ const {
   classifyCvRegistryEntryOwnership,
   classifyApplicationOwnership,
   isOwnerApplicationRecord,
+  isThirdPartyCvPath,
   validateSafeWorkspaceRelativePath,
   isSafeWorkspaceRelativePath,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'career-intelligence.mjs')).href);
+
+const {
+  computeNotionSyncDiff,
+  createEmptySyncState,
+  validateCvAttribution,
+} = await import(pathToFileURL(path.join(BIN_DIR, 'notion-sync.mjs')).href);
 
 function sha256File(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -644,7 +654,17 @@ test('6. Stage 2 (T4): Deterministic analytics engine enforces MIN_N = 5, silenc
       },
     ];
 
-    const smallStats = computeCareerAnalytics(smallRecords, null, { nowIso });
+    const t4OwnerCvRegistry = {
+      schema_version: '1.0',
+      updated_at: nowIso,
+      versions: [
+        { cv_version_id: 'cv-tailored-1', version_number: 1, label: 'Tailored 1', kind: 'tailored', owner_scope: 'owner', base_cv_version_id: null, content_sha256: '1'.repeat(64), local_ref_rel: 'logs/resumes/2026-11-01-tailored/resume.html', created_at: nowIso, application_ids: [] },
+        { cv_version_id: 'cv-base-1', version_number: 1, label: 'Base 1', kind: 'generic', owner_scope: 'owner', base_cv_version_id: null, content_sha256: '2'.repeat(64), local_ref_rel: 'context/cv.md', created_at: nowIso, application_ids: [] },
+        { cv_version_id: 'cv-t', version_number: 1, label: 'Tailored T', kind: 'tailored', owner_scope: 'owner', base_cv_version_id: null, content_sha256: '3'.repeat(64), local_ref_rel: 'logs/resumes/2026-11-01-t/resume.html', created_at: nowIso, application_ids: [] },
+        { cv_version_id: 'cv-g', version_number: 1, label: 'Generic G', kind: 'generic', owner_scope: 'owner', base_cv_version_id: null, content_sha256: '4'.repeat(64), local_ref_rel: 'context/cv.md', created_at: nowIso, application_ids: [] },
+      ],
+    };
+    const smallStats = computeCareerAnalytics(smallRecords, t4OwnerCvRegistry, { nowIso });
     assert.equal(smallStats.isolation.third_party_applications_excluded, 1);
     assert.equal(smallStats.funnel.submitted_count, 4);
     assert.equal(smallStats.funnel.prepared_only_count, 1);
@@ -759,9 +779,9 @@ test('6. Stage 2 (T4): Deterministic analytics engine enforces MIN_N = 5, silenc
       },
     ];
 
-    const fullStats = computeCareerAnalytics(fullRecords, null, { nowIso });
+    const fullStats = computeCareerAnalytics(fullRecords, t4OwnerCvRegistry, { nowIso });
     // Determinism check: identical inputs produce byte-identical analytics
-    const fullStatsRepeat = computeCareerAnalytics(fullRecords, null, { nowIso });
+    const fullStatsRepeat = computeCareerAnalytics(fullRecords, t4OwnerCvRegistry, { nowIso });
     assert.deepEqual(fullStats, fullStatsRepeat);
 
     assert.equal(fullStats.sample_sufficiency.sufficient, true);
@@ -857,7 +877,7 @@ test('6. Stage 2 (T4): Deterministic analytics engine enforces MIN_N = 5, silenc
     }
 
     // Period filtering: 2026-11 excludes g-5 (2026-10-15) -> 9 records
-    const novStats = computeCareerAnalytics(fullRecords, null, { nowIso, period: '2026-11' });
+    const novStats = computeCareerAnalytics(fullRecords, t4OwnerCvRegistry, { nowIso, period: '2026-11' });
     assert.equal(novStats.period_type, 'monthly');
     assert.equal(novStats.funnel.submitted_count, 9);
 
@@ -871,6 +891,7 @@ test('6. Stage 2 (T4): Deterministic analytics engine enforces MIN_N = 5, silenc
 
     // 6e. Workspace CLI, H1 post-migration summary, M4 all-time filename & error paths
     const ledgerPath = path.join(work, 'logs', 'applications-log.json');
+    fs.writeFileSync(path.join(work, 'logs', 'cv-versions.json'), JSON.stringify(t4OwnerCvRegistry, null, 2));
     fs.writeFileSync(ledgerPath, JSON.stringify(fullRecords, null, 2));
     const ledgerHashBefore = sha256File(ledgerPath);
 
@@ -1011,6 +1032,27 @@ test('7. Stage 2 (T5): Local analytics dashboard is read-only, XSS-safe, offline
         provenance: { third_party_subject: true },
       },
     ];
+    fs.writeFileSync(
+      path.join(work, 'logs', 'cv-versions.json'),
+      JSON.stringify({
+        schema_version: '1.0',
+        updated_at: '2026-11-20T10:00:00Z',
+        versions: [
+          {
+            cv_version_id: 'cv-v2',
+            version_number: 2,
+            label: 'Owner Tailored v2',
+            kind: 'tailored',
+            owner_scope: 'owner',
+            base_cv_version_id: null,
+            content_sha256: '5'.repeat(64),
+            local_ref_rel: 'logs/resumes/2026-10-01-sec/resume.html',
+            created_at: '2026-10-01T09:00:00Z',
+            application_ids: [],
+          },
+        ],
+      }, null, 2),
+    );
     fs.writeFileSync(ledgerPath, JSON.stringify(records, null, 2));
     const beforeHash = sha256File(ledgerPath);
 
@@ -2332,15 +2374,15 @@ test('15. Stage 6 (T12.3): Context-aware owner CV selection, cv-* folder collisi
       created_at: nowIso,
       updated_at: nowIso,
       local_ref_rel: 'logs/resumes/cv-friend-john/resume.html',
-      tailoring_metadata: { target_job_id: 'gh:201', target_role: 'Senior AI Engineer', emphasized_skills: ['TypeScript', 'Node.js', 'LLM'] },
+      tailoring_metadata: { target_job_id: 'gh:201-tp-sel', target_role: 'Senior AI Engineer', emphasized_skills: ['TypeScript', 'Node.js', 'LLM'] },
       ats_metrics: { keyword_match_before_pct: 90, keyword_match_after_pct: 99, hygiene_score: 100, page_count: 1 },
       application_ids: [],
     });
     fs.writeFileSync(cvRegLoaded.path, JSON.stringify(cvRegLoaded.registry, null, 2));
 
-    // Select for gh:201 before job-specific CV is registered: must pick cv-owner-ai-v2 (never cv-third-party-friend!)
+    // Select for gh:201-tp-sel before job-specific CV is registered: must pick cv-owner-ai-v2 (never cv-third-party-friend even with exact target_job_id match!)
     const sel1 = selectBestOwnerCvVersion(work, {
-      job_id: 'gh:201',
+      job_id: 'gh:201-tp-sel',
       title: 'Senior AI Engineer',
       matched_skills: ['TypeScript', 'Node.js'],
       missing_skills: ['Rust'],
@@ -3212,6 +3254,319 @@ test('19. SEC-02: centralized third-party CV and application ownership isolation
 });
 
 // ===========================================================================
+// Test 19b: SEC-02 Closure — F-01 (path canonicalization), F-04 (missing registry fail-closed),
+// and F-05 (lifecycle write & Notion sync ownership centralization)
+// ===========================================================================
+test('19b. SEC-02 closure: F-01 path canonicalization, F-04 missing CV registry fail-closed, and F-05 lifecycle/Notion ownership centralization', () => {
+  const { dir, home, work } = makeTempWorkspace('veycraft-sec02-closure-');
+  const nowIso = '2026-07-10T10:00:00Z';
+
+  try {
+    fs.mkdirSync(path.join(work, 'config'), { recursive: true });
+    fs.mkdirSync(path.join(work, 'context'), { recursive: true });
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'guardrails.yaml'), path.join(work, 'config', 'guardrails.yaml'));
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'invariants.txt'), path.join(work, 'config', 'invariants.txt'));
+    fs.writeFileSync(path.join(work, 'context', 'cv.md'), '# Owner CV\nBuilt Node.js systems.\n');
+
+    // F-01: Alternate non-canonical third-party path representations must be detected & rejected
+    const thirdPartyVariants = [
+      'logs/resumes/./cv-alice/resume.html',
+      'logs//resumes/cv-alice/resume.html',
+      'logs/resumes/foo/../cv-alice/resume.html',
+      'logs\\resumes\\.\\cv-alice\\resume.html',
+      'logs/resumes\\cv-alice/resume.html',
+      'logs/resumes/cv-alice/resume.html',
+    ];
+    for (const p of thirdPartyVariants) {
+      assert.equal(isThirdPartyCvPath(p), true, `isThirdPartyCvPath must detect "${p}"`);
+    }
+    for (const safeOwnerPath of ['context/cv.md', 'logs/resumes/2026-07-10-acme-1/resume.html', 'logs/resumes/acme-2026-11/']) {
+      assert.equal(isThirdPartyCvPath(safeOwnerPath), false, `Valid owner path must not be flagged third-party: "${safeOwnerPath}"`);
+    }
+
+    // F-01: Non-canonical paths in CV registry must fail validation and ownership checks
+    for (const badPath of ['logs/resumes/./cv-alice/resume.html', 'logs//resumes/cv-alice/resume.html', 'logs/resumes/foo/../cv-alice/resume.html']) {
+      const badReg = {
+        schema_version: '1.0',
+        updated_at: nowIso,
+        versions: [{
+          cv_version_id: 'cv-bad-path',
+          version_number: 1,
+          label: 'Bad Path CV',
+          kind: 'generic',
+          owner_scope: 'owner',
+          base_cv_version_id: null,
+          content_sha256: 'a'.repeat(64),
+          local_ref_rel: badPath,
+          created_at: nowIso,
+          application_ids: [],
+        }],
+      };
+      assert.equal(validateCvVersionsRegistry(badReg).valid, false, `Registry must reject non-canonical path "${badPath}"`);
+      assert.equal(classifyCvRegistryEntryOwnership(badReg.versions[0], new Map([['cv-bad-path', badReg.versions[0]]])).isOwner, false);
+      assert.throws(() => registerCvVersion(null, badReg.versions[0]), /third-party|unsafe/i);
+    }
+
+    // F-04: Missing registry (null) must fail closed for CV-attributed records while preserving unattributed owner records
+    const recWithCv = normalizeApplicationRecord({
+      job_id: 'gh:f04-cv',
+      company: 'MissingRegCvCorp',
+      title: 'Engineer',
+      url: 'https://boards.greenhouse.io/missingregcv/jobs/1',
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+      cv_version_id: 'cv-tp-or-unknown',
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: true, third_party_subject: false },
+    });
+    const recWithBaseCv = normalizeApplicationRecord({
+      job_id: 'gh:f04-base',
+      company: 'MissingRegBaseCorp',
+      title: 'Engineer',
+      url: 'https://boards.greenhouse.io/missingregbase/jobs/2',
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+      cv_version_id: null,
+      cv_tailoring: { is_tailored: true, base_cv_version_id: 'cv-tp-base', tailored_folder_rel: null, tailoring_notes_rel: null },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: true, third_party_subject: false },
+    });
+    const recUnattributed = normalizeApplicationRecord({
+      job_id: 'gh:f04-unattr',
+      company: 'UnattributedOwnerCorp',
+      title: 'Engineer',
+      url: 'https://boards.greenhouse.io/unattrowner/jobs/3',
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+      cv_version_id: null,
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: true, third_party_subject: false },
+    });
+
+    assert.equal(classifyApplicationOwnership(recWithCv, null).isOwner, false);
+    assert.equal(classifyApplicationOwnership(recWithCv, null).reason, 'missing_cv_versions_registry');
+    assert.equal(classifyApplicationOwnership(recWithBaseCv, null).isOwner, false);
+    assert.equal(classifyApplicationOwnership(recWithBaseCv, null).reason, 'missing_cv_versions_registry');
+    assert.equal(classifyApplicationOwnership(recUnattributed, null).isOwner, true);
+
+    const emptyReg = { schema_version: '1.0', updated_at: nowIso, versions: [] };
+    assert.equal(classifyApplicationOwnership(recWithCv, emptyReg).isOwner, false);
+    assert.equal(classifyApplicationOwnership(recWithBaseCv, emptyReg).isOwner, false);
+    assert.equal(classifyApplicationOwnership(recUnattributed, emptyReg).isOwner, true);
+    assert.throws(() => classifyApplicationOwnership(recUnattributed, { schema_version: 'bad', versions: 'nope' }), /Invalid CV versions registry/i);
+
+    // Workspace without logs/cv-versions.json: CV-attributed records excluded from analytics, summary, status metrics, run counts, queue & dashboard
+    writeAtomic(path.join(work, 'logs', 'applications-log.json'), JSON.stringify([recWithCv, recWithBaseCv, recUnattributed], null, 2) + '\n', { boundary: work, home });
+    const f04Sum = summarizeCareerWorkspace(work, { home, nowIso });
+    const f04Metrics = computeWorkspaceStatusMetrics(work, { home, nowIso });
+    const f04Counts = deriveRunCountsFromLedger(work, '2026-07-10', { home });
+    const f04Queue = computeCareerWorkflowQueue(work, { home, sourceRoot: REPO_ROOT, nowIso });
+    const f04Dash = runCli(['career', 'dashboard'], { cwd: work, home });
+    assert.equal(f04Dash.status, 0, f04Dash.stderr);
+    const f04DashHtml = fs.readFileSync(path.join(work, 'logs', 'exports', 'dashboard.html'), 'utf8');
+
+    assert.equal(f04Sum.funnel.total_tracked, 1);
+    assert.equal(f04Metrics.pipeline.applied, 1);
+    assert.equal(f04Metrics.third_party_excluded, 2);
+    assert.equal(f04Counts.counts.applied, 1);
+    const f04Combined = JSON.stringify({ f04Sum, f04Metrics, f04Queue, f04DashHtml });
+    assert.equal(f04Combined.includes('MissingRegCvCorp'), false);
+    assert.equal(f04Combined.includes('MissingRegBaseCorp'), false);
+    assert.equal(f04DashHtml.includes('UnattributedOwnerCorp'), true);
+
+    // F-05: Ownership centralization across lifecycle mutations and Notion sync
+    const revJobId = 'gh:f05-rev';
+    const revAppId = computeApplicationId(revJobId);
+    const f05Reg = {
+      schema_version: '1.0',
+      updated_at: nowIso,
+      versions: [
+        {
+          cv_version_id: 'cv-owner-valid',
+          version_number: 1,
+          label: 'Valid Owner CV',
+          kind: 'generic',
+          owner_scope: 'owner',
+          base_cv_version_id: null,
+          content_sha256: '1'.repeat(64),
+          local_ref_rel: 'context/cv.md',
+          created_at: nowIso,
+          application_ids: [],
+        },
+        {
+          cv_version_id: 'cv-tp-root',
+          version_number: 1,
+          label: 'Third Party Root',
+          kind: 'tailored',
+          owner_scope: 'third_party',
+          base_cv_version_id: null,
+          content_sha256: '2'.repeat(64),
+          local_ref_rel: 'logs/resumes/cv-alice/resume.html',
+          tailoring_metadata: { target_job_id: revJobId, target_role: 'Rev Role', emphasized_skills: [], true_gaps_excluded: [] },
+          created_at: nowIso,
+          application_ids: [revAppId],
+        },
+        {
+          cv_version_id: 'cv-tp-child-masked',
+          version_number: 1,
+          label: 'Masked Child of TP Root',
+          kind: 'tailored',
+          owner_scope: 'owner',
+          base_cv_version_id: 'cv-tp-root',
+          content_sha256: '3'.repeat(64),
+          local_ref_rel: 'logs/resumes/2026-07-10-masked/resume.html',
+          created_at: nowIso,
+          application_ids: [],
+        },
+      ],
+    };
+    writeAtomic(path.join(work, 'logs', 'cv-versions.json'), JSON.stringify(f05Reg, null, 2) + '\n', { boundary: work, home });
+
+    // Valid owner CV & third-party CV with registry
+    const recOwnerWithCv = normalizeApplicationRecord({
+      job_id: 'gh:f05-owner',
+      company: 'OwnerValidCo',
+      title: 'Engineer',
+      url: 'https://boards.greenhouse.io/ownervalid/jobs/1',
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+      cv_version_id: 'cv-owner-valid',
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: true, third_party_subject: false },
+    });
+    assert.equal(classifyApplicationOwnership(recOwnerWithCv, f05Reg).isOwner, true);
+    assert.equal(validateCvAttribution(recOwnerWithCv, { allCvRegistry: f05Reg }).valid, true);
+
+    // registerOwnerCvVersionForWorkspace must reject masked third-party child base_cv_version_id & missing base_cv_version_id
+    assert.throws(
+      () => registerOwnerCvVersionForWorkspace(work, {
+        cv_version_id: 'cv-laundered-1',
+        label: 'Laundered',
+        kind: 'tailored',
+        file: 'context/cv.md',
+        base_cv_version_id: 'cv-tp-child-masked',
+      }, { home, nowIso }),
+      /third_party_blocked/i,
+    );
+    assert.throws(
+      () => registerOwnerCvVersionForWorkspace(work, {
+        cv_version_id: 'cv-missing-base',
+        label: 'Missing Base',
+        kind: 'tailored',
+        file: 'context/cv.md',
+        base_cv_version_id: 'cv-does-not-exist',
+      }, { home, nowIso }),
+      /invalid_base_cv_version/i,
+    );
+
+    // confirmApplicationSubmission must reject masked third-party child CV
+    writeAtomic(path.join(work, 'logs', 'applications-log.json'), JSON.stringify([recOwnerWithCv], null, 2) + '\n', { boundary: work, home });
+    reserveApplicationSubmission(work, { job_id: 'gh:f05-res', company: 'ReserveCo', title: 'Eng', platform: 'greenhouse' }, { home, nowIso, sourceRoot: REPO_ROOT });
+    assert.throws(
+      () => confirmApplicationSubmission(work, { job_id: 'gh:f05-res', receipt: 'Received', cv_version_id: 'cv-tp-child-masked' }, { home, nowIso }),
+      /third_party_blocked/i,
+    );
+
+    // prepareApplicationPackage must reject masked third-party child CV, masked base CV, and reverse-linked third-party records
+    const pkgDir = path.join(work, 'logs', 'resumes', '2026-07-10-f05-pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'resume.txt'), 'Alex Rivera\nBuilt Node.js systems.');
+    const recRevPrepared = normalizeApplicationRecord({
+      job_id: revJobId,
+      company: 'RevLinkCo',
+      title: 'Engineer',
+      platform: 'greenhouse',
+      status: 'discovered',
+      updated_at: nowIso,
+      provenance: { created_by: '02-discover-and-triage', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+    const recPrepOwner = normalizeApplicationRecord({
+      job_id: 'gh:f05-prep-owner',
+      company: 'PrepOwnerCo',
+      title: 'Engineer',
+      platform: 'greenhouse',
+      status: 'discovered',
+      updated_at: nowIso,
+      provenance: { created_by: '02-discover-and-triage', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+    writeAtomic(path.join(work, 'logs', 'applications-log.json'), JSON.stringify([recOwnerWithCv, recRevPrepared, recPrepOwner], null, 2) + '\n', { boundary: work, home });
+    assert.throws(
+      () => prepareApplicationPackage(work, { job_id: revJobId, folder_rel: 'logs/resumes/2026-07-10-f05-pkg', require_ready: false }, { home, nowIso }),
+      /third_party_blocked/i,
+    );
+    assert.throws(
+      () => prepareApplicationPackage(work, { job_id: 'gh:f05-prep-owner', folder_rel: 'logs/resumes/2026-07-10-f05-pkg', cv_version_id: 'cv-tp-child-masked', require_ready: false }, { home, nowIso }),
+      /third_party_blocked/i,
+    );
+    assert.throws(
+      () => prepareApplicationPackage(work, { job_id: 'gh:f05-prep-owner', folder_rel: 'logs/resumes/2026-07-10-f05-pkg', base_cv_version_id: 'cv-tp-child-masked', require_ready: false }, { home, nowIso }),
+      /third_party_blocked/i,
+    );
+    // registerOwnerCvVersionForWorkspace must also reject linking owner CV to reverse-linked third-party application
+    assert.throws(
+      () => registerOwnerCvVersionForWorkspace(work, {
+        cv_version_id: 'cv-owner-link-rev',
+        label: 'Owner Link Rev',
+        kind: 'generic',
+        file: 'context/cv.md',
+        link_job_id: revJobId,
+      }, { home, nowIso }),
+      /third_party_blocked/i,
+    );
+
+    // Notion sync eligibility must block reverse-linked records and third-party paths in screenshot, dossier_rel, blueprint_rel, draft_rel
+    const recRevSubmitted = normalizeApplicationRecord({
+      job_id: revJobId,
+      company: 'RevLinkNotionCo',
+      title: 'Engineer',
+      url: 'https://boards.greenhouse.io/revlink/jobs/1',
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: true, third_party_subject: false },
+    });
+    const makeArtifactTpRec = (id, patch) => normalizeApplicationRecord({
+      job_id: id,
+      company: `TpArtifactCo-${id}`,
+      title: 'Engineer',
+      url: `https://boards.greenhouse.io/tpartifact/jobs/${id.replace(/\W/g, '')}`,
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: true, third_party_subject: false },
+      ...patch,
+    });
+    const recTpShot = makeArtifactTpRec('gh:f05-shot', { screenshot: 'logs/resumes/cv-alice/shot.png' });
+    const recTpDraft = makeArtifactTpRec('gh:f05-draft', { follow_up: { follow_up_count: 0, status: 'drafted', next_due_at: null, last_followed_up_at: null, draft_rel: 'logs/resumes/./cv-alice/draft.md' } });
+    const recTpDossier = makeArtifactTpRec('gh:f05-dossier', { interviews: [{ interview_id: 'iv1', round: 1, stage: 'technical_screen', status: 'scheduled', outcome: 'pending', scheduled_at: null, timezone: null, dossier_rel: 'logs/resumes/cv-alice/dossier.md', notes: '' }] });
+    const recTpBlueprint = makeArtifactTpRec('gh:f05-blueprint', { assessments: [{ assessment_id: 'as1', type: 'take_home', status: 'assigned', outcome: 'pending', received_at: nowIso, due_at: null, submitted_at: null, blueprint_rel: 'logs/resumes/cv-alice/blueprint.md', notes: '' }] });
+
+    const notionRes = computeNotionSyncDiff({
+      applications: [recOwnerWithCv, recRevSubmitted, recTpShot, recTpDraft, recTpDossier, recTpBlueprint],
+      dailyRuns: [],
+      insights: [],
+      allCvRegistry: f05Reg,
+      syncState: createEmptySyncState(),
+      createdAt: nowIso,
+    });
+    assert.deepEqual(
+      notionRes.plan.operations.map(o => o.canonical_key),
+      [recOwnerWithCv.application_id],
+      'Only legitimate verified owner application may enter Notion sync operations',
+    );
+    assert.equal(notionRes.plan.blocked_items.length, 5, 'All 5 third-party/reverse-linked/artifact-path applications must be blocked');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ===========================================================================
 // Test 20: SEC-04 — Path Traversal & Symlink Bypass Prevention
 // ===========================================================================
 test('20. SEC-04: relative path validation, workspace containment, third-party path isolation & CLI symlink refusal', () => {
@@ -3430,6 +3785,120 @@ test('20. SEC-04: relative path validation, workspace containment, third-party p
 });
 
 // ===========================================================================
+// Test 20b: SEC-04 Closure — F-02 (remove arbitrary outside evals/fixtures bypass),
+// F-06 (validateCvVersionsRegistry local_ref_rel), F-10 (cmdEval --file & ADS)
+// ===========================================================================
+test('20b. SEC-04 closure: blocks F-02 outside evals/fixtures bypass, F-06 unsafe registry local_ref_rel, and F-10 eval --file/ADS', () => {
+  const { dir, home, work } = makeTempWorkspace('veycraft-sec04-closure-');
+  const outsideDir = path.join(dir, 'outside-spoofed');
+  const outsideFixtures = path.join(outsideDir, 'evals', 'fixtures');
+  fs.mkdirSync(outsideFixtures, { recursive: true });
+  fs.mkdirSync(path.join(work, 'logs', 'resumes', 'safe-pkg'), { recursive: true });
+
+  try {
+    // F-02: Outside directory containing a spoofed evals/fixtures/ground-truth.json MUST NOT be trusted
+    const spoofedGt = path.join(outsideFixtures, 'ground-truth.json');
+    const spoofedDoc = path.join(outsideFixtures, 'secret-outside.md');
+    fs.writeFileSync(spoofedGt, JSON.stringify({ ground_truth_metrics: ['38%'], forbidden_skills: [] }));
+    fs.writeFileSync(spoofedDoc, '# Outside Secret\n- Improved latency by 38%.\n');
+
+    const safeInside = path.join(work, 'logs', 'resumes', 'safe-pkg', 'resume.txt');
+    fs.writeFileSync(safeInside, 'Alex Rivera\nBuilt Node.js services improving latency by 38%.');
+
+    for (const [label, args] of [
+      ['audit outside evals/fixtures', ['audit', spoofedDoc]],
+      ['verify outside evals/fixtures', ['verify', spoofedDoc]],
+      ['verify --facts outside evals/fixtures', ['verify', safeInside, '--facts', spoofedGt]],
+      ['pre-submit --draft outside evals/fixtures', ['pre-submit', '--draft', spoofedDoc]],
+    ]) {
+      const res = runCli(args, { cwd: work, home });
+      assert.notEqual(res.status, 0, `${label} must be rejected`);
+      assert.match(res.stderr, /outside workspace boundary/i, `${label} must report boundary error`);
+    }
+
+    // Legitimate in-workspace file and legitimate SOURCE/evals/fixtures/ground-truth.json remain allowed
+    const legitVerify = runCli(['verify', 'logs/resumes/safe-pkg/resume.txt', '--facts', path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json')], { cwd: work, home });
+    assert.equal(legitVerify.status, 0, legitVerify.stdout + legitVerify.stderr);
+
+    // F-06: validateCvVersionsRegistry rejects traversal, absolute, drive, UNC, and mixed-separator unsafe local_ref_rel
+    const nowIso = '2026-07-10T12:00:00Z';
+    const makeReg = ref => ({
+      schema_version: '1.0',
+      updated_at: nowIso,
+      versions: [{
+        cv_version_id: 'cv-ref-test',
+        version_number: 1,
+        label: 'Ref Test',
+        kind: 'generic',
+        owner_scope: 'owner',
+        base_cv_version_id: null,
+        content_sha256: '1'.repeat(64),
+        local_ref_rel: ref,
+        created_at: nowIso,
+        application_ids: [],
+      }],
+    });
+    for (const badRef of [
+      '../../../etc/passwd',
+      '/etc/passwd',
+      'C:\\Windows\\win.ini',
+      '\\\\server\\share\\cv.html',
+      'logs\\resumes\\..\\..\\secret.html',
+      'logs/resumes/./cv-alice/resume.html',
+      'logs/resumes/cv.html:ads',
+    ]) {
+      assert.equal(validateCvVersionsRegistry(makeReg(badRef)).valid, false, `Registry must reject unsafe local_ref_rel: ${badRef}`);
+    }
+    assert.equal(validateCvVersionsRegistry(makeReg('context/cv.md')).valid, true);
+    assert.equal(validateCvVersionsRegistry(makeReg('logs/resumes/2026-07-10-acme/resume.html')).valid, true);
+    const validTpReg = makeReg('logs/resumes/cv-client/resume.html');
+    validTpReg.versions[0].owner_scope = 'third_party';
+    assert.equal(validateCvVersionsRegistry(validTpReg).valid, true);
+
+    // F-10: ADS rejection in validateSafeWorkspaceRelativePath & CLI assertSafeCliInputPath + cmdEval --file boundary & symlink safety
+    assert.equal(isSafeWorkspaceRelativePath('logs/file.md:ads'), false);
+    assert.equal(isSafeWorkspaceRelativePath('logs/file.md:Zone.Identifier'), false);
+    assert.equal(isSafeWorkspaceRelativePath('logs/2026-07-10-acme/resume.md'), true);
+
+    const rAdsAudit = runCli(['audit', 'logs/resumes/safe-pkg/resume.txt:ads'], { cwd: work, home });
+    assert.notEqual(rAdsAudit.status, 0);
+    assert.match(rAdsAudit.stderr, /alternate data stream|colon/i);
+
+    const outsideEvalJson = path.join(outsideDir, 'external-eval.json');
+    fs.writeFileSync(outsideEvalJson, JSON.stringify({ jd_evaluations: {} }));
+    const rEvalOutside = runCli(['eval', '--file', outsideEvalJson], { cwd: work, home });
+    assert.notEqual(rEvalOutside.status, 0, 'eval --file must reject outside-workspace path');
+    assert.match(rEvalOutside.stderr, /outside workspace boundary/i);
+
+    const rEvalTraversal = runCli(['eval', '--file', '../outside-spoofed/external-eval.json'], { cwd: work, home });
+    assert.notEqual(rEvalTraversal.status, 0, 'eval --file must reject ../ traversal');
+    assert.match(rEvalTraversal.stderr, /traversal/i);
+
+    // Symlink / junction parent refusal on eval --file
+    const evalJunc = path.join(work, 'logs', 'eval-junc');
+    let juncCreated = false;
+    try {
+      fs.symlinkSync(outsideDir, evalJunc, process.platform === 'win32' ? 'junction' : 'dir');
+      juncCreated = true;
+    } catch { /* ignore if OS forbids links */ }
+    if (juncCreated) {
+      const rEvalJunc = runCli(['eval', '--file', 'logs/eval-junc/external-eval.json'], { cwd: work, home });
+      assert.notEqual(rEvalJunc.status, 0, 'eval --file must reject symlinked/junction parent directory');
+      assert.match(rEvalJunc.stderr, /symbolic-link/i);
+      fs.rmSync(evalJunc, { recursive: true, force: true });
+    }
+
+    // Valid in-workspace eval JSON still works cleanly
+    const insideEvalJson = path.join(work, 'logs', 'valid-eval.json');
+    fs.copyFileSync(path.join(REPO_ROOT, 'evals', 'results', 'baseline-verified-run.json'), insideEvalJson);
+    const rEvalInside = runCli(['eval', '--file', 'logs/valid-eval.json'], { cwd: work, home });
+    assert.equal(rEvalInside.status, 0, rEvalInside.stdout + rEvalInside.stderr);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ===========================================================================
 // Test 21: SEC-01 — SSRF Guard Bypass & Redirect Validation
 // ===========================================================================
 test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGNAT, IPv4-compatible/mapped/NAT64/6to4, and unsafe redirects', async () => {
@@ -3520,6 +3989,7 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
       },
     },
   });
+  const mockPublicDns = async () => [{ address: '93.184.216.34', family: 4 }];
 
   // 10. Public URL redirecting (302) to private/loopback/metadata address -> blocked before redirect request is issued
   const calls10 = [];
@@ -3531,7 +4001,7 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
     throw new Error(`Unexpected network call to ${url}`);
   };
   await assert.rejects(
-    () => fetchUrlWithSafeRedirects('https://jobs.example.com/apply', { fetchImpl: mockFetch10 }),
+    () => fetchUrlWithSafeRedirects('https://jobs.example.com/apply', { fetchImpl: mockFetch10, lookupImpl: mockPublicDns }),
     /Redirect target blocked by SSRF guard/i,
   );
   assert.equal(calls10.length, 1, 'Must never issue fetch request to blocked redirect target');
@@ -3546,7 +4016,7 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
     throw new Error(`Unexpected call to ${url}`);
   };
   await assert.rejects(
-    () => fetchUrlWithSafeRedirects('https://short.example.com/1', { fetchImpl: mockFetch11 }),
+    () => fetchUrlWithSafeRedirects('https://short.example.com/1', { fetchImpl: mockFetch11, lookupImpl: mockPublicDns }),
     /Redirect target blocked by SSRF guard/i,
   );
   assert.equal(calls11.length, 2);
@@ -3558,7 +4028,7 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
     return makeResp(200);
   };
   await assert.rejects(
-    () => fetchUrlWithSafeRedirects('https://loop.example.com/a', { fetchImpl: mockFetchLoop }),
+    () => fetchUrlWithSafeRedirects('https://loop.example.com/a', { fetchImpl: mockFetchLoop, lookupImpl: mockPublicDns }),
     /Redirect loop detected/i,
   );
 
@@ -3569,7 +4039,7 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
     return makeResp(302, `https://hops.example.com/hop-${n + 1}`);
   };
   await assert.rejects(
-    () => fetchUrlWithSafeRedirects('https://hops.example.com/hop-0', { fetchImpl: mockFetchExcessive, maxRedirects: 3 }),
+    () => fetchUrlWithSafeRedirects('https://hops.example.com/hop-0', { fetchImpl: mockFetchExcessive, lookupImpl: mockPublicDns, maxRedirects: 3 }),
     /Maximum redirect limit \(3\) exceeded/i,
   );
 
@@ -3577,12 +4047,14 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
   await assert.rejects(
     () => fetchUrlWithSafeRedirects('https://badloc.example.com/missing', {
       fetchImpl: async () => makeResp(302, null),
+      lookupImpl: mockPublicDns,
     }),
     /missing Location header/i,
   );
   await assert.rejects(
     () => fetchUrlWithSafeRedirects('https://badloc.example.com/bad', {
       fetchImpl: async () => makeResp(302, 'http://[::invalid-ipv6'),
+      lookupImpl: mockPublicDns,
     }),
     /Malformed redirect Location/i,
   );
@@ -3594,10 +4066,175 @@ test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGN
       if (url === 'https://jobs.example.com/roles/backend') return makeResp(200);
       throw new Error(`Unexpected URL ${url}`);
     },
+    lookupImpl: mockPublicDns,
   });
   assert.equal(safeRes.response.status, 200);
   assert.equal(safeRes.finalUrl, 'https://jobs.example.com/roles/backend');
   assert.equal(safeRes.redirects, 1);
+});
+
+// ===========================================================================
+// Test 21b: SEC-01 Closure — F-03 (DNS resolution / DNS rebinding / pinned IP)
+// and F-08 (trailing dots, Teredo 2001:0000::/32, discard 100::/64, TEST-NET)
+// ===========================================================================
+test('21b. SEC-01 closure: F-03 DNS resolution & rebinding defense + F-08 trailing dots, Teredo, discard & TEST-NET blocks', async () => {
+  // F-08: Trailing dots, Teredo, IPv6 discard, and RFC 5737 TEST-NET ranges
+  const f08Blocked = [
+    'http://localhost../',
+    'http://localhost.../',
+    'http://api.localhost../',
+    'http://service.local../',
+    'http://[2001:0000:4136:e378:8000:63bf:80ff:fffe]/', // Teredo 2001:0000::/32
+    'http://[2001:0:4136:e378::1]/',
+    'http://[100::1]/', // RFC 6666 discard 100::/64
+    'http://192.0.2.1/', // TEST-NET-1
+    'http://198.51.100.1/', // TEST-NET-2
+    'http://203.0.113.1/', // TEST-NET-3
+  ];
+  for (const u of f08Blocked) {
+    assert.ok(isBlockedSsrfUrl(u) !== null, `F-08 expected SSRF guard to block "${u}"`);
+  }
+  assert.equal(isBlockedSsrfUrl('https://93.184.216.34/public'), null);
+  assert.equal(isBlockedSsrfUrl('https://[2606:4700:4700::1111]/public'), null);
+  assert.equal(classifyIpAddress('93.184.216.34'), null);
+  assert.ok(classifyIpAddress('127.0.0.1') !== null);
+  assert.ok(classifyIpAddress('169.254.169.254') !== null);
+  assert.ok(classifyIpAddress('fe80::1') !== null);
+
+  const makeResp = (status, location = null) => ({
+    status,
+    headers: { get: name => (String(name).toLowerCase() === 'location' ? location : null) },
+  });
+
+  // F-03: Hostnames resolving to loopback, RFC1918, metadata, IPv6 loopback/ULA/link-local, or mixed public+private must NEVER reach fetchImpl
+  const dnsCases = [
+    ['loopback IPv4', 'http://127.0.0.1.nip.io/admin', [{ address: '127.0.0.1', family: 4 }]],
+    ['RFC1918 10/8', 'http://intranet.example.com/', [{ address: '10.0.0.15', family: 4 }]],
+    ['RFC1918 172.16/12', 'http://corp.example.com/', [{ address: '172.16.4.2', family: 4 }]],
+    ['RFC1918 192.168/16', 'http://router.example.com/', [{ address: '192.168.1.1', family: 4 }]],
+    ['metadata link-local', 'http://169.254.169.254.nip.io/latest/meta-data/', [{ address: '169.254.169.254', family: 4 }]],
+    ['IPv6 loopback', 'http://v6loop.example.com/', [{ address: '::1', family: 6 }]],
+    ['IPv6 ULA', 'http://v6ula.example.com/', [{ address: 'fd12:3456:789a::1', family: 6 }]],
+    ['IPv6 link-local', 'http://v6ll.example.com/', [{ address: 'fe80::1', family: 6 }]],
+    ['multi-address with 1 private', 'http://dual.example.com/', [{ address: '93.184.216.34', family: 4 }, { address: '10.0.0.1', family: 4 }]],
+  ];
+
+  for (const [label, url, answers] of dnsCases) {
+    let called = false;
+    await assert.rejects(
+      () => fetchUrlWithSafeRedirects(url, {
+        lookupImpl: async () => answers,
+        fetchImpl: async () => {
+          called = true;
+          return makeResp(200);
+        },
+      }),
+      /Blocked by SSRF guard/i,
+      `F-03 must block DNS case: ${label}`,
+    );
+    assert.equal(called, false, `Mock request layer must NEVER be called for ${label}`);
+  }
+
+  // F-03: DNS lookup error fails closed without calling fetchImpl
+  let errCalled = false;
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://nxdomain.example.invalid/', {
+      lookupImpl: async () => { throw new Error('ENOTFOUND'); },
+      fetchImpl: async () => {
+        errCalled = true;
+        return makeResp(200);
+      },
+    }),
+    /DNS lookup failed/i,
+  );
+  assert.equal(errCalled, false);
+
+  // F-03: Redirect from public hostname to hostname resolving to private/metadata IP must be blocked before 2nd hop request
+  const hopCalls = [];
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://public-start.example.com/go', {
+      lookupImpl: async host => {
+        if (host === 'public-start.example.com') return [{ address: '93.184.216.34', family: 4 }];
+        if (host === 'rebind-target.example.com') return [{ address: '169.254.169.254', family: 4 }];
+        return [{ address: '93.184.216.34', family: 4 }];
+      },
+      fetchImpl: async url => {
+        hopCalls.push(url);
+        if (url === 'https://public-start.example.com/go') return makeResp(302, 'https://rebind-target.example.com/secret');
+        throw new Error(`Unexpected fetch to ${url}`);
+      },
+    }),
+    /Blocked by SSRF guard/i,
+  );
+  assert.deepEqual(hopCalls, ['https://public-start.example.com/go']);
+
+  // F-03: Multi-hop redirect chain containing prohibited DNS target on hop 3
+  const chainCalls = [];
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://hop1.example.com/', {
+      lookupImpl: async host => {
+        if (host === 'hop3-private.example.com') return [{ address: '127.0.0.1', family: 4 }];
+        return [{ address: '93.184.216.34', family: 4 }];
+      },
+      fetchImpl: async url => {
+        chainCalls.push(url);
+        if (url === 'https://hop1.example.com/') return makeResp(301, 'https://hop2.example.com/');
+        if (url === 'https://hop2.example.com/') return makeResp(307, 'https://hop3-private.example.com/internal');
+        throw new Error(`Unexpected fetch to ${url}`);
+      },
+    }),
+    /Blocked by SSRF guard/i,
+  );
+  assert.deepEqual(chainCalls, ['https://hop1.example.com/', 'https://hop2.example.com/']);
+
+  // F-03: HEAD-to-GET fallback revalidates DNS (blocks DNS rebinding between HEAD 405 and GET retry)
+  let lookupCount = 0;
+  const fallbackMethods = [];
+  const rebindLookup = async () => {
+    lookupCount++;
+    if (lookupCount === 1) return [{ address: '93.184.216.34', family: 4 }];
+    return [{ address: '127.0.0.1', family: 4 }]; // rebinds on second lookup
+  };
+  const headRes = await fetchUrlWithSafeRedirects('https://rebind-head-get.example.com/profile', {
+    method: 'HEAD',
+    lookupImpl: rebindLookup,
+    fetchImpl: async (_url, opts) => {
+      fallbackMethods.push({ method: opts.method, pinned: opts.resolvedAddresses });
+      return makeResp(405);
+    },
+  });
+  assert.equal(headRes.response.status, 405);
+  assert.deepEqual(headRes.resolvedAddresses, [{ address: '93.184.216.34', family: 4 }]);
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://rebind-head-get.example.com/profile', {
+      method: 'GET',
+      lookupImpl: rebindLookup,
+      fetchImpl: async (_url, opts) => {
+        fallbackMethods.push({ method: opts.method, pinned: opts.resolvedAddresses });
+        return makeResp(200);
+      },
+    }),
+    /Blocked by SSRF guard/i,
+  );
+  assert.equal(fallbackMethods.length, 1, 'Rebound GET fallback must never reach request layer');
+
+  // F-03: Public hostname with safe addresses succeeds and passes pinned addresses
+  let receivedPinned = null;
+  const okRes = await fetchUrlWithSafeRedirects('https://safe-public.example.com/cv', {
+    method: 'HEAD',
+    lookupImpl: async () => [{ address: '93.184.216.34', family: 4 }, { address: '2606:4700:4700::1111', family: 6 }],
+    fetchImpl: async (_url, opts) => {
+      receivedPinned = opts.resolvedAddresses;
+      return makeResp(200);
+    },
+  });
+  assert.equal(okRes.response.status, 200);
+  assert.deepEqual(receivedPinned, [
+    { address: '93.184.216.34', family: 4 },
+    { address: '2606:4700:4700::1111', family: 6 },
+  ]);
+  const validatedDirect = await resolveAndValidateSsrfHost(new URL('https://93.184.216.34/ok'));
+  assert.deepEqual(validatedDirect, [{ address: '93.184.216.34', family: 4 }]);
 });
 
 // ===========================================================================
@@ -3840,4 +4477,169 @@ test('22. SEC-03: hardened extractDocxText enforces input size, entry count, com
     }),
     /Cumulative \.docx uncompressed size exceeds/i,
   );
+});
+
+// ===========================================================================
+// Test 22b: SEC-03 Closure — F-07 (pre-read bounded DOCX size limit in audit/verify)
+// and F-09 (Central Directory gap-overlap rejection & zero-byte deflated XML at budget=0)
+// ===========================================================================
+test('22b. SEC-03 closure: F-07 pre-read DOCX size enforcement in audit/verify + F-09 CD gap-overlap & zero-byte inflate edge case', () => {
+  function buildAdvancedZip(entries, { cdPaddingBeforeEocd = 0, dataDescriptor = false } = {}) {
+    const locals = [];
+    const centrals = [];
+    let offset = 0;
+
+    for (const f of entries) {
+      const nameBuf = Buffer.from(f.name, 'utf8');
+      const method = f.method ?? 8;
+      const rawData = Buffer.isBuffer(f.rawData) ? f.rawData : Buffer.from(String(f.rawData || ''), 'utf8');
+      const compData = f.compressedData || (method === 8 ? zlib.deflateRawSync(rawData) : rawData);
+      const flags = f.flags ?? (dataDescriptor ? 0x0008 : 0);
+      const lh = Buffer.alloc(30 + nameBuf.length);
+      lh.writeUInt32LE(0x04034b50, 0);
+      lh.writeUInt16LE(20, 4);
+      lh.writeUInt16LE(flags, 6);
+      lh.writeUInt16LE(method, 8);
+      lh.writeUInt32LE(dataDescriptor ? 0 : compData.length, 18);
+      lh.writeUInt32LE(dataDescriptor ? 0 : rawData.length, 22);
+      lh.writeUInt16LE(nameBuf.length, 26);
+      nameBuf.copy(lh, 30);
+
+      const dd = dataDescriptor ? Buffer.alloc(16) : Buffer.alloc(0);
+      if (dataDescriptor) {
+        dd.writeUInt32LE(0x08074b50, 0);
+        dd.writeUInt32LE(compData.length, 8);
+        dd.writeUInt32LE(rawData.length, 12);
+      }
+      locals.push(lh, compData, dd);
+
+      const cd = Buffer.alloc(46 + nameBuf.length);
+      cd.writeUInt32LE(0x02014b50, 0);
+      cd.writeUInt16LE(20, 4);
+      cd.writeUInt16LE(20, 6);
+      cd.writeUInt16LE(flags, 8);
+      cd.writeUInt16LE(method, 10);
+      cd.writeUInt32LE(f.cdCompSize ?? compData.length, 20);
+      cd.writeUInt32LE(f.cdUncompSize ?? rawData.length, 24);
+      cd.writeUInt16LE(nameBuf.length, 28);
+      cd.writeUInt32LE(offset, 42);
+      nameBuf.copy(cd, 46);
+      centrals.push(cd);
+
+      offset += lh.length + compData.length + dd.length;
+    }
+
+    const cdBuf = Buffer.concat(centrals);
+    const pad = Buffer.alloc(cdPaddingBeforeEocd);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(entries.length, 8);
+    eocd.writeUInt16LE(entries.length, 10);
+    eocd.writeUInt32LE(cdBuf.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    return Buffer.concat([...locals, cdBuf, pad, eocd]);
+  }
+
+  // F-09a: Central Directory gap-overlap (padding before EOCD + local entry data extending past cdStart) MUST be rejected
+  const cdGapOverlapZip = buildAdvancedZip([
+    { name: 'word/document.xml', method: 8, rawData: '<w:p><w:t>Valid</w:t></w:p>' },
+    { name: 'word/other.bin', method: 0, rawData: 'A'.repeat(10), cdCompSize: 60, cdUncompSize: 60 },
+  ], { cdPaddingBeforeEocd: 100 });
+  assert.throws(
+    () => extractDocxText(cdGapOverlapZip),
+    /Truncated or out-of-bounds \.docx entry data/i,
+  );
+
+  // F-09b: Zero-byte deflated XML part when remainingBudget === 0 succeeds (no false positive)
+  const exactDocXml = '<w:p><w:t>ExactBudgetOk</w:t></w:p>';
+  const exactDocLen = Buffer.byteLength(exactDocXml, 'utf8');
+  const zeroByteFooterZip = buildAdvancedZip([
+    { name: 'word/document.xml', method: 8, rawData: exactDocXml },
+    { name: 'word/footer1.xml', method: 8, rawData: '' },
+  ]);
+  assert.equal(
+    extractDocxText(zeroByteFooterZip, { maxTotalUncompressedBytes: exactDocLen }),
+    'ExactBudgetOk',
+  );
+
+  // Spoofed 0-byte declared entry that actually inflates to >0 bytes when remainingBudget === 0 MUST still fail closed
+  const spoofedZeroFooterZip = buildAdvancedZip([
+    { name: 'word/document.xml', method: 8, rawData: exactDocXml },
+    { name: 'word/footer1.xml', method: 8, rawData: 'X', cdUncompSize: 0 },
+  ]);
+  assert.throws(
+    () => extractDocxText(spoofedZeroFooterZip, { maxTotalUncompressedBytes: exactDocLen }),
+    /Decompression limit exceeded/i,
+  );
+
+  // Existing Data Descriptor (bit 3) compatibility & ordinary DOCX extraction preserved
+  const ddZip = buildAdvancedZip([
+    { name: 'word/', method: 0, rawData: '' },
+    { name: 'word/document.xml', method: 8, rawData: '<w:document><w:p><w:t>Alex Rivera Data Descriptor Resume 38%</w:t></w:p></w:document>' },
+    { name: 'word/header1.xml', method: 8, rawData: '<w:hdr><w:p><w:t>Header DD</w:t></w:p></w:hdr>' },
+  ], { dataDescriptor: true });
+  const ddText = extractDocxText(ddZip);
+  assert.match(ddText, /Alex Rivera Data Descriptor Resume 38%/);
+  assert.match(ddText, /Header DD/);
+
+  // F-07: Pre-read bounded file reader & CLI audit/verify enforce DOCX_LIMITS.MAX_INPUT_BYTES before full file allocation
+  const { dir, home, work } = makeTempWorkspace('veycraft-sec03-closure-');
+  try {
+    const exactLimitFile = path.join(work, 'logs', 'exact-limit.bin');
+    fs.writeFileSync(exactLimitFile, Buffer.alloc(1024, 0x41));
+    assert.equal(readFileBoundedSync(exactLimitFile, 1024, '.docx file').length, 1024);
+    assert.throws(
+      () => readFileBoundedSync(exactLimitFile, 1023, '.docx file'),
+      /Oversized \.docx file/i,
+    );
+
+    // Sparse oversized file (> DOCX_LIMITS.MAX_INPUT_BYTES) created via ftruncateSync without allocating huge heap buffer
+    const oversizedDocx = path.join(work, 'logs', 'oversized.docx');
+    const fd = fs.openSync(oversizedDocx, 'w');
+    try {
+      fs.writeSync(fd, Buffer.from('PK\x03\x04', 'latin1'));
+      fs.ftruncateSync(fd, DOCX_LIMITS.MAX_INPUT_BYTES + 1);
+    } finally {
+      fs.closeSync(fd);
+    }
+    assert.throws(
+      () => readFileBoundedSync(oversizedDocx, DOCX_LIMITS.MAX_INPUT_BYTES, '.docx file'),
+      /Oversized \.docx file/i,
+    );
+
+    // CLI audit and verify reject oversized .docx via bounded pre-read check
+    const rAuditOver = runCli(['audit', 'logs/oversized.docx'], { cwd: work, home });
+    assert.notEqual(rAuditOver.status, 0, 'audit must reject oversized .docx');
+    assert.match(rAuditOver.stderr, /Oversized \.docx file/i);
+
+    const rVerifyOver = runCli(['verify', 'logs/oversized.docx'], { cwd: work, home });
+    assert.notEqual(rVerifyOver.status, 0, 'verify must reject oversized .docx');
+    assert.match(rVerifyOver.stdout + rVerifyOver.stderr, /Oversized \.docx file/i);
+
+    // Valid ordinary .docx and normal text files continue to pass audit and verify
+    const validDocxPath = path.join(work, 'logs', 'valid.docx');
+    fs.writeFileSync(validDocxPath, ddZip);
+    const rAuditOk = runCli(['audit', 'logs/valid.docx'], { cwd: work, home });
+    assert.equal(rAuditOk.status, 0, rAuditOk.stderr);
+    const rVerifyOk = runCli(['verify', 'logs/valid.docx'], { cwd: work, home });
+    assert.equal(rVerifyOk.status, 0, rVerifyOk.stdout + rVerifyOk.stderr);
+
+    // Exact maximum permitted DOCX size (padded ZIP comment up to DOCX_LIMITS.MAX_INPUT_BYTES) passes readFileBoundedSync + verify
+    const baseZip = buildAdvancedZip([
+      { name: 'word/document.xml', method: 8, rawData: '<w:document><w:p><w:t>Exact Max Size Resume 38%</w:t></w:p></w:document>' },
+    ]);
+    const exactMaxPadFile = path.join(work, 'logs', 'exact-max.docx');
+    // Put a harmless stored padding entry so total file size equals DOCX_LIMITS.MAX_INPUT_BYTES exactly
+    const padSize = DOCX_LIMITS.MAX_INPUT_BYTES - baseZip.length - (30 + 46 + 'word/pad.bin'.length * 2);
+    const exactMaxZip = buildAdvancedZip([
+      { name: 'word/document.xml', method: 8, rawData: '<w:document><w:p><w:t>Exact Max Size Resume 38%</w:t></w:p></w:document>' },
+      { name: 'word/pad.bin', method: 0, rawData: Buffer.alloc(padSize, 0x20) },
+    ]);
+    assert.equal(exactMaxZip.length, DOCX_LIMITS.MAX_INPUT_BYTES);
+    fs.writeFileSync(exactMaxPadFile, exactMaxZip);
+    const rVerifyExactMax = runCli(['verify', 'logs/exact-max.docx'], { cwd: work, home });
+    assert.equal(rVerifyExactMax.status, 0, rVerifyExactMax.stdout + rVerifyExactMax.stderr);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -752,6 +752,15 @@ export function validateCvVersionsRegistry(registry) {
         errors.push(`${label}.${sKey} must be a string or null.`);
       }
     }
+    if (typeof v.local_ref_rel === 'string' && v.local_ref_rel.length > 0) {
+      const refCheck = validateSafeWorkspaceRelativePath(v.local_ref_rel, {
+        allowThirdParty: true,
+        label: `${label}.local_ref_rel`,
+      });
+      if (!refCheck.valid) {
+        errors.push(refCheck.error);
+      }
+    }
     if (v.language !== undefined && (typeof v.language !== 'string' || v.language.length < 2 || v.language.length > 12)) {
       errors.push(`${label}.language must be a string of length 2..12.`);
     }
@@ -806,8 +815,11 @@ export function validateCvVersionsRegistry(registry) {
 
 export function isThirdPartyCvPath(relPath) {
   if (typeof relPath !== 'string') return false;
-  const norm = relPath.replace(/\\/g, '/').toLowerCase();
-  return /(?:^|\/)logs\/resumes\/cv-[^/]+/.test(norm);
+  const trimmed = relPath.trim();
+  if (!trimmed) return false;
+  const slashNorm = trimmed.replace(/\\/g, '/').toLowerCase();
+  const posixNorm = path.posix.normalize(slashNorm);
+  return /(?:^|\/)logs\/resumes\/cv-[^/]+/.test(slashNorm) || /(?:^|\/)logs\/resumes\/cv-[^/]+/.test(posixNorm);
 }
 
 export function validateSafeWorkspaceRelativePath(relPath, {
@@ -824,11 +836,15 @@ export function validateSafeWorkspaceRelativePath(relPath, {
   if (trimmed.startsWith('/') || trimmed.startsWith('\\') || /^[A-Za-z]:/.test(trimmed)) {
     return { valid: false, normalized: null, error: `${label} must be a workspace-relative path (absolute, drive-letter, or UNC paths are forbidden): "${relPath}".` };
   }
+  if (trimmed.includes(':')) {
+    return { valid: false, normalized: null, error: `${label} must be a clean workspace-relative path (colon/alternate data stream syntax is forbidden): "${relPath}".` };
+  }
   const slashNorm = trimmed.replace(/\\/g, '/');
   if (slashNorm.startsWith('/') || slashNorm.includes('//')) {
     return { valid: false, normalized: null, error: `${label} contains invalid leading or empty path segments: "${relPath}".` };
   }
-  const segments = slashNorm.split('/');
+  const withoutTrailingSlash = slashNorm.length > 1 && slashNorm.endsWith('/') ? slashNorm.slice(0, -1) : slashNorm;
+  const segments = withoutTrailingSlash.split('/');
   for (const seg of segments) {
     if (!seg || seg === '.' || seg === '..') {
       return { valid: false, normalized: null, error: `${label} must not contain "." or ".." traversal segments: "${relPath}".` };
@@ -866,8 +882,16 @@ export function classifyCvRegistryEntryOwnership(entry, byId) {
       return { isOwner: false, reason: 'third_party_owner_scope' };
     }
     if (current.local_ref_rel !== undefined && current.local_ref_rel !== null) {
-      if (typeof current.local_ref_rel !== 'string' || isThirdPartyCvPath(current.local_ref_rel)) {
+      if (typeof current.local_ref_rel !== 'string') {
         return { isOwner: false, reason: 'third_party_cv_path' };
+      }
+      if (current.local_ref_rel.length > 0) {
+        if (
+          isThirdPartyCvPath(current.local_ref_rel) ||
+          !validateSafeWorkspaceRelativePath(current.local_ref_rel, { allowThirdParty: false }).valid
+        ) {
+          return { isOwner: false, reason: 'third_party_cv_path' };
+        }
       }
     }
 
@@ -912,6 +936,13 @@ export function classifyApplicationOwnership(raw, cvVersionsRegistry = null) {
     }
   }
 
+  const isUnsafeOrThirdPartyRel = val => {
+    if (typeof val !== 'string') return true;
+    if (val.length === 0) return false;
+    if (val.trim().length === 0) return true;
+    return isThirdPartyCvPath(val) || !validateSafeWorkspaceRelativePath(val, { allowThirdParty: false }).valid;
+  };
+
   if (raw.cv_tailoring !== undefined && raw.cv_tailoring !== null) {
     if (!isObj(raw.cv_tailoring)) {
       return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'malformed_cv_tailoring' };
@@ -919,7 +950,7 @@ export function classifyApplicationOwnership(raw, cvVersionsRegistry = null) {
     for (const relField of ['tailored_folder_rel', 'tailoring_notes_rel']) {
       const relVal = raw.cv_tailoring[relField];
       if (relVal !== undefined && relVal !== null) {
-        if (typeof relVal !== 'string' || (relVal.length > 0 && relVal.trim().length === 0) || isThirdPartyCvPath(relVal)) {
+        if (isUnsafeOrThirdPartyRel(relVal)) {
           return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: `third_party_or_malformed_${relField}` };
         }
       }
@@ -927,19 +958,19 @@ export function classifyApplicationOwnership(raw, cvVersionsRegistry = null) {
   }
 
   if (raw.screenshot !== undefined && raw.screenshot !== null) {
-    if (typeof raw.screenshot !== 'string' || isThirdPartyCvPath(raw.screenshot)) {
+    if (isUnsafeOrThirdPartyRel(raw.screenshot)) {
       return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_screenshot' };
     }
   }
   if (isObj(raw.follow_up) && raw.follow_up.draft_rel !== undefined && raw.follow_up.draft_rel !== null) {
-    if (typeof raw.follow_up.draft_rel !== 'string' || isThirdPartyCvPath(raw.follow_up.draft_rel)) {
+    if (isUnsafeOrThirdPartyRel(raw.follow_up.draft_rel)) {
       return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_draft_rel' };
     }
   }
   if (Array.isArray(raw.interviews)) {
     for (const iv of raw.interviews) {
       if (isObj(iv) && iv.dossier_rel !== undefined && iv.dossier_rel !== null) {
-        if (typeof iv.dossier_rel !== 'string' || isThirdPartyCvPath(iv.dossier_rel)) {
+        if (isUnsafeOrThirdPartyRel(iv.dossier_rel)) {
           return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_dossier_rel' };
         }
       }
@@ -948,7 +979,7 @@ export function classifyApplicationOwnership(raw, cvVersionsRegistry = null) {
   if (Array.isArray(raw.assessments)) {
     for (const asmt of raw.assessments) {
       if (isObj(asmt) && asmt.blueprint_rel !== undefined && asmt.blueprint_rel !== null) {
-        if (typeof asmt.blueprint_rel !== 'string' || isThirdPartyCvPath(asmt.blueprint_rel)) {
+        if (isUnsafeOrThirdPartyRel(asmt.blueprint_rel)) {
           return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_blueprint_rel' };
         }
       }
@@ -980,6 +1011,13 @@ export function classifyApplicationOwnership(raw, cvVersionsRegistry = null) {
         return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_base_cv_version_id' };
       }
     }
+  }
+
+  if (cvVersionsRegistry === null || cvVersionsRegistry === undefined) {
+    if (cvId !== null || baseCvId !== null) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'missing_cv_versions_registry' };
+    }
+    return { isOwner: true, isThirdPartyOrAmbiguous: false, reason: null };
   }
 
   if (cvVersionsRegistry !== null && cvVersionsRegistry !== undefined) {
@@ -1058,6 +1096,15 @@ export function registerCvVersion(registry, entry) {
   }
   if (entry.owner_scope === 'third_party' || isThirdPartyCvPath(entry.local_ref_rel)) {
     throw new Error('Refusing to register third-party CV into owner CV version registry (third-party isolation enforced).');
+  }
+  if (entry.local_ref_rel !== undefined && entry.local_ref_rel !== null && entry.local_ref_rel !== '') {
+    const refCheck = validateSafeWorkspaceRelativePath(entry.local_ref_rel, {
+      allowThirdParty: false,
+      label: 'CV local_ref_rel',
+    });
+    if (!refCheck.valid) {
+      throw new Error(`Refusing unsafe CV local_ref_rel: ${refCheck.error}`);
+    }
   }
 
   const existingIdx = base.versions.findIndex(v => v.cv_version_id === entry.cv_version_id);
@@ -3741,6 +3788,8 @@ export function reserveApplicationSubmission(root, input, {
     const existingIdx = records.findIndex(r => isUsableJobId(r.job_id) && normalizeJobIdKey(r.job_id) === jobKey);
     const existing = existingIdx >= 0 ? normalizeApplicationRecord(records[existingIdx]) : null;
 
+    const cvLoadedForReserve = readValidatedCvRegistry(resolvedRoot, { home });
+    const cvRegForReserve = cvLoadedForReserve.exists ? cvLoadedForReserve.registry : null;
     if (existing) {
       if (SUBMITTED_STATUS_SET.has(existing.status)) {
         throw new Error(`already_submitted: Application "${existing.job_id}" is already "${existing.status}"; refusing reservation.`);
@@ -3748,8 +3797,9 @@ export function reserveApplicationSubmission(root, input, {
       if (existing.submission_uncertain === true) {
         throw new Error(`already_reserved: Application "${existing.job_id}" already has an active submission_uncertain reservation; never double-submit.`);
       }
-      if (existing.provenance?.third_party_subject === true) {
-        throw new Error(`third_party_blocked: Refusing to reserve submission for third-party subject "${existing.job_id}".`);
+      const ownCheck = classifyApplicationOwnership(existing, cvRegForReserve);
+      if (!ownCheck.isOwner) {
+        throw new Error(`third_party_blocked: Refusing to reserve submission for third-party or unverified subject "${existing.job_id}" (${ownCheck.reason}).`);
       }
     }
     if (input.third_party_subject === true) {
@@ -3882,6 +3932,21 @@ export function confirmApplicationSubmission(root, input, {
 
     assertChronologicalTimestamp(existing, appliedAt, 'applied_at');
 
+    const cvLoadedForConfirm = readValidatedCvRegistry(resolvedRoot, { home });
+    const cvRegForConfirm = cvLoadedForConfirm.exists ? cvLoadedForConfirm.registry : null;
+    const cvByIdForConfirm = new Map();
+    if (cvRegForConfirm) {
+      for (const v of cvRegForConfirm.versions) {
+        if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+          cvByIdForConfirm.set(v.cv_version_id.trim(), v);
+        }
+      }
+    }
+    const existingOwnCheck = classifyApplicationOwnership(existing, cvRegForConfirm);
+    if (!existingOwnCheck.isOwner) {
+      throw new Error(`third_party_blocked: Refusing to confirm owner submission for third-party or unverified application "${existing.job_id}" (${existingOwnCheck.reason}).`);
+    }
+
     let finalCvVersionId = existing.cv_version_id;
     let nextCvTailoring = existing.cv_tailoring;
     if (input.cv_version_id !== undefined) {
@@ -3891,13 +3956,13 @@ export function confirmApplicationSubmission(root, input, {
         throw new Error('confirmApplicationSubmission: cv_version_id must be a non-empty string or null.');
       } else {
         const reqCvId = input.cv_version_id.trim();
-        const cvLoaded = readValidatedCvRegistry(resolvedRoot, { home });
-        const foundCv = cvLoaded.registry.versions.find(v => v.cv_version_id === reqCvId);
+        const foundCv = cvByIdForConfirm.get(reqCvId);
         if (!foundCv) {
           throw new Error(`cv_version_not_found: CV version "${reqCvId}" is not registered in logs/cv-versions.json.`);
         }
-        if (foundCv.owner_scope !== 'owner' || isThirdPartyCvPath(foundCv.local_ref_rel)) {
-          throw new Error(`third_party_blocked: Refusing to link third-party CV version "${reqCvId}" to owner application "${existing.job_id}".`);
+        const cvOwnCheck = classifyCvRegistryEntryOwnership(foundCv, cvByIdForConfirm);
+        if (!cvOwnCheck.isOwner) {
+          throw new Error(`third_party_blocked: Refusing to link third-party or unverified CV version "${reqCvId}" to owner application "${existing.job_id}" (${cvOwnCheck.reason}).`);
         }
         finalCvVersionId = foundCv.cv_version_id;
         if (isObj(existing.cv_tailoring)) {
@@ -4379,7 +4444,13 @@ export function registerOwnerCvVersionForWorkspace(root, input, {
     assertNoIncompleteLedgerTransaction(resolvedRoot, { home });
     const cvLoaded = readValidatedCvRegistry(resolvedRoot, { home });
 
-    // Validate optional base_cv_version_id against self-cycle and third-party isolation
+    // Validate optional base_cv_version_id against self-cycle, missing ancestry, and third-party isolation
+    const cvById = new Map();
+    for (const v of cvLoaded.registry.versions) {
+      if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+        cvById.set(v.cv_version_id.trim(), v);
+      }
+    }
     let normalizedBaseCvId = null;
     if (input.base_cv_version_id !== undefined && input.base_cv_version_id !== null) {
       if (!isNonEmptyString(input.base_cv_version_id)) {
@@ -4389,9 +4460,13 @@ export function registerOwnerCvVersionForWorkspace(root, input, {
       if (normalizedBaseCvId === input.cv_version_id.trim()) {
         throw new Error(`invalid_base_cv_version: base_cv_version_id "${normalizedBaseCvId}" cannot reference itself.`);
       }
-      const baseVer = cvLoaded.registry.versions.find(v => v.cv_version_id === normalizedBaseCvId);
-      if (baseVer && (baseVer.owner_scope !== 'owner' || isThirdPartyCvPath(baseVer.local_ref_rel))) {
-        throw new Error(`third_party_blocked: Refusing third-party base_cv_version_id "${normalizedBaseCvId}".`);
+      const baseVer = cvById.get(normalizedBaseCvId);
+      if (!baseVer) {
+        throw new Error(`invalid_base_cv_version: base_cv_version_id "${normalizedBaseCvId}" is not registered in logs/cv-versions.json.`);
+      }
+      const baseOwnCheck = classifyCvRegistryEntryOwnership(baseVer, cvById);
+      if (!baseOwnCheck.isOwner) {
+        throw new Error(`third_party_blocked: Refusing third-party or unverified base_cv_version_id "${normalizedBaseCvId}" (${baseOwnCheck.reason}).`);
       }
     }
 
@@ -4440,8 +4515,9 @@ export function registerOwnerCvVersionForWorkspace(root, input, {
       throw new Error(`application_not_found: Cannot link CV version "${input.cv_version_id}" to missing job_id "${linkJobId}".`);
     }
     const existingApp = normalizeApplicationRecord(records[appIdx]);
-    if (existingApp.provenance?.third_party_subject === true) {
-      throw new Error(`third_party_blocked: Refusing to link owner CV "${input.cv_version_id}" to third-party application "${linkJobId}".`);
+    const existingAppOwn = classifyApplicationOwnership(existingApp, cvLoaded.exists ? cvLoaded.registry : null);
+    if (!existingAppOwn.isOwner) {
+      throw new Error(`third_party_blocked: Refusing to link owner CV "${input.cv_version_id}" to third-party or unverified application "${linkJobId}" (${existingAppOwn.reason}).`);
     }
 
     // 1. Prepare and validate BOTH documents in memory before writing anything to disk
@@ -5697,9 +5773,12 @@ export function triageJobForWorkflow(root, input, {
     const existingIdx = appRecords.findIndex(r => isUsableJobId(r.job_id) && normalizeJobIdKey(r.job_id) === jobKey);
     const existing = existingIdx >= 0 ? normalizeApplicationRecord(appRecords[existingIdx]) : null;
 
+    const cvLoadedForTriage = readValidatedCvRegistry(resolvedRoot, { home });
+    const cvRegForTriage = cvLoadedForTriage.exists ? cvLoadedForTriage.registry : null;
     if (existing) {
-      if (existing.provenance?.third_party_subject === true) {
-        throw new Error(`third_party_blocked: Application "${existing.job_id}" belongs to an isolated third-party subject.`);
+      const ownCheck = classifyApplicationOwnership(existing, cvRegForTriage);
+      if (!ownCheck.isOwner) {
+        throw new Error(`third_party_blocked: Application "${existing.job_id}" belongs to an isolated third-party or unverified subject (${ownCheck.reason}).`);
       }
       if (SUBMITTED_STATUS_SET.has(existing.status)) {
         throw new Error(`cannot_downgrade_submitted: Application "${existing.job_id}" is already "${existing.status}"; refusing to re-triage.`);
@@ -6030,6 +6109,8 @@ export function enqueueSelectedRunJobs(root, input, {
         .map(s => normalizeJobIdKey(s.job_id)),
     );
 
+    const cvLoadedForEnqueue = readValidatedCvRegistry(resolvedRoot, { home });
+    const cvRegForEnqueue = cvLoadedForEnqueue.exists ? cvLoadedForEnqueue.registry : null;
     const requestedCanonicalIds = [];
     const seenRequestedKeys = new Set();
     for (const rawId of input.job_ids) {
@@ -6041,8 +6122,9 @@ export function enqueueSelectedRunJobs(root, input, {
       if (!rec) {
         throw new Error(`job_not_found_in_ledger: Job "${rawId}" does not exist in logs/applications-log.json. Triage or record it before enqueueing.`);
       }
-      if (rec.provenance?.third_party_subject === true) {
-        throw new Error(`third_party_blocked: Refusing to enqueue third-party record "${rec.job_id}".`);
+      const recOwn = classifyApplicationOwnership(rec, cvRegForEnqueue);
+      if (!recOwn.isOwner) {
+        throw new Error(`third_party_blocked: Refusing to enqueue third-party or unverified record "${rec.job_id}" (${recOwn.reason}).`);
       }
       if (SUBMITTED_STATUS_SET.has(rec.status)) {
         throw new Error(`already_submitted: Job "${rec.job_id}" already has submitted status "${rec.status}".`);
@@ -6495,9 +6577,19 @@ export function prepareApplicationPackage(root, input, {
     if (appIdx < 0) {
       throw new Error(`application_not_found: No application record exists for job_id "${input.job_id}". Record or triage it first.`);
     }
+    const cvRegForPrep = cvLoaded.exists ? cvLoaded.registry : null;
+    const cvByIdForPrep = new Map();
+    if (cvRegForPrep) {
+      for (const v of cvRegForPrep.versions) {
+        if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+          cvByIdForPrep.set(v.cv_version_id.trim(), v);
+        }
+      }
+    }
     const existing = normalizeApplicationRecord(records[appIdx]);
-    if (existing.provenance?.third_party_subject === true) {
-      throw new Error(`third_party_blocked: Refusing to prepare owner application package for third-party record "${existing.job_id}".`);
+    const existingPrepOwn = classifyApplicationOwnership(existing, cvRegForPrep);
+    if (!existingPrepOwn.isOwner) {
+      throw new Error(`third_party_blocked: Refusing to prepare owner application package for third-party or unverified record "${existing.job_id}" (${existingPrepOwn.reason}).`);
     }
     if (SUBMITTED_STATUS_SET.has(existing.status)) {
       throw new Error(`already_submitted: Application "${existing.job_id}" is already "${existing.status}"; refusing to overwrite preparation state.`);
@@ -6532,17 +6624,18 @@ export function prepareApplicationPackage(root, input, {
     let linkedCvVersion = null;
     if (explicitCvRequested) {
       const reqId = input.cv_version_id.trim();
-      const found = cvLoaded.registry.versions.find(v => v.cv_version_id === reqId);
+      const found = cvByIdForPrep.get(reqId);
       if (!found) {
         throw new Error(`cv_version_not_found: CV version "${reqId}" is not registered in logs/cv-versions.json.`);
       }
-      if (found.owner_scope !== 'owner' || isThirdPartyCvPath(found.local_ref_rel)) {
-        throw new Error(`third_party_blocked: Refusing to link third-party CV version "${reqId}" to owner application "${existing.job_id}".`);
+      const foundOwn = classifyCvRegistryEntryOwnership(found, cvByIdForPrep);
+      if (!foundOwn.isOwner) {
+        throw new Error(`third_party_blocked: Refusing to link third-party or unverified CV version "${reqId}" to owner application "${existing.job_id}" (${foundOwn.reason}).`);
       }
       linkedCvVersion = found;
     } else if (isNonEmptyString(existing.cv_version_id)) {
-      const found = cvLoaded.registry.versions.find(v => v.cv_version_id === existing.cv_version_id);
-      if (found && found.owner_scope === 'owner' && !isThirdPartyCvPath(found.local_ref_rel)) {
+      const found = cvByIdForPrep.get(existing.cv_version_id.trim());
+      if (found && classifyCvRegistryEntryOwnership(found, cvByIdForPrep).isOwner) {
         linkedCvVersion = found;
       }
     }
@@ -6559,9 +6652,12 @@ export function prepareApplicationPackage(root, input, {
 
     if (isNonEmptyString(input.base_cv_version_id)) {
       const baseId = input.base_cv_version_id.trim();
-      const baseFound = cvLoaded.registry.versions.find(v => v.cv_version_id === baseId);
-      if (baseFound && (baseFound.owner_scope !== 'owner' || isThirdPartyCvPath(baseFound.local_ref_rel))) {
-        throw new Error(`third_party_blocked: Refusing third-party base_cv_version_id "${baseId}".`);
+      const baseFound = cvByIdForPrep.get(baseId);
+      if (baseFound) {
+        const baseOwn = classifyCvRegistryEntryOwnership(baseFound, cvByIdForPrep);
+        if (!baseOwn.isOwner) {
+          throw new Error(`third_party_blocked: Refusing third-party or unverified base_cv_version_id "${baseId}" (${baseOwn.reason}).`);
+        }
       }
     }
 
@@ -6638,6 +6734,12 @@ export function prepareApplicationPackage(root, input, {
         throw new Error(
           `base_cv_version_mismatch: Provided base_cv_version_id "${reqBase}" contradicts root CV version "${linkedCvVersion.cv_version_id}".`,
         );
+      }
+    }
+    if (isNonEmptyString(input.base_cv_version_id)) {
+      const reqBase = input.base_cv_version_id.trim();
+      if (!cvByIdForPrep.get(reqBase)) {
+        throw new Error(`invalid_base_cv_version: base_cv_version_id "${reqBase}" is not registered in logs/cv-versions.json.`);
       }
     }
 

@@ -44,6 +44,8 @@ import {
   readJsonSafe as readJsonSafeBase,
   isBlockedSsrfUrl,
   fetchUrlWithSafeRedirects,
+  DOCX_LIMITS,
+  readFileBoundedSync,
   extractDocxText,
 } from './fs-safety.mjs';
 
@@ -320,6 +322,10 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
   if (trimmed.startsWith('\\\\') || trimmed.startsWith('//')) {
     throw new Error(`Refusing UNC or network ${label}: "${rawPath}"`);
   }
+  const afterDrive = /^[A-Za-z]:/.test(trimmed) ? trimmed.slice(2) : trimmed;
+  if (afterDrive.includes(':')) {
+    throw new Error(`Refusing ${label} containing unsafe alternate data stream or colon syntax: "${rawPath}"`);
+  }
   if (hasParentTraversalSegment(trimmed)) {
     throw new Error(`Refusing ${label} with ".." parent traversal segments: "${rawPath}"`);
   }
@@ -345,16 +351,6 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
           }
         }
       } catch { /* ignore */ }
-    }
-  }
-  // Also allow read-only evals/fixtures/ paths when test suites run from a scaffolded copy of evals/
-  if (/[/\\]evals[/\\]fixtures[/\\]/i.test(resolved)) {
-    const idx = resolved.toLowerCase().lastIndexOf(`${path.sep}evals${path.sep}fixtures${path.sep}`);
-    if (idx > 0) {
-      const fixtureRoot = resolved.slice(0, idx);
-      if (fs.existsSync(path.join(fixtureRoot, 'evals', 'fixtures', 'ground-truth.json'))) {
-        allowedRoots.push(path.join(fixtureRoot, 'evals', 'fixtures'));
-      }
     }
   }
 
@@ -1973,9 +1969,14 @@ function cmdEval() {
   const baselineFile = path.join(evalRoot, 'results', 'baseline-verified-run.json');
   const sourceBaselineFile = path.join(SOURCE, 'evals', 'results', 'baseline-verified-run.json');
   const isExternalFile = Boolean(opts.file) && !opts.baseline;
-  const resultsFile = isExternalFile
-    ? path.resolve(process.cwd(), opts.file)
-    : baselineFile;
+  let resultsFile = baselineFile;
+  if (isExternalFile) {
+    const fileInfo = assertSafeCliInputPath(opts.file, { label: 'eval results file' });
+    if (!fileInfo.exists) {
+      throw new Error(`Eval input JSON not found: ${fileInfo.resolved}`);
+    }
+    resultsFile = fileInfo.resolved;
+  }
   if (isExternalFile && (isSamePath(resultsFile, baselineFile) || isSamePath(resultsFile, sourceBaselineFile))) {
     throw new Error(
       `Refusing --file pointing to the built-in reference baseline (${resultsFile}). Use \`eval --baseline\` for CI self-testing, or pass an external model output JSON file.`,
@@ -2275,12 +2276,13 @@ function extractHtmlText(html) {
 
 function readCvInputText(resolved) {
   const ext = path.extname(resolved).toLowerCase();
+  if (ext === '.docx') {
+    const rawBuf = readFileBoundedSync(resolved, DOCX_LIMITS.MAX_INPUT_BYTES, '.docx file');
+    return { text: extractDocxText(rawBuf), format: 'docx' };
+  }
   const rawBuf = fs.readFileSync(resolved);
   if (rawBuf.subarray(0, 5).toString('utf8') === '%PDF-' || ext === '.pdf') {
     throw new Error('Binary/PDF file detected. Read natively if your AI IDE supports PDFs, open via Playwright MCP file:///..., or paste/export as .md/.txt/.docx for instant CLI audit.');
-  }
-  if (ext === '.docx') {
-    return { text: extractDocxText(rawBuf), format: 'docx' };
   }
   if (ext === '.doc' && rawBuf.length >= 4 && rawBuf[0] === 0xd0 && rawBuf[1] === 0xcf && rawBuf[2] === 0x11 && rawBuf[3] === 0xe0) {
     throw new Error('Legacy binary .doc (OLE2) detected. Save as .docx/.txt/.md or paste your CV text in chat.');
@@ -2725,6 +2727,25 @@ function verifyArtifactFile(filePath, factsConfig = null) {
   const warnings = [];
   const ext = path.extname(filePath).toLowerCase();
   const name = path.basename(filePath);
+  if (ext === '.docx') {
+    let rawBuf;
+    try {
+      rawBuf = readFileBoundedSync(filePath, DOCX_LIMITS.MAX_INPUT_BYTES, '.docx file');
+    } catch (e) {
+      errors.push(`${name}: ${e.message}`);
+      return { name, errors, warnings };
+    }
+    if (rawBuf.length === 0) {
+      errors.push(`${name}: file is empty (0 bytes)`);
+      return { name, errors, warnings };
+    }
+    try {
+      extractDocxText(rawBuf);
+    } catch (e) {
+      errors.push(`${name}: ${e.message}`);
+    }
+    return { name, errors, warnings };
+  }
   const rawBuf = fs.readFileSync(filePath);
 
   if (rawBuf.length === 0) {
@@ -2736,14 +2757,6 @@ function verifyArtifactFile(filePath, factsConfig = null) {
       errors.push(`${name}: invalid PDF header (does not start with %PDF-)`);
     } else if (rawBuf.length > 200 * 1024) {
       warnings.push(`${name}: PDF size is ${Math.round(rawBuf.length / 1024)} KB (target <= 200 KB)`);
-    }
-    return { name, errors, warnings };
-  }
-  if (ext === '.docx') {
-    try {
-      extractDocxText(rawBuf);
-    } catch (e) {
-      errors.push(`${name}: ${e.message}`);
     }
     return { name, errors, warnings };
   }
