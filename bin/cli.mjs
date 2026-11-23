@@ -2567,6 +2567,20 @@ const ROUTE_RULES = [
     outputs: ['logs/insights/profile-update-plan-<platform>-YYYY-MM-DD.json', 'Consolidated field-level diff & truthful verification summary'],
   },
   {
+    intent: 'build-portfolio',
+    match: q =>
+      /(^|\s)\/build-portfolio\b/i.test(q) ||
+      (/\bportfolio\b/i.test(q) && /\b(build|create|generate|design|scaffold|make|deploy|host|publish|launch|vercel|wrangler|cloudflare|netlify|firebase|surge)\b/i.test(q) && !/\b(audit|check)\b/i.test(q)) ||
+      (/\b(update|edit|customize|redesign)\b/i.test(q) && /\bportfolio\s+(?:site|website|page|theme|layout)\b/i.test(q)),
+    skills: ['29-portfolio-builder-and-deployer', '01-resume-ingestion', '03-tailor-resume-and-verify', '11-portfolio-and-github-auditor', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
+    workflow: '.agent/workflows/build-portfolio.md',
+    readiness: 'task-specific (verified CV/project facts + batched style/stack/hosting choices; no /setup or Playwright required)',
+    required_inputs: ['verified CV/profile facts', 'style/stack/public-contact/hosting choices'],
+    optional_tools: ['hosting CLI (vercel, wrangler, netlify, gh, firebase, surge)', 'playwright (optional for local/live visual preview)'],
+    fallback: 'Builds locally inside isolated logs/portfolio/<site-slug>/ (LOCAL_PREVIEW_ONLY default) and exports ready-to-upload static dist/ + DNS/HTTPS instructions when no hosting CLI is used',
+    outputs: ['Isolated portfolio project in logs/portfolio/<site-slug>/', 'Pre-publish PII/secret scan + local preview', 'Optional APPROVE-gated live HTTPS deployment + HTTP 200 verification'],
+  },
+  {
     intent: 'github-portfolio-audit',
     match: q =>
       /(^|\s)\/github-audit\b/i.test(q) ||

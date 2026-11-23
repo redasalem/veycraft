@@ -4,7 +4,7 @@
 
 [![Zero Core Dependencies](https://img.shields.io/badge/Core_CLI-0_NPM_Dependencies-2ea44f)](package.json)
 [![Node >= 18](https://img.shields.io/badge/Node-%3E%3D18-339933)](package.json)
-[![51 Markdown Skills](https://img.shields.io/badge/Skills-51_Markdown_Skills-167d60)](skills/REGISTRY.md)
+[![52 Markdown Skills](https://img.shields.io/badge/Skills-52_Markdown_Skills-167d60)](skills/REGISTRY.md)
 [![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
 
@@ -20,7 +20,7 @@ Give your existing AI coding agent (**OpenAI Codex, Claude Code, Gemini CLI, Git
 
 - **Zero fabricated experience:** Every metric, tool, employer, and date traces back to verified local facts.
 - **Zero blind submissions:** `dry_run: true` by default; every live submit or profile save requires explicit human `APPROVE`.
-- **Zero npm dependencies:** Pure Node.js (`>= 18`) CLI (`dependencies: {}`, `devDependencies: {}`) plus 51 portable `agentskills.io` Markdown skills. No external API keys or hosted backend.
+- **Zero npm dependencies:** Pure Node.js (`>= 18`) CLI (`dependencies: {}`, `devDependencies: {}`) plus 52 portable `agentskills.io` Markdown skills. No external API keys or hosted backend.
 
 ---
 
@@ -105,6 +105,7 @@ Inside your AI IDE, start with:
 - **`/demo`** — 15-second synthetic sandbox ([`examples/sandbox-demo/`](examples/sandbox-demo/sample-jds.md)), zero personal data or browser login.
 - **`/quick-tailor`** — Tailor 1 real CV against 1 job description (`HTML` / `TXT` / Word `.doc` + True Gaps), no browser login.
 - **`/profile-update`** — Audit & plan cross-platform profile improvements (`DRAFT_ONLY`, schema-validated).
+- **`/build-portfolio`** — Build & preview a personalized portfolio site locally (`logs/portfolio/<slug>/`), then optionally deploy via hosting CLIs after `APPROVE`.
 - **`/setup` → `/daily-run`** — Full optional Career OS when ready for browser-assisted workflows.
 
 ---
@@ -155,6 +156,7 @@ All names, employers, and metrics below come from synthetic repository fixtures 
 | **Truthful CV Tailoring** | `/quick-tailor`, `/tailor-cv`, or natural language | Single-column `HTML` + `TXT` + Word-compatible `.doc` (never fake `.docx`), Evidence Map, 4-bucket ATS Keyword Heatmap, isolated **True Gaps**, original CV preserved |
 | **Profile Intelligence Engine** | `/profile-update` or *"Optimize my profile"* | 7-criteria audit across `linkedin`, `wellfound`, `ats`, `job_boards`, `portfolio`, and read/draft-only `generic` fallback; schema-validated `DRAFT_ONLY` plan (`add`/`replace` only, zero `remove`) + read-back verification |
 | **GitHub CLI Audit, Marketing & CV Extraction** | `/github-audit` or *"Audit my GitHub repos"* | Full-account `gh` CLI repo inventory, code-verified `context/github-projects.md` CV extraction (`requires_user_confirmation` metrics), `DRAFT_ONLY` README/metadata marketing diffs, and tiered cleanup (`private`/`archive` first, per-repo typed `DELETE <owner>/<repo>` gate) |
+| **Personalized Portfolio Builder & Deployer** | `/build-portfolio` or *"Build my portfolio website"* | Isolated local builds (`logs/portfolio/<slug>/`: Vanilla HTML/CSS/JS, Astro, Vite+React, Next.js), public PII/secret scan, `LOCAL_PREVIEW_ONLY` default, and `APPROVE`-gated deploy (`vercel`, `wrangler`, `netlify`, separate-repo `gh`, `firebase`, `surge`, or Smart Fallback) |
 | **LinkedIn Growth & SEO** | `/linkedin-growth` | 3-mode guard (Read-Only → `DRAFT_ONLY` → `APPROVE`-gated live save), `0–100` recruiter SEO score, `<= 75`-word outreach drafts |
 | **Multi-Source Discovery & ATS Prep** | `/daily-run`, `/apply-url <url>` | LinkedIn, Wellfound, Indeed, Glassdoor, Greenhouse, Lever, Ashby, Workday, SmartRecruiters, MENA boards, B2B networks (`skills/platforms/b2b-contract-networks.md`), or any custom HTTPS job URL |
 | **Interview, Offer & Contract Ops** | Natural language | `interview-dossier.md`, take-home blueprints, grounded offer negotiation drafts, and 6-category NDA/MSA red-flag audits |
@@ -169,7 +171,7 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | Command | Purpose |
 |---|---|
 | `veycraft --help` / `veycraft --version [--json]` | Safe, read-only usage guide or version & provenance metadata |
-| `veycraft doctor [--global] [--strict] [--json]` | Diagnose Node runtime, provenance, 51-skill manifest, 5 gates, `<60d` playbooks, PII hook & MCP configs |
+| `veycraft doctor [--global] [--strict] [--json]` | Diagnose Node runtime, provenance, 52-skill manifest, 5 gates, `<60d` playbooks, PII hook & MCP configs |
 | `veycraft init [--global] [--force] [--ide <name>]` | Non-destructively scaffold `~/.veycraft` (or workspace), link IDE skills/rules & safely merge MCP configs |
 | `veycraft route "<request>" [--json]` | Deterministic natural-language Task Intent Router (returns minimal skills, readiness & fallback) |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | Offline CV hygiene audit, fake-`.docx`/scanned-PDF/SSRF/token checks & PII-safe SVG/MD scorecard |

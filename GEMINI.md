@@ -33,5 +33,6 @@ This is a **Markdown-first career operations repository with a zero-dependency N
 - Cross-channel deduplication & blacklist guard -> `skills/26-deduplication-and-blacklist-guard.md`
 - Universal CV builder (any person/field, with/without prior CV & iterative edits) -> `skills/27-universal-cv-builder.md`
 - Recruiter, personal-brand, LinkedIn SEO & domain-agnostic market intelligence -> `skills/28-recruiter-brand-and-domain-intelligence.md`
+- `/build-portfolio` or personalized portfolio website build & deploy -> `skills/29-portfolio-builder-and-deployer.md` (isolated `logs/portfolio/<slug>/`, 4-tier stack matrix, PII/secret scan, `LOCAL_PREVIEW_ONLY` -> `APPROVE`-gated CLI deploy)
 
 See `adapters/models/gemini.md` for Gemini-specific multimodal & snapshot verification guidance. Respect `dry_run: true`, verified facts only, caps, and explicit `APPROVE` gates.

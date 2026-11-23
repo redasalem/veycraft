@@ -133,6 +133,7 @@ test('2. Metadata parity: offline-capable skills never require Playwright/Notion
     'outreach-and-interview-prep',
     'log-and-insights',
     'portfolio-and-github-auditor',
+    'portfolio-builder-and-deployer',
     'recruiter-inbox-triage',
     'multilingual-adaptation',
     'linkedin-growth',
@@ -768,4 +769,65 @@ test('11. GitHub CLI Audit, Marketing Polish, Tiered Cleanup & CV Extraction (Sk
   assert.ok(s03Text.includes('context/github-projects.md'), 'skills/03 missing context/github-projects.md read-hook');
   assert.ok(s27Text.includes('context/github-projects.md'), 'skills/27 missing context/github-projects.md read-hook');
   assert.ok(piText.includes('skills/11-portfolio-and-github-auditor.md'), 'profile-intelligence-engine missing delegation note to skills/11');
+});
+
+test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 52 Skills)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  assert.equal(manifest.skills.length, 52, `Expected 52 skills in manifest, got ${manifest.skills.length}`);
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  // 1. Manifest parity & zero 5-gate /daily-run coupling
+  const s29 = byName.get('portfolio-builder-and-deployer');
+  assert.ok(s29, 'portfolio-builder-and-deployer missing from skills-manifest.json');
+  assert.equal(s29.version, '1.0.0');
+  assert.equal(s29.path, 'skills/29-portfolio-builder-and-deployer.md');
+  assert.deepEqual(s29.requires_mcp, ['none']);
+  assert.deepEqual(s29.optional_mcp, ['playwright']);
+  assert.ok(!s29.requires_skills.includes('interrogate-and-onboard'), 'Skill 29 must not force 5-gate interrogate-and-onboard');
+  for (const dep of [
+    'resume-ingestion',
+    'tailor-resume-and-verify',
+    'portfolio-and-github-auditor',
+    'privacy-pii-shield',
+    'recruiter-brand-and-domain-intelligence',
+    'meta-self-verification',
+  ]) {
+    assert.ok(s29.requires_skills.includes(dep), `Skill 29 manifest missing requires_skills dep: ${dep}`);
+  }
+
+  // 2. Collision-free CLI routing across build-portfolio, profile-intelligence, and github-portfolio-audit
+  const routeChecks = [
+    ['/build-portfolio', 'build-portfolio', '29-portfolio-builder-and-deployer'],
+    ['build and deploy my portfolio website', 'build-portfolio', '29-portfolio-builder-and-deployer'],
+    ['host my portfolio on vercel', 'build-portfolio', '29-portfolio-builder-and-deployer'],
+    ['update my portfolio website', 'build-portfolio', '29-portfolio-builder-and-deployer'],
+    ['optimize my portfolio profile', 'profile-intelligence', 'profile-intelligence-engine'],
+    ['audit my portfolio links and github repos', 'github-portfolio-audit', '11-portfolio-and-github-auditor'],
+  ];
+  for (const [prompt, expectedIntent, mustIncludeSkill] of routeChecks) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, expectedIntent, `Intent mismatch for "${prompt}"`);
+    assert.ok(parsed.skills.includes(mustIncludeSkill), `Missing ${mustIncludeSkill} on "${prompt}"`);
+    assert.ok(parsed.skills.length <= 7, `Skill count > 7 for "${prompt}": ${parsed.skills.length}`);
+  }
+
+  // 3. Isolation, privacy, hosting CLI & Smart Fallback clauses in skills/29
+  const s29Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '29-portfolio-builder-and-deployer.md'), 'utf8');
+  assert.ok(!s29Text.includes('interrogate-and-onboard'), 'skills/29 must not depend on interrogate-and-onboard');
+  for (const clause of [
+    'logs/portfolio/',
+    'LOCAL_PREVIEW_ONLY',
+    'Deploy Confirmation Table',
+    'redasalem/veycraft',
+    'vercel',
+    'wrangler',
+    'netlify',
+    'Smart Fallback',
+    'cPanel',
+    'portfolio-manifest.json',
+  ]) {
+    assert.ok(s29Text.includes(clause), `skills/29 missing required clause: ${clause}`);
+  }
 });

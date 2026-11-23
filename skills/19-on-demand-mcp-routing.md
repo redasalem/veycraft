@@ -1,6 +1,6 @@
 ---
 name: on-demand-mcp-routing
-version: "1.1.0"
+version: "1.1.1"
 description: Load at phase boundaries to minimize context bloat by routing MCP tool usage strictly on demand — using zero MCP tools for local JSON/Markdown phases (/weekly-report, rejection patterns, score calibration, PII audit) and invoking Playwright MCP or Notion MCP only in the exact browser or sync phases that require them.
 triggers:
   - route MCP tools on demand
@@ -35,8 +35,8 @@ Prevents accessibility-tree snapshots and optional integration schemas from exha
 
 1. **Classify the Current Phase & Capability Category (`A–E`) Before Touching Any MCP Tool:**
    - **Local-Only & Optional-CLI Phases (`requires_mcp: none`):**
-     - Gatekeeper audit (`00-interrogate-and-onboard`), CV ingestion/creation/editing (`01`), HTML/TXT/Word-compatible `.doc` tailoring & fact-checking (`03`), standalone interview dossier & `<= 75`-word drafts (`05`), local JSON writes, tracking updates & `/weekly-report` (`06`), persona switching (`07`), follow-up radar (`08`), offer negotiation (`09`), GitHub CLI account audit, marketing polish, safe cleanup & `context/github-projects.md` extraction (`11-portfolio-and-github-auditor`, using `gh` CLI with optional Playwright for live portfolio rendering), recruiter inbox triage (`12`), PII audit (`14`), multilingual adaptation (`15`), rejection patterns (`16`), score calibration (`17`), and offline LinkedIn audit from pasted/PDF/screenshot profile (`linkedin-growth`).
-     - Execute these strictly with built-in file tools, `bin/cli.mjs` (`audit`, `verify`, `pre-submit`, `career summary|analytics|dashboard|migrate|cv-versions`, and offline `career sync preview|status|verify-schema|apply-receipt|record-failure|expire-stale|reconcile|reset-permanent|release-stale-lock`), and authenticated `gh` CLI (for Skill 11) without spinning up Playwright MCP unnecessarily.
+     - Gatekeeper audit (`00-interrogate-and-onboard`), CV ingestion/creation/editing (`01`), HTML/TXT/Word-compatible `.doc` tailoring & fact-checking (`03`), standalone interview dossier & `<= 75`-word drafts (`05`), local JSON writes, tracking updates & `/weekly-report` (`06`), persona switching (`07`), follow-up radar (`08`), offer negotiation (`09`), GitHub CLI account audit, marketing polish, safe cleanup & `context/github-projects.md` extraction (`11-portfolio-and-github-auditor`, using `gh` CLI with optional Playwright for live portfolio rendering), recruiter inbox triage (`12`), PII audit (`14`), multilingual adaptation (`15`), rejection patterns (`16`), score calibration (`17`), isolated portfolio website building & CLI deployment (`29-portfolio-builder-and-deployer`, using local build/deploy CLIs with optional Playwright for visual preview), and offline LinkedIn audit from pasted/PDF/screenshot profile (`linkedin-growth`).
+     - Execute these strictly with built-in file tools, `bin/cli.mjs` (`audit`, `verify`, `pre-submit`, `career summary|analytics|dashboard|migrate|cv-versions`, and offline `career sync preview|status|verify-schema|apply-receipt|record-failure|expire-stale|reconcile|reset-permanent|release-stale-lock`), and authenticated `gh` / hosting CLIs (for Skills 11 & 29) without spinning up Playwright MCP unnecessarily.
    - **Playwright-Required / Optional Phases (`playwright`):**
      - **Required:** live board auth checks, search page inspection, live ATS form upload/fill (`04`, `platforms/*`, `ats/*`).
      - **Optional:** PDF rendering (`page.pdf`), reading `.pdf` without native PDF support, live URL inspection, read-only LinkedIn profile/JD reads, and `APPROVE`-gated live LinkedIn profile edits.

@@ -6,7 +6,7 @@
 
 [![Zero Core Dependencies](https://img.shields.io/badge/Core_CLI-0_NPM_Dependencies-2ea44f)](package.json)
 [![Node >= 18](https://img.shields.io/badge/Node-%3E%3D18-339933)](package.json)
-[![51 Markdown Skills](https://img.shields.io/badge/Skills-51_Markdown_Skills-167d60)](skills/REGISTRY.md)
+[![52 Markdown Skills](https://img.shields.io/badge/Skills-52_Markdown_Skills-167d60)](skills/REGISTRY.md)
 [![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
 
@@ -22,7 +22,7 @@
 
 - **صفر خبرات مختلقة:** كل رقم ومهارة وشركة وتاريخ يرتبط بحقائق مؤكدة من ملفك المحلي فقط.
 - **صفر إرسال أعمى:** وضع `dry_run: true` مفعّل افتراضيًا، وأي تقديم حي أو حفظ تعديل على البروفايل يتطلب موافقة بشرية صريحة (`APPROVE`).
-- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`dependencies: {}`, `devDependencies: {}`) مع 51 مهارة Markdown محمولة، بدون مفاتيح API خارجية أو خوادم سحابية.
+- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`dependencies: {}`, `devDependencies: {}`) مع 52 مهارة Markdown محمولة، بدون مفاتيح API خارجية أو خوادم سحابية.
 
 ---
 
@@ -124,6 +124,7 @@ veycraft route "حسّن ملفي المهني على LinkedIn وزامنه مع
 - **`/quick-tailor`** — تفصيل سيرتك لوظيفة واحدة (`HTML / TXT / .doc` + `True Gaps`) بدون متصفح.
 - **`/profile-update`** — تحليل وتخطيط تحسينات البروفايل عبر المنصات بوضع `DRAFT_ONLY` ومخطط مُتحقق منه.
 - **`/github-audit`** — تدقيق شامل لمستودعات GitHub عبر `gh` CLI، واستخراج مشاريع موثّقة للسيرة الذاتية (`context/github-projects.md`)، وتحسين الـ README وتنظيف المستودعات بأمان.
+- **`/build-portfolio`** — بناء ومعاينة موقع بورتفوليو شخصي محليًا داخل مجلد معزول (`logs/portfolio/<slug>/`)، مع نشر اختياري مشروط بـ `APPROVE` عبر أدوات الاستضافة.
 - **`/setup` ← `/daily-run`** — النظام الكامل الاختياري عند الحاجة لأتمتة المتصفح.
 
 ---
@@ -186,6 +187,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | **تفصيل سيرة ذاتية موثّق** | `/quick-tailor` أو `/tailor-cv` أو طلب طبيعي | `HTML + TXT + .doc` متوافق مع Word (بدون تزوير `.docx`)، خريطة أدلة، مقارنة كلمات ATS، عزل `True Gaps`، والحفاظ على الملف الأصلي |
 | **محرك ذكاء البروفايل** | `/profile-update` أو *"حسّن ملفي المهني"* | تدقيق من 7 معايير عبر `linkedin` و`wellfound` و`ats` و`job_boards` و`portfolio` ووضع `generic` الاحتياطي، وخطة `DRAFT_ONLY` (`add`/`replace` فقط بلا `remove`) والتحقق بالقراءة بعد الحفظ |
 | **تدقيق وتسويق GitHub واستخراج مشاريع CV** | `/github-audit` أو *"دقّق مستودعات GitHub"* | فحص شامل عبر `gh` CLI، واستخراج مشاريع موثّقة من الكود إلى `context/github-projects.md` (مع عزل الأرقام غير المؤكدة)، وتحسين الوصف والـ README بوضع `DRAFT_ONLY`، وتنظيف متدرّج (`private`/`archive` أولًا ثم تأكيد `DELETE <owner>/<repo>` لكل مستودع) |
+| **بناء ونشر موقع البورتفوليو الشخصي** | `/build-portfolio` أو *"ابنِ موقع بورتفوليو لي"* | بناء معزول داخل `logs/portfolio/<slug>/` (`HTML/CSS/JS` أو `Astro` أو `Vite+React` أو `Next.js`)، فحص الخصوصية والأسرار قبل النشر، معاينة محلية أولًا (`LOCAL_PREVIEW_ONLY`)، ونشر مشروط بـ `APPROVE` عبر `vercel` و`wrangler` و`netlify` و`gh` و`firebase` و`surge` أو البديل الذكي |
 | **نمو وSEO لينكدإن** | `/linkedin-growth` | فصل صارم بين القراءة فقط، والمسودات `DRAFT_ONLY`، والتعديل الحي المشروط بـ `APPROVE` مع مسودات تواصل `<= 75` كلمة |
 | **اكتشاف متعدد المصادر وتجهيز ATS** | `/daily-run` أو `/apply-url <url>` | يدعم LinkedIn وWellfound وIndeed وGreenhouse وLever وAshby وWorkday وبوابات الشرق الأوسط وشبكات العقود B2B أو أي رابط وظيفة HTTPS مباشر |
 | **المقابلات والعروض والعقود** | طلب باللغة الطبيعية | `interview-dossier.md`، خطط اختبارات تقنية، مسودات تفاوض راتب، وتدقيق بنود عقود وNDA |
@@ -200,7 +202,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | الأمر | الوظيفة |
 |---|---|
 | `veycraft --help` / `veycraft --version [--json]` | عرض دليل الاستخدام (قراءة فقط) أو الإصدار وبيانات الأصل |
-| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 51 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
+| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 52 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
 | `veycraft init [--global] [--force] [--ide <name>]` | تهيئة `~/.veycraft` (أو المجلد الحالي) وربط مهارات المحررات ومزامنة MCP دون حذف القواعد القائمة |
 | `veycraft route "<request>" [--json]` | توجيه أي طلب طبيعي (عربي أو إنجليزي) لأقل مجموعة مهارات مناسبة مع البديل الآمن |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |

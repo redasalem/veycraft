@@ -50,3 +50,4 @@ logs/
 # Explicit personal generated artifacts (also covered by logs/)
 logs/resumes/
 logs/exports/
+logs/portfolio/

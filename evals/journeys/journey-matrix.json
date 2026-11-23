@@ -244,6 +244,20 @@
       "expected_intent": "github-portfolio-audit",
       "required_skills": ["11-portfolio-and-github-auditor", "meta-self-verification"],
       "requires_full_setup": false
+    },
+    {
+      "id": "PF01",
+      "prompt": "/build-portfolio",
+      "expected_intent": "build-portfolio",
+      "required_skills": ["29-portfolio-builder-and-deployer", "01-resume-ingestion", "03-tailor-resume-and-verify", "11-portfolio-and-github-auditor", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "PF02",
+      "prompt": "Build and deploy my portfolio website on Vercel.",
+      "expected_intent": "build-portfolio",
+      "required_skills": ["29-portfolio-builder-and-deployer", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "requires_full_setup": false
     }
   ]
 }
