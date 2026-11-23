@@ -35,10 +35,10 @@ Diagnoses recurring rejection and silence blockers across local application logs
 
 ## Deterministic Step-by-Step Execution
 
-1. **Hygiene Check & Minimum Sample Gate:**
-   - Read `logs/applications-log.json` and `logs/skipped-jobs.json` directly using IDE file tools (do not invoke Playwright or Notion MCP).
-   - Partition entries: exclude `dry_run`, `skipped`, and `aborted` rows from **submitted yield** denominators.
-   - Flag any `applied` entry older than **14 days** with zero logged status transition as `silent_14d` and prompt the owner to confirm whether any unlogged email/reply arrived before treating silence as rejection.
+1. **Hygiene Check & Minimum Sample Gate (`MIN_N = 5`):**
+   - Read `logs/applications-log.json` and `logs/skipped-jobs.json` directly using IDE file tools (or run `veycraft career summary --json` and `veycraft career analytics --json`; do not invoke Playwright or Notion MCP).
+   - Partition entries: exclude `dry_run`, `skipped`, and `aborted` rows (as well as isolated third-party subjects) from **submitted yield** denominators.
+   - Flag any `applied` entry older than **14 days** with zero logged status transition as `silent_14d`—never classify `silent_14d` as a confirmed `rejected` outcome—and prompt the owner to confirm whether any unlogged email/reply arrived before updating status.
 2. **Blocker & Gap Clustering:**
    - Read `reason` / `notes` / matching `interview-dossier.md` gaps across `rejected`, `silent_14d`, and high-volume `skipped` entries.
    - Bucket blockers cleanly: `geo_visa_mismatch`, `tech_stack_gap`, `seniority_level_mismatch`, `onsite_or_timezone_conflict`, `compensation_gap`, and `stale_or_ghost_posting`.

@@ -35,10 +35,10 @@ Closes the feedback loop between initial `1–10` AI job scores (`skills/02-disc
 
 ## Deterministic Step-by-Step Execution
 
-1. **Partition Decided vs. In-Flight Entries:**
-   - Read `logs/applications-log.json` directly (pure local read — zero MCP).
-   - Separate `in_flight` rows (`status == "applied"` with age `< 14 days`) from `decided` rows (`interview`, `assessment`, `offer`, `rejected`, or `applied >= 14 days` treated cautiously as `silent_decided`). Exclude `dry_run`, `skipped`, and `aborted`.
-   - If `decided` count `< 5`, classify verdict immediately as **`insufficient`** (`N/5 decided outcomes logged`), print how many are still `in_flight`, and stop cleanly without guessing weights.
+1. **Partition Decided vs. In-Flight Entries (`MIN_N = 5`):**
+   - Read `logs/applications-log.json` directly (pure local read—or `veycraft career analytics --json`—zero MCP).
+   - Separate `in_flight` rows (`status == "applied"` with age `< 14 days`), `silent_14d` rows (`status == "applied"` with age `>= 14 days`, tracked separately—never mislabeled as confirmed `rejected`), and confirmed `decided` outcomes (`interview`, `assessment`, `offer`, `rejected`). Exclude `dry_run`, `skipped`, `aborted`, and isolated third-party subjects.
+   - If `decided` (or `decided + silent_14d` when explicitly requested by owner) count `< 5`, classify verdict immediately as **`insufficient`** (`N/5 decided outcomes logged`), print how many are `in_flight` and `silent_14d`, and stop cleanly without guessing weights.
 2. **Build Score-Band Yield Table:**
    - Group `decided` rows into 4 score bands: `9.0–10.0`, `8.0–8.9`, `7.0–7.9`, and `< 7.0`.
    - For each band report: `n`, `callbacks` (`interview` / `assessment` / `offer`), `offers`, and exact percentage **only** when `n >= 5` (otherwise print `(n too small)`).

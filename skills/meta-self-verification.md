@@ -48,7 +48,7 @@ Use every time you are about to say, write or log that something succeeded ("cre
 | Post published | Post visible on the feed/profile with identical text, plus its URL | The editor closed |
 | Message sent | Message bubble in the thread with identical text and the right recipient | The Send button greyed out |
 | Record logged | Re-reading `logs/applications-log.json` shows valid JSON with the new status and unique `job_id` | Intending to write it later |
-| Notion synced | MCP response returned a page id AND a query by Job ID finds exactly one page | No error was printed |
+| Notion synced | Structured receipt applied via `veycraft career sync apply-receipt` (operation-bound `mcp_evidence` + validated read-back matching key/database/properties) recorded as `synced` in `logs/sync-state.json` (structured evidence, not cryptographic proof) | No error printed, unverified MCP response, or local edit without verified `logs/sync-state.json` state |
 
 3. **Check identity.** The evidence must name the same company and role (or same profile section/post text). A generic "Thanks!" page on a different employer domain is not proof.
 4. **Record the proof.** Append to the SAME entry's `notes` in `logs/applications-log.json`: `receipt: "<quoted text, max 160 chars>" | url: <final URL> | observed_at: <ISO time>`. Save a screenshot to `logs/screenshots/<safe-job-id>-receipt.png` when one can be taken without personal data in view.

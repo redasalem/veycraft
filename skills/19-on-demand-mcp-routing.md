@@ -36,12 +36,12 @@ Prevents accessibility-tree snapshots and optional integration schemas from exha
 1. **Classify the Current Phase & Capability Category (`A–E`) Before Touching Any MCP Tool:**
    - **Local-Only Phases (`requires_mcp: none`):**
      - Gatekeeper audit (`00-interrogate-and-onboard`), CV ingestion/creation/editing (`01`), HTML/TXT/Word-compatible `.doc` tailoring & fact-checking (`03`), standalone interview dossier & `<= 75`-word drafts (`05`), local JSON writes, tracking updates & `/weekly-report` (`06`), persona switching (`07`), follow-up radar (`08`), offer negotiation (`09`), recruiter inbox triage (`12`), PII audit (`14`), multilingual adaptation (`15`), rejection patterns (`16`), score calibration (`17`), and offline LinkedIn audit from pasted/PDF/screenshot profile (`linkedin-growth`).
-     - Execute these strictly with built-in file tools and `bin/cli.mjs` (`audit`, `verify`, `pre-submit`).
+     - Execute these strictly with built-in file tools and `bin/cli.mjs` (`audit`, `verify`, `pre-submit`, `career summary|analytics|dashboard|migrate|cv-versions`, and offline `career sync preview|status|verify-schema|apply-receipt|record-failure|expire-stale|reconcile|reset-permanent|release-stale-lock`).
    - **Playwright-Required / Optional Phases (`playwright`):**
      - **Required:** live board auth checks, search page inspection, live ATS form upload/fill (`04`, `platforms/*`, `ats/*`).
      - **Optional:** PDF rendering (`page.pdf`), reading `.pdf` without native PDF support, live URL inspection, read-only LinkedIn profile/JD reads, and `APPROVE`-gated live LinkedIn profile edits.
    - **Notion-Optional Phases (`notion`):**
-     - Check `config/guardrails.yaml` -> `storage_adapters.notion_mcp`. If `false` (default) or Notion MCP is unavailable, keep local JSON under `logs/` as primary truth and skip Notion without blocking.
+     - Check current `config/guardrails.yaml` (`storage_adapters.notion_mcp` and `dry_run`). Live Notion sync (`preview --live`, `approve`, `mark-in-flight`, and external MCP writes) requires BOTH `storage_adapters.notion_mcp: true` AND `dry_run: false`, plus explicit owner approval and receipt recording in `logs/sync-state.json` (`skills/06-log-and-insights.md`). When disabled or in dry-run mode, keep local JSON under `logs/` authoritative and use offline `career sync` preview/status/recovery commands locally without invoking Notion MCP.
 2. **Keep Snapshot Surface Lean Across Phases:**
    - Once a JD is captured via `browser_snapshot`, distill its key facts into the working Mission Control entry or `interview-dossier.md` and discard raw HTML/navigation boilerplate from working memory.
    - Every **3–5 applications**, execute `skills/meta-context-compaction.md` to checkpoint progress and drop stale tab trees.

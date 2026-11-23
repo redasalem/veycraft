@@ -38,7 +38,7 @@ Use as the canonical, fixed rulebook whenever creating a professional ATS-compli
 
 ### 1. Workspace Isolation & Mode Detection
 - **Determine Subject:** Ask or confirm whether the CV is for **(a) the repo owner** or **(b) another person (third party)**.
-  - **Third-Party Isolation Rule:** If building for another person, **NEVER** read from, mix with, or overwrite `context/profile.md`, `context/cv.md`, or `context/resume-data.json`. Save all files strictly inside `logs/resumes/cv-<person-slug>/`.
+  - **Third-Party Isolation Rule:** If building for another person, **NEVER** read from, mix with, or overwrite `context/profile.md`, `context/cv.md`, or `context/resume-data.json`. Save all files strictly inside `logs/resumes/cv-<person-slug>/`. If tracked in `logs/cv-versions.json`, mark `owner_scope: "third_party"` so third-party CVs (and any linked records via transitive CV ancestry) stay strictly excluded from owner analytics (`veycraft career analytics`) and Notion sync (`veycraft career sync`).
   - **Revision Check First:** If `logs/resumes/cv-<person-slug>/cv-profile.json` already exists, load it immediately and jump to **Step 5 (Iterative Revision Mode)**—never restart from scratch or re-ask confirmed facts.
 
 ### 2. Fixed Intake Path (Path A: No CV vs. Path B: Existing CV)

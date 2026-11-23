@@ -45,8 +45,8 @@ Classify every task step as **(A) executable now**, **(B) needs user input**, **
 | Capability | Tool | Notes |
 |---|---|---|
 | Browser | **Playwright MCP** (`playwright`) | Persistent profile in `./browser-profile`. Use accessibility snapshots (`browser_snapshot`) and element refs/roles/labels. Never rely on CSS selectors. |
-| Memory & analytics | **Notion MCP** (`notion`, optional) | Databases: `Applications`, `Daily Runs`, `Weekly & Monthly Insights`. Local JSON under `logs/` is always primary. |
-| Local files | IDE file tools | Read/write `context/`, `config/`, `logs/`, and `templates/` directly. |
+| Memory & analytics | **Notion MCP** (`notion`, optional) | One-way, allowlisted 3-DB sync (`Applications`, `Daily Runs`, `Weekly & Monthly Insights`) governed by `logs/sync-state.json`, live guardrails (`storage_adapters.notion_mcp: true` & `dry_run: false`), and explicit owner approval (`veycraft career sync`). Local JSON under `logs/` is always authoritative and never written back from Notion. |
+| Local CLI & files | IDE file tools + `bin/cli.mjs` | Read/write `context/`, `config/`, `logs/`, and `templates/` directly; run deterministic offline/local commands (`veycraft career summary\|analytics\|dashboard\|migrate\|cv-versions\|sync`, `audit`, `verify`, `pre-submit`). |
 
 ## Progressive Disclosure Rule (Context Budget)
 
@@ -61,7 +61,7 @@ At the start of every session, read `AGENTS.md` and `skills/REGISTRY.md` first. 
   - `skills/03-tailor-resume-and-verify.md` — HTML/PDF tailoring, anti-hallucination fact-check guard, anti-AI slop humanizer
   - `skills/04-fill-and-apply.md` — Upload-first rule, 5 ATS traps, EEO/GDPR compliance defaults, job-bound `APPROVE` gate
   - `skills/05-outreach-and-interview-prep.md` — `interview-dossier.md`, `<= 75`-word `outreach-draft.md`, `email-draft.md`, `/linkedin-growth`
-  - `skills/06-log-and-insights.md` — Local JSON logging, optional Notion MCP sync, `/weekly-report`
+  - `skills/06-log-and-insights.md` — Local-first v2 career ledger (`logs/applications-log.json`), CV version registry (`logs/cv-versions.json`), `MIN_N = 5` deterministic analytics, `/weekly-report`, and one-way approval-gated Notion sync (`logs/sync-state.json`)
   - `skills/07-persona-switcher.md` — Multi-persona career tracks (`context/personas/`)
   - `skills/08-follow-up-radar.md` — 7-day `applied` follow-up radar (`<= 75`-word drafts)
   - `skills/09-offer-negotiator.md` — Offer & B2B rate negotiation analysis (`DRAFT_ONLY`)
@@ -101,7 +101,7 @@ At the start of every session, read `AGENTS.md` and `skills/REGISTRY.md` first. 
 4. Tailor & Fact-Check  -> skills/03-tailor-resume-and-verify.md (evidence map + zero hallucinations + humanizer + PDF)
 5. Fill & Approve       -> skills/04-fill-and-apply.md (upload first + EEO defaults + job-bound APPROVE)
 6. Prep & Outreach      -> skills/05-outreach-and-interview-prep.md (interview dossier + draft-only outreach/email)
-7. Log & Report         -> skills/06-log-and-insights.md (logs/applications-log.json + logs/runs/YYYY-MM-DD.json + optional Notion)
+7. Log & Report         -> skills/06-log-and-insights.md (logs/applications-log.json + logs/runs/YYYY-MM-DD.json + logs/cv-versions.json + optional approval-gated one-way Notion sync via logs/sync-state.json)
 ```
 
 Never reorder or skip steps 0–2 during `/daily-run` or live ATS `/apply-url`. Standalone tasks (CV review/edit/create, `/quick-tailor`, `/tailor-cv`, LinkedIn review/drafts, standalone JD analysis/ranking, interview prep, offer/contract review, and local tracking/reports) use task-specific readiness without forcing `/setup`.
@@ -110,11 +110,11 @@ Never reorder or skip steps 0–2 during `/daily-run` or live ATS `/apply-url`. 
 
 1. **Never invent facts.** Every factual/legal answer requires verified `context/form-answers.yaml` or `context/profile.md`. Never fabricate metrics (`%`, `$`, years), tools, dates, or employers in tailored CVs. For unknown required form questions, leave the tab open, save a screenshot to `logs/screenshots/<job_id>.png`, log `needs_review`, ask the user in chat, and save their confirmed answer back to `context/form-answers.yaml`.
 2. **Pacing & cooldown.** Wait random **3–9 seconds** (`human_behavior.action_delay_seconds`) between every navigation and click, pause at least 10 seconds to read each full JD, and pause 60 seconds after `max_consecutive_actions` (15). Never burst.
-3. **LinkedIn edits, posts, outreach, and cold emails default to `DRAFT_ONLY`.** Show exact Before/After copy (or recipient + message) and wait for explicit `APPROVE` / `approve` in chat before any live Save/Post/Send, then re-verify the saved state via fresh `browser_snapshot`. Outreach notes are strictly capped at `<= 75` words.
+3. **LinkedIn edits, posts, outreach, cold emails, and Notion writes default to `DRAFT_ONLY` / offline preview.** Show exact Before/After copy (or recipient + message, or deterministic Notion sync plan + `plan_hash`) and wait for explicit `APPROVE` / `approve` (or `veycraft career sync approve --confirm-approve --plan-hash <64hex>`) before any live Save/Post/Send/Notion write, then verify persisted state via fresh `browser_snapshot` or `veycraft career sync apply-receipt`. Outreach notes are strictly capped at `<= 75` words.
 4. **Respect caps, warm-up & active hours.** Enforce `max_applications_per_day`, `max_per_platform`, `active_hours` (owner timezone), and the **Days 1–3 warm-up cap (max 5/day)** across the first three distinct non-aborted run dates by counting `applied` + unresolved `submission_uncertain` entries in `logs/applications-log.json` before every submit.
-5. **Dry run.** If `dry_run: true` (default), perform everything except the final Submit click and log status `dry_run`.
-6. **Idempotency.** Before filling or applying, check `job_id` and canonical URL in `logs/applications-log.json` and `logs/skipped-jobs.json`. Never apply twice.
+5. **Dry run & live sync kill-switch.** If `dry_run: true` (default), perform everything except the final Submit click (log status `dry_run`) and block live Notion sync (`preview --live`, `approve`, `mark-in-flight` all fail closed unless current `config/guardrails.yaml` has `storage_adapters.notion_mcp: true` AND `dry_run: false`). Offline preview, status, schema verification, and recovery commands remain available locally.
+6. **Idempotency & honest analytics.** Before filling or applying, check `job_id` / `application_id` and canonical URL in `logs/applications-log.json` and `logs/skipped-jobs.json`; never apply twice. In analytics, enforce `MIN_N = 5` before claiming rates/patterns and never interpret `>= 14d` silence as confirmed rejection.
 7. **Stop conditions.** CAPTCHA, 2FA challenge, account warning, rate-limit banner, an unresolved login wall, or 3 consecutive errors -> stop the run immediately, log `aborted` with the reason, and report. Never attempt stealth or challenge bypasses.
-8. **Privacy.** Never print cookies, tokens, or `.env` values. Never commit `context/*` (except `.example`), `logs/`, `assets/*.pdf`, or `browser-profile/`.
+8. **Privacy & third-party isolation.** Never print cookies, tokens, or `.env` values. Never commit `context/*` (except `.example`), `logs/`, `assets/*.pdf`, or `browser-profile/`. Strictly isolate third-party CVs under `logs/resumes/cv-<slug>/` (`owner_scope: "third_party"`, `provenance.third_party_subject: true`) and exclude them from owner analytics and Notion sync.
 9. **Minimum match.** Only apply when `match_score >= min_match_score` (default 7). Scores 5 to below minimum -> `needs_review`; below 5 or dealbreaker or ghost/expired -> `skipped`.
-10. **Verify before complete.** Never report `"applied"`, `"uploaded"`, `"created"`, or `"updated"` without fresh post-action verification evidence (fresh `browser_snapshot` receipt/profile read-back recorded in `logs/applications-log.json` notes, or post-write file re-read confirming existence and zero placeholders) via `skills/meta-self-verification.md`.
+10. **Verify before complete.** Never report `"applied"`, `"uploaded"`, `"created"`, `"updated"`, or `"Notion synced"` without fresh post-action verification evidence (fresh `browser_snapshot` receipt/profile read-back recorded in `logs/applications-log.json` notes, post-write file re-read confirming existence and zero placeholders, or structured `mcp_evidence` + read-back applied to `logs/sync-state.json` via `veycraft career sync apply-receipt`—noting this is structured evidence, not cryptographic proof) via `skills/meta-self-verification.md`.

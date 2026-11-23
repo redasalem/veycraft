@@ -172,12 +172,20 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | `veycraft init [--global] [--force] [--ide <name>]` | Non-destructively scaffold `~/.veycraft` (or workspace), link IDE skills/rules & safely merge MCP configs |
 | `veycraft route "<request>" [--json]` | Deterministic natural-language Task Intent Router (returns minimal skills, readiness & fallback) |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | Offline CV hygiene audit, fake-`.docx`/scanned-PDF/SSRF/token checks & PII-safe SVG/MD scorecard |
-| `veycraft verify <dir\|file> [--facts <json\|md>]` | Post-write verification for deliverables, `Profile Update Plan` JSON, and verified profile vaults |
+| `veycraft verify <dir\|file> [--facts <json\|md>]` | Post-write verification for deliverables, ledgers, CV versions, Notion sync plans/state, `Profile Update Plan` JSON, and verified profile vaults |
+| `veycraft career summary [--json]` | Print submitted funnel, active rounds, overdue follow-ups & sync status (`logs/sync-state.json` first) |
+| `veycraft career analytics [--period <all\|YYYY-Www\|YYYY-MM>] [--write] [--json]` | Deterministic funnel, score-band, CV-version & source analytics (`MIN_N = 5`; silence `>= 14d` != rejection) |
+| `veycraft career dashboard [--no-open]` | Generate local read-only Career Analytics & Kanban HTML dashboard |
+| `veycraft career migrate [--dry-run \| --apply] [--json]` | Backup-first idempotent migration of `logs/applications-log.json` to schema v2.0 (`--dry-run` default) |
+| `veycraft career cv-versions [--json]` | List owner CV versions in `logs/cv-versions.json` & linked application counts (isolates third-party CVs) |
+| `veycraft career sync <subcommand> [--help]` | One-way local-to-Notion sync engine (`preview`, `status`, `verify-schema`, `approve`, `mark-in-flight`, `apply-receipt`, `record-failure`, `expire-stale`, `reconcile`, `reset-permanent`, `release-stale-lock`); zero external writes from CLI |
 | `veycraft pre-submit [--draft <file> \| --text <str>]` | Enforce `<= 75`-word outreach cap and daily / Days 1–3 warm-up limits against `logs/` |
-| `veycraft eval [--baseline \| --file <json> \| --journeys]` | Run 20 deterministic safety assertions, external model grading, or 17 `node:test` integration suites |
+| `veycraft eval [--baseline \| --file <json> \| --journeys]` | Run 20 deterministic safety assertions, external model grading, or full `node:test` integration suites |
 | `veycraft status [--global] [--json]` | Print readiness gates, warm-up caps & pipeline funnel summary |
-| `veycraft proof` / `dashboard [--no-open]` / `bundle` | Regenerate proof card SVG/MD, open local Kanban viewer, or export web-chat master prompt |
+| `veycraft proof` / `dashboard [--global] [--no-open]` / `bundle` | Regenerate proof card SVG/MD, open classic Kanban viewer, or export web-chat master prompt |
 | `veycraft sync-mcp` / `login` / `unlock` / `backup` / `update` | Sync MCP TOML/JSON, open persistent Chromium, clean stale locks, snapshot logs, or SSH-verified update |
+
+*(Note: when passing `--global` / `-g` with `career sync`, place it before `career sync`, e.g., `veycraft --global career sync status`.)*
 
 ---
 
@@ -185,7 +193,7 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 
 Veycraft explicitly separates **deterministic CLI enforcement** from **agent workflow instructions** ([`docs/execution-safety.md`](docs/execution-safety.md)):
 
-- **Deterministic CLI guards (`bin/cli.mjs`, `bin/profile-intelligence.mjs`):** Registry-enforced platform capabilities, schema/fact checks (`verify`), fake-`.docx`/SSRF/token detection (`audit`), `<= 75`-word & daily warm-up cap checks (`pre-submit`), `.git/hooks/pre-commit` PII blocker, and SSH commit verification (`update`).
+- **Deterministic CLI guards (`bin/cli.mjs`, `bin/profile-intelligence.mjs`, `bin/career-intelligence.mjs`, `bin/notion-sync.mjs`):** Registry-enforced platform capabilities, schema/fact checks (`verify`), fake-`.docx`/SSRF/token detection (`audit`), `<= 75`-word & daily warm-up cap checks (`pre-submit`), `MIN_N = 5` & third-party CV isolation (`career`), one-way allowlisted Notion sync with execution-time `config/guardrails.yaml` kill-switch, `--plan-hash` + 24h TTL approval, exclusive lockfile (`logs/.sync-state.lock`), pre-write `in_flight` reservation, structured receipt verification, and complete-query reconciliation (`career sync`), `.git/hooks/pre-commit` PII blocker, and SSH commit verification (`update`).
 - **Agent workflow guardrails (`AGENTS.md`, `skills/*.md`):** Untrusted-DOM prompt-injection defense, upload-first ATS rule, Live DOM Read-Back Table, `DRAFT_ONLY` defaults, 24-hour anti-bot circuit breaker, and unconditional job-specific human `APPROVE`.
 - **Zero private leaks:** `context/*` (except `*.example`), `logs/`, `*.pdf`, `browser-profile/`, `.env`, and local MCP configs are gitignored, blocked by the pre-commit hook, and excluded from the npm package allowlist (`npm run pack:check`).
 
@@ -240,7 +248,7 @@ npm uninstall -g veycraft
 git clone https://github.com/redasalem/veycraft.git
 cd veycraft
 
-npm test             # Runs eval --baseline (20/20), live-agent-eval-run (20/20), and eval --journeys (17/17)
+npm test             # Runs eval --baseline (20/20), live-agent-eval-run (20/20), and eval --journeys (node:test suites)
 npm run pack:check   # Verifies npm pack --dry-run tarball contents and zero PII leaks
 node bin/cli.mjs doctor
 ```

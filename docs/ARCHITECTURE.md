@@ -2,7 +2,7 @@
 
 `veycraft` combines **50 Markdown-first skills** (loaded progressively by your existing AI IDE or CLI harness) with a **zero-dependency Node.js CLI (`bin/cli.mjs`, `dependencies: {}`, `devDependencies: {}`)**.
 
-> **Enforcement Transparency:** Deterministic validations (`pre-submit` cap/word checks, `eval`, `proof`, `audit`, `doctor`, `backup`, `unlock`, Git pre-commit PII hook) run locally in `bin/cli.mjs`. Semantic workflow steps (CV fact-checking, prompt-injection quarantine, DOM inspection, and human `APPROVE` gating) are agent workflow requirements in `AGENTS.md` and `skills/*.md`—see [`docs/execution-safety.md`](execution-safety.md).
+> **Enforcement Transparency:** Deterministic validations (`pre-submit` cap/word checks, `career` analytics/migration, `career sync` offline planning/approval/locking/receipts/reconciliation, `eval`, `proof`, `audit`, `verify`, `doctor`, `backup`, `unlock`, Git pre-commit PII hook) run locally in `bin/cli.mjs`, `bin/career-intelligence.mjs`, and `bin/notion-sync.mjs`. Semantic workflow steps (CV fact-checking, prompt-injection quarantine, DOM inspection, and human `APPROVE` gating) are agent workflow requirements in `AGENTS.md` and `skills/*.md`—see [`docs/execution-safety.md`](execution-safety.md).
 
 ---
 
@@ -31,12 +31,15 @@ USER CHAT: Natural-Language Request OR /demo | /quick-tailor | /setup | /daily-r
                        | Optional Playwright MCP     |           | Local Files (Primary Truth)   |
                        | ./browser-profile (private) |---------->| context/ + templates/         |
                        | snapshots / refs / uploads  |           | logs/applications-log.json    |
-                       +-----------------------------+           | logs/circuit-breaker.json     |
+                       +-----------------------------+           | logs/cv-versions.json         |
+                                                                 | logs/sync-state.json (1-way)  |
+                                                                 | logs/circuit-breaker.json     |
                                                                  +---------------+---------------+
-                                                                                 | (opt-in)
+                                                                                 | (opt-in, live guardrails +
+                                                                                 |  explicit owner approval)
                                                                                  v
                                                                  +-------------------------------+
-                                                                 | Optional Notion MCP           |
+                                                                 | Optional Notion MCP (1-way)   |
                                                                  | Applications / Runs / Insights|
                                                                  +-------------------------------+
 ```
@@ -71,9 +74,12 @@ Phase 4  UPLOAD-FIRST FILL, DOM READ-BACK & APPROVE GATE (skills/04, skills/18)
          -> dry_run stops before Submit | live mode waits for exact job-bound "APPROVE"
          -> reserve needs_review -> click Submit ONCE -> verify confirmation receipt
 
-Phase 5  DOSSIER, OUTREACH & LEDGER SYNC (skills/05, skills/06)
+Phase 5  DOSSIER, OUTREACH, ANALYTICS & ONE-WAY SYNC (skills/05, skills/06)
          -> save interview-dossier.md + draft-only outreach-draft.md (<= 75 words)
-         -> update logs/applications-log.json + logs/runs/YYYY-MM-DD.json + optional Notion
+         -> update logs/applications-log.json (v2) + logs/runs/YYYY-MM-DD.json + logs/cv-versions.json
+         -> local analytics/dashboard via `veycraft career summary|analytics|dashboard` (MIN_N = 5)
+         -> optional one-way Notion sync via `veycraft career sync` (preview -> approve -> mark-in-flight
+            -> external MCP -> apply-receipt / record-failure / reconcile into logs/sync-state.json)
 ```
 
 ---

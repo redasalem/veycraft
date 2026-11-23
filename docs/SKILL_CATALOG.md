@@ -15,7 +15,7 @@ Every skill in `veycraft` (`50` consolidated skills total: `32` core/career play
 | `03` | [`skills/03-tailor-resume-and-verify.md`](../skills/03-tailor-resume-and-verify.md) | Anti-hallucination evidence mapping, anti-AI-slop humanizer, 1-page A4 overflow budget, and PDF export |
 | `04` | [`skills/04-fill-and-apply.md`](../skills/04-fill-and-apply.md) | Upload-first form filling, EEO/GDPR compliance defaults, Live DOM Read-Back Table, and `APPROVE` gate |
 | `05` | [`skills/05-outreach-and-interview-prep.md`](../skills/05-outreach-and-interview-prep.md) | `interview-dossier.md`, `<= 75`-word `outreach-draft.md`, `email-draft.md`, and `/linkedin-growth` |
-| `06` | [`skills/06-log-and-insights.md`](../skills/06-log-and-insights.md) | Local JSON ledger (`logs/`), optional Notion MCP sync, and `/weekly-report` analytics |
+| `06` | [`skills/06-log-and-insights.md`](../skills/06-log-and-insights.md) | Local-first v2 ledger (`logs/applications-log.json`, `logs/cv-versions.json`), `veycraft career` analytics (`MIN_N = 5`), `/weekly-report`, and one-way approval-gated Notion sync (`logs/sync-state.json`) |
 | `07` | [`skills/07-persona-switcher.md`](../skills/07-persona-switcher.md) | Multi-persona career tracks under `context/personas/` |
 | `08` | [`skills/08-follow-up-radar.md`](../skills/08-follow-up-radar.md) | 7-day `applied` follow-up radar (`<= 75`-word draft-only check-ins) |
 | `09` | [`skills/09-offer-negotiator.md`](../skills/09-offer-negotiator.md) | Salary & B2B hourly/monthly rate negotiation drafter (`DRAFT_ONLY`) |
@@ -36,6 +36,7 @@ Every skill in `veycraft` (`50` consolidated skills total: `32` core/career play
 | `24` | [`skills/24-circuit-breaker-and-antiban.md`](../skills/24-circuit-breaker-and-antiban.md) | Anti-bot circuit breaker & 24-hour platform cooldown (`logs/circuit-breaker.json`) |
 | `25` | [`skills/25-prompt-injection-defense.md`](../skills/25-prompt-injection-defense.md) | Untrusted-DOM prompt-injection defense, honeypot guard, and recruiter attention-check detector |
 | `26` | [`skills/26-deduplication-and-blacklist-guard.md`](../skills/26-deduplication-and-blacklist-guard.md) | Employer/domain blacklist & cross-channel canonical job fingerprinting (`company::role_title`) |
+| `27` | [`skills/27-universal-cv-builder.md`](../skills/27-universal-cv-builder.md) | Universal CV builder for any person/field with persistent `cv-profile.json` and third-party isolation (`logs/resumes/cv-<slug>/`, `owner_scope: "third_party"`) |
 | `—` | [`skills/linkedin-growth.md`](../skills/linkedin-growth.md) | Grounded `0–100` Recruiter-SEO LinkedIn audit, CV-sync & rewrites (`DRAFT_ONLY` default; `APPROVE`-gated live edits) |
 | `—` | [`skills/profile-intelligence-engine.md`](../skills/profile-intelligence-engine.md) | Cross-platform Profile Intelligence Engine: schema-validated update plans, adapter contracts, batch-fill & fresh read-back |
 | `—` | [`skills/fallback-no-mcp.md`](../skills/fallback-no-mcp.md) | Non-MCP & missing-capability fallback (Web AI chats & manual-assisted IDE flows) |

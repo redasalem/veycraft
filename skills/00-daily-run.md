@@ -55,7 +55,7 @@ Follow this exact sequence. Never reorder steps 0–3.
 2. **Load Context & Check Caps:**
    - Read `context/profile.md`, `context/cv.md`, `context/preferences.yaml`, `context/form-answers.yaml`, `config/guardrails.yaml`, and `logs/applications-log.json`.
    - Check active hours (`active_hours` in `config/guardrails.yaml`), today's UTC date (`YYYY-MM-DD`), distinct run-date warm-up cap (max 5/day on the first 3 distinct non-aborted run dates), and `max_per_platform`.
-   - If `storage_adapters.notion_mcp: true`, retry any unsynced entries in `logs/applications-log.json` (up to 25) via query-before-create in Notion MCP.
+   - Do **not** auto-retry or push Notion writes during discovery; if the owner wants one-way Notion sync, inspect `veycraft career sync status` and follow the explicit approval & receipt workflow in `skills/06-log-and-insights.md` (requires live guardrails `storage_adapters.notion_mcp: true` AND `dry_run: false`).
 
 3. **Discover, Filter Ghosts, Score & Mission Control (`skills/02-discover-and-triage.md`):**
    - For `/apply-url <url>`: skip broad discovery and inspect only that single URL.
@@ -74,7 +74,7 @@ Follow this exact sequence. Never reorder steps 0–3.
    - For `Score >= 8` jobs, save a `<= 75`-word draft-only `outreach-draft.md`. For email-only postings, save `email-draft.md` without sending.
 
 7. **Log & Compact (`skills/06-log-and-insights.md` & `skills/meta-context-compaction.md`):**
-   - Write every disposition to `logs/applications-log.json`, update `logs/runs/YYYY-MM-DD.json`, sync to Notion MCP if enabled, and checkpoint `logs/runs/current-session-checkpoint.json` every 3–5 applications.
+   - Write every disposition to `logs/applications-log.json`, update `logs/runs/YYYY-MM-DD.json`, and checkpoint `logs/runs/current-session-checkpoint.json` every 3–5 applications. If Notion sync is desired, prepare an allowlisted plan via `veycraft career sync preview` (`--live` only when `storage_adapters.notion_mcp: true` AND `dry_run: false`) and wait for explicit owner approval + verified receipt recording in `logs/sync-state.json`.
 
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 

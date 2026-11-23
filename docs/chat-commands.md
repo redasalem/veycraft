@@ -1,6 +1,6 @@
 # Chat Commands & IDE Portability
 
-All slash commands below (plus natural-language requests routed via [`skills/REGISTRY.md`](../skills/REGISTRY.md)) are executed directly by the AI model inside your IDE or CLI harness (accompanied by a lightweight zero-dependency Node.js CLI in `bin/cli.mjs` for offline audit, artifact verification, intent routing, proof generation, pre-submit cap/word checks, and IDE setup). Standalone CV, LinkedIn, interview-prep, offer/contract, and reporting tasks run independently without requiring `/setup`. Read `AGENTS.md` and `skills/REGISTRY.md` first.
+All slash commands below (plus natural-language requests routed via [`skills/REGISTRY.md`](../skills/REGISTRY.md)) are executed directly by the AI model inside your IDE or CLI harness (accompanied by a lightweight zero-dependency Node.js CLI in `bin/cli.mjs` for offline audit, artifact/ledger verification, local Career Intelligence analytics/dashboard/migration, one-way Notion sync planning/approval/recovery, intent routing, proof generation, pre-submit cap/word checks, and IDE setup). Standalone CV, LinkedIn, interview-prep, offer/contract, and reporting tasks run independently without requiring `/setup`. Read `AGENTS.md` and `skills/REGISTRY.md` first.
 
 | Alias | Fast-Start / Scope | Fallback Chat Prompt | Workflow | Primary Skill(s) |
 |---|---|---|---|---|

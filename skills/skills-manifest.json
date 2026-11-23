@@ -234,14 +234,14 @@
     },
     {
       "name": "log-and-insights",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "category": "core",
-      "description": "Load whenever tracking or updating applications, writing skipped ghost/mismatch logs, daily run summaries, exporting reports, optional Notion MCP syncs, or /weekly-report insights; uses local JSON files as primary truth and Notion MCP optionally.",
+      "description": "Load whenever tracking or updating applications in logs/applications-log.json, migrating to ledger v2, inspecting CV versions, running deterministic career analytics/dashboards (MIN_N = 5), exporting /weekly-report insights, or planning/approving/reconciling one-way Notion sync via logs/sync-state.json.",
       "triggers": [
         "track applications or update existing application record",
-        "write to logs/applications-log.json or logs/skipped-jobs.json",
-        "end of daily run summary",
-        "/weekly-report or export application report"
+        "write to logs/applications-log.json, logs/skipped-jobs.json, or logs/cv-versions.json",
+        "end of daily run summary or career analytics / dashboard",
+        "/weekly-report, export application report, or Notion sync preview / recovery"
       ],
       "requires_mcp": [
         "none"
@@ -251,15 +251,15 @@
       ],
       "preconditions": [
         "exact observed disposition and receipt (for applied) recorded",
-        "storage_adapters.notion_mcp checked in config/guardrails.yaml (skip Notion if false)"
+        "config/guardrails.yaml storage_adapters.notion_mcp and dry_run checked before any live Notion sync action"
       ],
       "requires_skills": [
         "meta-self-verification"
       ],
       "verification": [
-        "logs/applications-log.json has unique job_id entries and applied_at set only when a receipt was observed",
-        "logs/runs/YYYY-MM-DD.json counts match actual journal dispositions (dry_run counted separately from applied)",
-        "Notion MCP writes (if enabled) used query-by-job_id-before-create and confirmed returned page IDs"
+        "logs/applications-log.json has unique job_id / application_id entries, preserved stage_history, and applied_at set only when a receipt was observed",
+        "logs/runs/YYYY-MM-DD.json counts match actual journal dispositions (dry_run counted separately from applied) and third-party CVs stay isolated from owner analytics and Notion sync",
+        "Notion sync (if enabled and dry_run is false) used one-way allowlisted plan + explicit owner approval (--confirm-approve + --plan-hash) + mark-in-flight + apply-receipt into logs/sync-state.json without writing sync state back to logs/applications-log.json"
       ],
       "path": "skills/06-log-and-insights.md"
     },
