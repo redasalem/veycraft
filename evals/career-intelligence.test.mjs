@@ -6,16 +6,27 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import {
+const LOCAL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const CLI = [
+  process.env.JHO_CLI_PATH,
+  path.join(LOCAL_ROOT, 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.veycraft', 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.job-hunter-os', 'bin', 'cli.mjs'),
+].find(p => p && fs.existsSync(p));
+assert.ok(CLI, 'Could not locate bin/cli.mjs');
+const BIN_DIR = path.dirname(CLI);
+const REPO_ROOT = path.resolve(BIN_DIR, '..');
+
+const {
   refuseSymlink,
   writeAtomic,
   readJsonSafe,
   isBlockedSsrfUrl,
-} from '../bin/fs-safety.mjs';
+} = await import(pathToFileURL(path.join(BIN_DIR, 'fs-safety.mjs')).href);
 
-import {
+const {
   MIN_SAMPLE_SIZE,
   computeApplicationId,
   computeCanonicalFingerprint,
@@ -33,10 +44,7 @@ import {
   buildCareerInsightArtifact,
   runCareerAnalyticsForWorkspace,
   summarizeCareerWorkspace,
-} from '../bin/career-intelligence.mjs';
-
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = path.join(REPO_ROOT, 'bin', 'cli.mjs');
+} = await import(pathToFileURL(path.join(BIN_DIR, 'career-intelligence.mjs')).href);
 
 function sha256File(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');

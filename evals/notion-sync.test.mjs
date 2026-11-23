@@ -5,9 +5,20 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import {
+const LOCAL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const CLI = [
+  process.env.JHO_CLI_PATH,
+  path.join(LOCAL_ROOT, 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.veycraft', 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.job-hunter-os', 'bin', 'cli.mjs'),
+].find(p => p && fs.existsSync(p));
+assert.ok(CLI, 'Could not locate bin/cli.mjs');
+const BIN_DIR = path.dirname(CLI);
+const REPO_ROOT = path.resolve(BIN_DIR, '..');
+
+const {
   NOTION_DATABASE_SCHEMAS,
   NOTION_SYNC_ELIGIBLE_STATUSES,
   RECONCILE_FILTER_PROPERTY_BY_DB,
@@ -58,11 +69,9 @@ import {
   validateReconcileQuerySnapshot,
   reconcileSyncRecord,
   resetPermanentFailure,
-} from '../bin/notion-sync.mjs';
+} = await import(pathToFileURL(path.join(BIN_DIR, 'notion-sync.mjs')).href);
 
-import { computeApplicationId } from '../bin/career-intelligence.mjs';
-
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { computeApplicationId } = await import(pathToFileURL(path.join(BIN_DIR, 'career-intelligence.mjs')).href);
 
 function makeOwnerCvRegistry(extraVersions = []) {
   return {
