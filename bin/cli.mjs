@@ -329,21 +329,23 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
   const resolved = path.resolve(cwdResolved, trimmed);
 
   const allowedRoots = [rootResolved, cwdResolved, sourceResolved];
-  // On macOS, /var and /tmp are system symlinks to /private/var and /private/tmp.
-  // Include realpathSync(b) for existing boundary roots so legitimate /var/... paths match /private/var/... cwd.
+  // On macOS (/var and /tmp -> /private/var and /private/tmp) and Windows (8.3 short paths such as RUNNER~1 in Git Bash),
+  // include both realpathSync(b) and realpathSync.native(b) for existing boundary roots.
   for (const b of [rootResolved, cwdResolved, sourceResolved]) {
-    try {
-      const rp = fs.realpathSync(b);
-      if (rp && !allowedRoots.some(x => isSamePath(x, rp))) {
-        allowedRoots.push(rp);
-      }
-      if (process.platform === 'darwin' && rp.startsWith('/private/')) {
-        const alias = rp.slice('/private'.length);
-        if (alias && !allowedRoots.some(x => isSamePath(x, alias))) {
-          allowedRoots.push(alias);
+    for (const fn of [fs.realpathSync, fs.realpathSync?.native].filter(Boolean)) {
+      try {
+        const rp = fn(b);
+        if (rp && !allowedRoots.some(x => isSamePath(x, rp))) {
+          allowedRoots.push(rp);
         }
-      }
-    } catch { /* ignore */ }
+        if (process.platform === 'darwin' && rp.startsWith('/private/')) {
+          const alias = rp.slice('/private'.length);
+          if (alias && !allowedRoots.some(x => isSamePath(x, alias))) {
+            allowedRoots.push(alias);
+          }
+        }
+      } catch { /* ignore */ }
+    }
   }
   // Also allow read-only evals/fixtures/ paths when test suites run from a scaffolded copy of evals/
   if (/[/\\]evals[/\\]fixtures[/\\]/i.test(resolved)) {
@@ -358,7 +360,7 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
 
   let matchedBoundary = allowedRoots.find(b => isWithinDir(resolved, b));
   // On Windows (e.g., RUNNER~1 short 8.3 paths in Git Bash mktemp) or macOS (/var -> /private/var),
-  // if lexical match didn't trigger, check whether the existing parent directory's realpath is within an allowed root
+  // if lexical match didn't trigger, check whether the existing parent directory's realpath.native is within an allowed root
   // while walking the entire lexical ancestor chain with lstatSync to block any actual symlinks or junctions.
   if (!matchedBoundary) {
     let probe = resolved;
@@ -384,15 +386,18 @@ function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory =
         cursor = parent;
       }
       if (!hasSymlinkInChain) {
-        try {
-          const realProbe = fs.realpathSync(probe);
-          const relTail = path.relative(probe, resolved);
-          const canonicalCandidate = relTail ? path.resolve(realProbe, relTail) : realProbe;
-          const realMatched = allowedRoots.find(b => isWithinDir(canonicalCandidate, b));
-          if (realMatched) {
-            matchedBoundary = probe;
-          }
-        } catch { /* ignore */ }
+        for (const fn of [fs.realpathSync?.native, fs.realpathSync].filter(Boolean)) {
+          try {
+            const realProbe = fn(probe);
+            const relTail = path.relative(probe, resolved);
+            const canonicalCandidate = relTail ? path.resolve(realProbe, relTail) : realProbe;
+            const realMatched = allowedRoots.find(b => isWithinDir(canonicalCandidate, b));
+            if (realMatched) {
+              matchedBoundary = probe;
+              break;
+            }
+          } catch { /* ignore */ }
+        }
       }
     }
   }
