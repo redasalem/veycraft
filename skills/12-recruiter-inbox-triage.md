@@ -46,7 +46,7 @@ Turns messy recruiter emails and LinkedIn InMails into structured status updates
      - `spam` / `unrelated`
 2. **Match & Update Local Tracking (`logs/applications-log.json` & Dossier):**
    - Match the sender's company/role to `logs/applications-log.json` (and read `logs/resumes/<folder>/interview-dossier.md` if present so you have the archived JD context).
-   - Append the outcome and timestamp to `stage_history` and `notes` (e.g., `outcome: interview_invite | stage: Technical Screen | updated_at: <ISO>`) without erasing the original `applied_at` or receipt quote.
+   - Record the verified outcome atomically via `node ./bin/cli.mjs career transition --job-id "<job_id>" --to <interview|assessment|offer|rejected|withdrawn> --source recruiter_inbox_triage [--stage <iv_stage>] [--assessment-type <type>] --notes "<concise summary>"` so `stage_history[]` and structured interview/assessment metadata update without erasing the original `applied_at` or receipt quote.
    - Never silently write to Notion; if the owner wants to reflect local updates in Notion, use the one-way approval-gated `veycraft career sync` workflow in `skills/06-log-and-insights.md` (`logs/sync-state.json` authoritative).
 3. **Draft a Crisp, Humanized Reply (`DRAFT_ONLY`):**
    - **For `interview_invite`:** Thank the interviewer briefly, confirm the exact role, and propose 2–3 clear time windows in **both the owner's verified timezone (`config/guardrails.yaml -> active_hours.timezone`) and the recruiter's timezone** (ask the owner for exact free slots if not already provided in chat).

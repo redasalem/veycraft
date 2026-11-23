@@ -4263,6 +4263,7 @@ export function runNotionSyncCli(root, argv = [], {
       guardrails: {
         dry_run: guardrails.dry_run,
         notion_mcp_enabled: guardrails.notion_mcp_enabled,
+        parse_error: guardrails.parse_error ?? null,
       },
       lock,
       recovery,
@@ -4271,6 +4272,7 @@ export function runNotionSyncCli(root, argv = [], {
     const lines = [
       `Sync State File:     ${loaded.exists ? loaded.path : 'not created yet (clean local state)'}`,
       `Guardrails:          dry_run=${guardrails.dry_run ? 'ON' : 'OFF'} | storage_adapters.notion_mcp=${guardrails.notion_mcp_enabled ? 'ENABLED' : 'DISABLED (offline preview/status available)'}`,
+      ...(guardrails.parse_error ? [`Guardrails Warning:  ${guardrails.parse_error}`] : []),
       `Lock Status:         ${lock.locked ? `LOCKED (pid=${lock.lock?.pid ?? 'corrupt'}, stale=${lock.stale}, owner_alive=${lock.owner_alive})` : 'unlocked'}`,
       `Records (${recovery.total_records}):         Healthy/Pending: ${c.healthy_or_pending} | Active In-Flight: ${c.active_in_flight} | Stale In-Flight: ${c.stale_in_flight} | Uncertain: ${c.receipt_uncertain} | Conflicts: ${c.conflict_duplicate_remote} | Retryable: ${c.failed_retryable_ready + c.failed_retryable_cooldown + c.failed_retryable_cap_reached} | Permanent: ${c.failed_permanent}`,
     ];

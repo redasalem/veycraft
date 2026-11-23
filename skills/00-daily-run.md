@@ -53,17 +53,17 @@ Follow this exact sequence. Never reorder steps 0–3.
    - If an unexpected login wall, CAPTCHA, 2FA challenge, rate-limit banner, or account warning appears, STOP the entire run immediately, log `aborted` in `logs/runs/YYYY-MM-DD.json`, and notify the user.
 
 2. **Load Context & Check Caps:**
-   - Read `context/profile.md`, `context/cv.md`, `context/preferences.yaml`, `context/form-answers.yaml`, `config/guardrails.yaml`, and `logs/applications-log.json`.
+   - Read `context/profile.md`, `context/cv.md`, `context/preferences.yaml`, `context/form-answers.yaml`, `config/guardrails.yaml`, and `logs/applications-log.json` (and initialize or refresh the daily run ledger + session checkpoint deterministically via `node ./bin/cli.mjs career run-start [--run-id <YYYY-MM-DD>] [--platforms <csv>] [--json]` or inspect `node ./bin/cli.mjs career next [--json]`).
    - Check active hours (`active_hours` in `config/guardrails.yaml`), today's UTC date (`YYYY-MM-DD`), distinct run-date warm-up cap (max 5/day on the first 3 distinct non-aborted run dates), and `max_per_platform`.
    - Do **not** auto-retry or push Notion writes during discovery; if the owner wants one-way Notion sync, inspect `veycraft career sync status` and follow the explicit approval & receipt workflow in `skills/06-log-and-insights.md` (requires live guardrails `storage_adapters.notion_mcp: true` AND `dry_run: false`).
 
 3. **Discover, Filter Ghosts, Score & Mission Control (`skills/02-discover-and-triage.md`):**
    - For `/apply-url <url>`: skip broad discovery and inspect only that single URL.
-   - Otherwise, scan enabled targets (or public Greenhouse/Lever/Ashby JSON feeds) up to `batch_size`, click `"See more"` on every JD, filter out closed/expired/>30-day ghost jobs (`logs/skipped-jobs.json` with `reason: "ghost_or_expired"`), score 0–10 against `context/cv.md`, and present the **Mission Control Table** in chat.
-   - Wait for `APPLY ALL GREEN` or `APPLY 1,3,...` (in `batch_review_first` mode) before opening any application form.
+   - Otherwise, scan enabled targets (or public Greenhouse/Lever/Ashby JSON feeds) up to `batch_size`, click `"See more"` on every JD, filter out closed/expired/>30-day ghost jobs (`logs/skipped-jobs.json` with `reason: "ghost_or_expired"` via `veycraft career run-triage --ghost`), score 0–10 against `context/cv.md` (`veycraft career run-triage`), and present the **Mission Control Table** in chat.
+   - Wait for `APPLY ALL GREEN` or `APPLY 1,3,...` (in `batch_review_first` mode) before opening any application form, then enqueue only the selected non-Tier-C jobs via `veycraft career run-enqueue --job-ids <csv> --batch-selection "<reply>"` (which sets `submission_authorized: false` — batch selection authorizes preparation and form-filling only, never final submission).
 
 4. **Tailor & Fact-Check (`skills/03-tailor-resume-and-verify.md`):**
-   - Build an evidence map from `context/profile.md`, tailor `templates/ats-resume-template.html`, run the AI Fact-Check Guard (zero unverified metrics/employers/tools) and Anti-AI Slop filter, and save/print `logs/resumes/<company>-<role>-<job-id>/resume.pdf` via Playwright MCP.
+   - Build an evidence map from `context/profile.md`, tailor `templates/ats-resume-template.html`, run the AI Fact-Check Guard (zero unverified metrics/employers/tools) and Anti-AI Slop filter, save/print `logs/resumes/<company>-<role>-<job-id>/resume.pdf` via Playwright MCP, and verify/link the prepared package via `veycraft career prepare --job-id <id>`.
 
 5. **Fill Form & Approval Gate (`skills/04-fill-and-apply.md`):**
    - Upload the tailored PDF **FIRST**, wait 4 s, take a fresh `browser_snapshot`, fill verified answers and `eeo_and_compliance_defaults`, pause on any unknown question, and stop before Submit to ask for exact `APPROVE` in chat (or stop cleanly if `dry_run: true`).
@@ -74,7 +74,7 @@ Follow this exact sequence. Never reorder steps 0–3.
    - For `Score >= 8` jobs, save a `<= 75`-word draft-only `outreach-draft.md`. For email-only postings, save `email-draft.md` without sending.
 
 7. **Log & Compact (`skills/06-log-and-insights.md` & `skills/meta-context-compaction.md`):**
-   - Write every disposition to `logs/applications-log.json`, update `logs/runs/YYYY-MM-DD.json`, and checkpoint `logs/runs/current-session-checkpoint.json` every 3–5 applications. If Notion sync is desired, prepare an allowlisted plan via `veycraft career sync preview` (`--live` only when `storage_adapters.notion_mcp: true` AND `dry_run: false`) and wait for explicit owner approval + verified receipt recording in `logs/sync-state.json`.
+   - Write every disposition to `logs/applications-log.json`, checkpoint progress every 3–5 applications via `veycraft career run-checkpoint` (reconciling on resume via `veycraft career run-resume`), and close the run via `veycraft career run-finish --status <completed|aborted>` so `logs/runs/YYYY-MM-DD.json` and `logs/runs/current-session-checkpoint.json` always derive counts from the ledger. If Notion sync is desired, prepare an allowlisted plan via `veycraft career sync preview` (`--live` only when `storage_adapters.notion_mcp: true` AND `dry_run: false`) and wait for explicit owner approval + verified receipt recording in `logs/sync-state.json`.
 
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 

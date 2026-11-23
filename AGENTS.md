@@ -46,7 +46,7 @@ Classify every task step as **(A) executable now**, **(B) needs user input**, **
 |---|---|---|
 | Browser | **Playwright MCP** (`playwright`) | Persistent profile in `./browser-profile`. Use accessibility snapshots (`browser_snapshot`) and element refs/roles/labels. Never rely on CSS selectors. |
 | Memory & analytics | **Notion MCP** (`notion`, optional) | One-way, allowlisted 3-DB sync (`Applications`, `Daily Runs`, `Weekly & Monthly Insights`) governed by `logs/sync-state.json`, live guardrails (`storage_adapters.notion_mcp: true` & `dry_run: false`), and explicit owner approval (`veycraft career sync`). Local JSON under `logs/` is always authoritative and never written back from Notion. |
-| Local CLI & files | IDE file tools + `bin/cli.mjs` | Read/write `context/`, `config/`, `logs/`, and `templates/` directly; run deterministic offline/local commands (`veycraft career summary\|analytics\|dashboard\|migrate\|cv-versions\|sync`, `audit`, `verify`, `pre-submit`). |
+| Local CLI & files | IDE file tools + `bin/cli.mjs` | Read/write `context/`, `config/`, `logs/`, and `templates/` directly; run deterministic offline/local commands (`veycraft career summary\|analytics\|dashboard\|migrate\|cv-versions\|record\|reserve\|confirm-submit\|transition\|skip\|cv-register\|next\|run-start\|run-triage\|run-enqueue\|prepare\|run-checkpoint\|run-resume\|run-finish\|sync`, `audit`, `verify`, `pre-submit`). |
 
 ## Progressive Disclosure Rule (Context Budget)
 

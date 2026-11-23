@@ -44,7 +44,7 @@ Most interviews come from timely, polite follow-ups after an application sits in
    - Enforce **strict `<= 75` words** per message.
    - Save each draft to `logs/resumes/<folder>/followup-draft.md` marked `DRAFT_ONLY` (listing recipient from `outreach-draft.md` or `"Hiring Team / Recruiter"` if unresolved).
 4. **Never auto-send:**
-   - Present the drafts in chat. If the owner explicitly wants to send one via Playwright MCP, require exact `approve` on the exact recipient and text (`skills/05-outreach-and-interview-prep.md`) and update `notes` with `followup_sent: <ISO date>` only after `skills/meta-self-verification.md`.
+   - Present the drafts in chat. If the owner explicitly wants to send one via Playwright MCP, require exact `approve` on the exact recipient and text (`skills/05-outreach-and-interview-prep.md`) and record the sent follow-up atomically via `node ./bin/cli.mjs career transition --job-id "<job_id>" --to applied --source follow_up_radar --follow-up-status sent --draft-rel "logs/resumes/<folder>/followup-draft.md"` (or `--follow-up-status drafted` when saving draft-only) after `skills/meta-self-verification.md`.
 
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 

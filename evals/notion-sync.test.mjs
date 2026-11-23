@@ -3424,3 +3424,56 @@ test('25. Stage 3 (T9 Blocker Remediation): Live guardrails kill-switch blocks a
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('26. Stage 7 (T13): T12-generated applications + daily_runs Notion sync compatibility & guardrails parse_error status reporting', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'veycraft-t13-notion-compat-'));
+  const home = path.join(dir, 'home');
+  const work = path.join(dir, 'work');
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(path.join(work, 'config'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'context'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'logs'), { recursive: true });
+
+  try {
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'guardrails.yaml'), path.join(work, 'config', 'guardrails.yaml'));
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'invariants.txt'), path.join(work, 'config', 'invariants.txt'));
+    fs.writeFileSync(path.join(work, 'context', 'cv.md'), '# Synthetic Owner\nBuilt TypeScript services.\n');
+
+    // Run T12 workflow with ONLY a generic CV registered + tailored folder -> confirm-submit -> run-finish
+    const runId = '2026-11-23';
+    assert.equal(runVeycraftCli(['career', 'cv-register', '--id', 'cv-gen-v1', '--label', 'Generic Base CV', '--kind', 'generic', '--file', 'context/cv.md', '--json'], { cwd: work, home }).status, 0);
+    assert.equal(runVeycraftCli(['career', 'run-start', '--run-id', runId, '--platforms', 'greenhouse', '--json'], { cwd: work, home }).status, 0);
+    assert.equal(runVeycraftCli(['career', 'run-triage', '--job-id', 'gh:t13-sync-1', '--company', 'Aurora Cloud', '--title', 'Staff Engineer', '--platform', 'greenhouse', '--url', 'https://boards.greenhouse.io/aurora/jobs/1', '--match-score', '9.2', '--run-id', runId, '--json'], { cwd: work, home }).status, 0);
+
+    const prepDir = path.join(work, 'logs', 'resumes', 'aurora-cloud-staff-engineer-gh-t13-sync-1');
+    fs.mkdirSync(prepDir, { recursive: true });
+    fs.writeFileSync(path.join(prepDir, 'resume.html'), '<!doctype html><html><body><h1>Synthetic Owner</h1><p>TypeScript</p></body></html>');
+    fs.writeFileSync(path.join(prepDir, 'tailoring-notes.md'), '# Tailoring\n- Focused on TypeScript.\n');
+
+    const rPrep = runVeycraftCli(['career', 'prepare', '--job-id', 'gh:t13-sync-1', '--json'], { cwd: work, home });
+    assert.equal(rPrep.status, 0, rPrep.stdout + rPrep.stderr);
+    assert.equal(runVeycraftCli(['career', 'reserve', '--job-id', 'gh:t13-sync-1', '--json'], { cwd: work, home }).status, 0);
+    assert.equal(runVeycraftCli(['career', 'confirm-submit', '--job-id', 'gh:t13-sync-1', '--receipt', 'Submitted to Aurora Cloud', '--json'], { cwd: work, home }).status, 0);
+    assert.equal(runVeycraftCli(['career', 'run-finish', '--run-id', runId, '--status', 'completed', '--json'], { cwd: work, home }).status, 0);
+
+    // Offline preview MUST project BOTH the submitted application AND the daily run cleanly with zero privacy blocks!
+    const rPreview = runVeycraftCli(['career', 'sync', 'preview', '--json'], { cwd: work, home });
+    assert.equal(rPreview.status, 0, rPreview.stdout + rPreview.stderr);
+    const previewData = JSON.parse(rPreview.stdout);
+    assert.equal(previewData.summary.blocked_privacy, 0, 'T12-prepared owner application must NOT be blocked by validateCvAttribution');
+    assert.equal(previewData.summary.create, 2, 'Expected 1 application create + 1 daily_run create');
+    assert.ok(previewData.plan.operations.some(op => op.database === 'applications' && op.action === 'create'));
+    assert.ok(previewData.plan.operations.some(op => op.database === 'daily_runs' && op.action === 'create' && op.canonical_key === runId));
+
+    // D5: career sync status surfaces guardrails.parse_error when config/guardrails.yaml has malformed settings
+    fs.writeFileSync(path.join(work, 'config', 'guardrails.yaml'), 'dry_run: maybe\nstorage_adapters:\n  notion_mcp: maybe\n');
+    const rStatus = runVeycraftCli(['career', 'sync', 'status', '--json'], { cwd: work, home });
+    assert.equal(rStatus.status, 0, rStatus.stderr);
+    const stJson = JSON.parse(rStatus.stdout);
+    assert.equal(stJson.guardrails.dry_run, true);
+    assert.equal(stJson.guardrails.notion_mcp_enabled, false);
+    assert.ok(typeof stJson.guardrails.parse_error === 'string' && stJson.guardrails.parse_error.length > 0, 'status must expose guardrails.parse_error');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

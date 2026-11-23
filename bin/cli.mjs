@@ -14,12 +14,18 @@ import {
   validateCvVersionsRegistry,
   validateCareerInsights,
   validateDailyRun,
+  validateSessionCheckpoint,
   migrateApplicationsLedger,
   listOwnerCvVersions,
   computeCareerAnalytics,
   runCareerAnalyticsForWorkspace,
   summarizeCareerWorkspace,
   loadCareerSyncInputs,
+  CAREER_WRITE_SUBCOMMANDS,
+  BANNED_AI_CLICHES,
+  evaluatePreSubmitGate,
+  computeWorkspaceStatusMetrics,
+  runCareerWriteCli,
 } from './career-intelligence.mjs';
 import {
   validateNotionSyncPlan,
@@ -77,12 +83,23 @@ const opts = {
   text: null,
   maxWords: 75,
 };
+const CAREER_WRITE_SUB_SET = new Set(CAREER_WRITE_SUBCOMMANDS);
 let argErr = null;
 let careerSyncArgs = [];
+let careerWriteArgs = [];
+let preSubmitArgs = [];
 
 for (let i = 0; i < ARGV.length; i++) {
   if (positional[0] === 'career' && (positional[1] || '').toLowerCase() === 'sync') {
     careerSyncArgs = ARGV.slice(i);
+    break;
+  }
+  if (positional[0] === 'career' && CAREER_WRITE_SUB_SET.has((positional[1] || '').toLowerCase())) {
+    careerWriteArgs = ARGV.slice(i);
+    break;
+  }
+  if (positional[0] === 'pre-submit') {
+    preSubmitArgs = ARGV.slice(i);
     break;
   }
   const a = ARGV[i];
@@ -163,6 +180,83 @@ for (let i = 0; i < ARGV.length; i++) {
 }
 
 const command = positional[0] || (opts.help ? 'help' : 'help');
+const preSubmitOpts = {
+  draft: null,
+  text: null,
+  maxWords: 75,
+  platform: null,
+  company: null,
+  title: null,
+  url: null,
+  jobId: null,
+  json: false,
+  help: false,
+};
+
+if (command === 'pre-submit' && !argErr) {
+  for (let i = 0; i < preSubmitArgs.length; i++) {
+    const a = preSubmitArgs[i];
+    if (a === '--global' || a === '-g') opts.global = true;
+    else if (a === '--json') { preSubmitOpts.json = true; opts.json = true; }
+    else if (a === '--help' || a === '-h') { preSubmitOpts.help = true; opts.help = true; }
+    else if (a === '--draft') {
+      const val = preSubmitArgs[++i];
+      if (!val || val.startsWith('-')) { argErr = '--draft requires a path to a draft text/markdown file.'; break; }
+      preSubmitOpts.draft = val;
+    } else if (a.startsWith('--draft=')) {
+      const val = a.slice(8);
+      if (!val) { argErr = '--draft= requires a file path.'; break; }
+      preSubmitOpts.draft = val;
+    } else if (a === '--text') {
+      const val = preSubmitArgs[++i];
+      if (val === undefined) { argErr = '--text requires a message string.'; break; }
+      preSubmitOpts.text = val;
+    } else if (a.startsWith('--text=')) {
+      preSubmitOpts.text = a.slice(7);
+    } else if (a === '--max-words') {
+      const val = Number(preSubmitArgs[++i]);
+      if (!Number.isInteger(val) || val < 1) { argErr = '--max-words requires a positive integer.'; break; }
+      preSubmitOpts.maxWords = val;
+    } else if (a.startsWith('--max-words=')) {
+      const val = Number(a.slice(12));
+      if (!Number.isInteger(val) || val < 1) { argErr = '--max-words= requires a positive integer.'; break; }
+      preSubmitOpts.maxWords = val;
+    } else if (a === '--platform') {
+      const val = preSubmitArgs[++i];
+      if (!val || val.startsWith('-')) { argErr = '--platform requires a platform name.'; break; }
+      preSubmitOpts.platform = val;
+    } else if (a.startsWith('--platform=')) {
+      preSubmitOpts.platform = a.slice(11);
+    } else if (a === '--company') {
+      const val = preSubmitArgs[++i];
+      if (!val || val.startsWith('-')) { argErr = '--company requires a company name.'; break; }
+      preSubmitOpts.company = val;
+    } else if (a.startsWith('--company=')) {
+      preSubmitOpts.company = a.slice(10);
+    } else if (a === '--title') {
+      const val = preSubmitArgs[++i];
+      if (!val || val.startsWith('-')) { argErr = '--title requires a job title.'; break; }
+      preSubmitOpts.title = val;
+    } else if (a.startsWith('--title=')) {
+      preSubmitOpts.title = a.slice(8);
+    } else if (a === '--url') {
+      const val = preSubmitArgs[++i];
+      if (!val || val.startsWith('-')) { argErr = '--url requires a URL.'; break; }
+      preSubmitOpts.url = val;
+    } else if (a.startsWith('--url=')) {
+      preSubmitOpts.url = a.slice(6);
+    } else if (a === '--job-id') {
+      const val = preSubmitArgs[++i];
+      if (!val || val.startsWith('-')) { argErr = '--job-id requires a job ID.'; break; }
+      preSubmitOpts.jobId = val;
+    } else if (a.startsWith('--job-id=')) {
+      preSubmitOpts.jobId = a.slice(9);
+    } else {
+      argErr = `Unknown option for pre-submit: ${a}. Run with --help for usage.`;
+      break;
+    }
+  }
+}
 
 const PRIMARY_GLOBAL_ROOT = path.join(HOME, '.veycraft');
 const LEGACY_GLOBAL_ROOT = path.join(HOME, '.job-hunter-os');
@@ -1345,89 +1439,30 @@ function cmdStatus() {
   }
   const gateScore = stateReady ? gates.total : gates.passed;
 
-  // Read config/guardrails.yaml
-  const guardFile = [path.join(ROOT, 'config', 'guardrails.yaml'), path.join(SOURCE, 'config', 'guardrails.yaml')].find(f => fs.existsSync(f));
-  let maxPerDay = 15;
-  let dryRun = true;
-  if (guardFile) {
-    const gText = fs.readFileSync(guardFile, 'utf8');
-    const mCap = gText.match(/max_applications_per_day:\s*(\d+)/);
-    if (mCap) maxPerDay = Number(mCap[1]);
-    const mDry = gText.match(/^\s*dry_run:\s*(true|false)/m);
-    if (mDry) dryRun = mDry[1] === 'true';
-  }
-
-  const records = readApplicationsLog(ROOT);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const runDates = new Set();
-  let todayApplied = 0;
-  let totalApplied = 0;
-  let interviewing = 0;
-  let assessment = 0;
-  let offers = 0;
-  let rejected = 0;
-  const platStats = new Map();
-
-  for (const r of records) {
-    const status = String(r?.status || '').toLowerCase();
-    const datePrefix = String(r?.applied_at || r?.date || '').slice(0, 10);
-    if (status === 'dry_run' || status === 'skipped' || status === 'aborted' || status === 'needs_review' || status === 'discovered' || status === 'prepared') continue;
-
-    totalApplied++;
-    if (datePrefix) runDates.add(datePrefix);
-    if (datePrefix === todayStr) todayApplied++;
-
-    const plat = String(r?.platform || 'direct').toLowerCase();
-    if (!platStats.has(plat)) platStats.set(plat, { submitted: 0, callbacks: 0 });
-    const ps = platStats.get(plat);
-    ps.submitted++;
-
-    if (status.includes('offer') || status === 'hired') {
-      offers++;
-      ps.callbacks++;
-    } else if (status.includes('assess') || status.includes('take_home')) {
-      assessment++;
-      ps.callbacks++;
-    } else if (status.includes('interview') || status.includes('screen') || status.includes('responded')) {
-      interviewing++;
-      ps.callbacks++;
-    } else if (status.includes('reject') || status.includes('ghost') || status.includes('withdraw')) {
-      rejected++;
-    } else if (datePrefix) {
-      const ageDays = (Date.now() - Date.parse(datePrefix)) / 86400000;
-      if (!Number.isNaN(ageDays) && ageDays >= 14) rejected++;
-    }
-  }
-
-  const warmupActive = runDates.size < 3;
-  const effectiveCap = warmupActive ? Math.min(5, maxPerDay) : maxPerDay;
-
-  let topPlatform = 'n/a (no submitted applications yet)';
-  if (platStats.size > 0) {
-    const sorted = [...platStats.entries()].sort((a, b) => (b[1].callbacks - a[1].callbacks) || (b[1].submitted - a[1].submitted));
-    const [name, st] = sorted[0];
-    const pct = ((st.callbacks / st.submitted) * 100).toFixed(0);
-    topPlatform = `${name} (${st.callbacks}/${st.submitted} callbacks · ${pct}%)`;
-  }
+  const metrics = computeWorkspaceStatusMetrics(ROOT, { home: HOME, sourceRoot: SOURCE });
 
   if (opts.json) {
     console.log(JSON.stringify({
       product: 'veycraft',
       root: ROOT,
       readiness_gates: { passed: gateScore, total: gates.total, ready: gateScore === gates.total },
-      daily_cap: { today: todayApplied, effective_cap: effectiveCap, max_per_day: maxPerDay, warmup_active: warmupActive, dry_run: dryRun },
-      pipeline: { applied: totalApplied, interviewing, assessment, offers, rejected_or_ghosted: rejected },
-      top_platform: topPlatform,
+      daily_cap: metrics.daily_cap,
+      pipeline: metrics.pipeline,
+      sample_sufficiency: metrics.sample_sufficiency,
+      third_party_excluded: metrics.third_party_excluded,
+      top_platform: metrics.top_platform,
     }, null, 2));
     return;
   }
 
+  const dc = metrics.daily_cap;
+  const pl = metrics.pipeline;
   console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
   console.log(paint('36', `Veycraft Status — ${ROOT}\n`));
   ok(`Readiness Gates:        ${gateScore}/${gates.total} ${gateScore === gates.total ? '(READY)' : '(run /setup to complete)'}`);
-  info(`Today vs. Daily Cap:    ${todayApplied}/${effectiveCap} applications (${warmupActive ? 'Warm-up Days 1-3 cap: 5/day' : `Standard cap: ${maxPerDay}/day`}, dry_run: ${dryRun ? 'ON' : 'OFF'})`);
-  info(`Pipeline Summary:       Applied: ${totalApplied} | Interviewing: ${interviewing} | Assessment: ${assessment} | Offers: ${offers} | Rejected/Ghosted: ${rejected}`);
-  info(`Top Performing Channel: ${topPlatform}`);
+  info(`Today vs. Daily Cap:    ${dc.today}/${dc.effective_cap} applications (${dc.warmup_active ? 'Warm-up Days 1-3 cap: 5/day' : `Standard cap: ${dc.max_per_day}/day`}, uncertain: ${dc.submission_uncertain_today}, dry_run: ${dc.dry_run ? 'ON' : 'OFF'})`);
+  info(`Pipeline Summary:       Applied: ${pl.applied} | Interviewing: ${pl.interviewing} | Assessment: ${pl.assessment} | Offers: ${pl.offers} | Rejected: ${pl.rejected} | Silent (>=14d): ${pl.silent_14d}`);
+  info(`Top Performing Channel: ${metrics.top_platform}`);
 }
 
 function readContextOrExample(root, srcRoot, relPath) {
@@ -1627,6 +1662,15 @@ function cmdBackup() {
     'logs/cv-versions.json',
     'logs/sync-state.json',
   ];
+  const runsDir = path.join(ROOT, 'logs', 'runs');
+  if (fs.existsSync(runsDir)) {
+    refuseSymlink(runsDir);
+    if (fs.statSync(runsDir).isDirectory()) {
+      for (const name of fs.readdirSync(runsDir).filter(f => f.endsWith('.json')).sort()) {
+        jsonFiles.push(`logs/runs/${name}`);
+      }
+    }
+  }
   let verifiedCount = 0;
   for (const rel of jsonFiles) {
     const f = path.join(ROOT, rel);
@@ -1942,78 +1986,106 @@ function cmdProof() {
 }
 
 function cmdPreSubmit() {
-  let failures = 0;
-  console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
-  console.log(paint('36', `Veycraft Pre-Submit Deterministic Gate — ${ROOT}\n`));
+  const gate = evaluatePreSubmitGate(ROOT, {
+    platform: preSubmitOpts.platform,
+    company: preSubmitOpts.company,
+    title: preSubmitOpts.title,
+    url: preSubmitOpts.url,
+    job_id: preSubmitOpts.jobId,
+  }, { home: HOME, sourceRoot: SOURCE });
 
-  // 1. Daily cap & Days 1-3 warm-up cap check against logs/applications-log.json
-  const guardFile = [path.join(ROOT, 'config', 'guardrails.yaml'), path.join(SOURCE, 'config', 'guardrails.yaml')].find(f => fs.existsSync(f));
-  let maxPerDay = 15;
-  let dryRun = true;
-  if (guardFile) {
-    const gText = fs.readFileSync(guardFile, 'utf8');
-    const mCap = gText.match(/max_applications_per_day:\s*(\d+)/);
-    if (mCap) maxPerDay = Number(mCap[1]);
-    const mDry = gText.match(/^\s*dry_run:\s*(true|false)/m);
-    if (mDry) dryRun = mDry[1] === 'true';
-  }
-
-  const records = readApplicationsLog(ROOT);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const runDates = new Set();
-  let todayCounted = 0;
-  for (const r of records) {
-    const status = String(r?.status || '').toLowerCase();
-    const datePrefix = String(r?.applied_at || r?.date || '').slice(0, 10);
-    if (status === 'dry_run' || status === 'skipped' || status === 'aborted' || status === 'needs_review' || status === 'discovered' || status === 'prepared') continue;
-    if (datePrefix) runDates.add(datePrefix);
-    if (datePrefix === todayStr && (status === 'applied' || status === 'submission_uncertain' || status.includes('interview') || status.includes('assess') || status.includes('offer'))) {
-      todayCounted++;
-    }
-  }
-
-  const warmupActive = runDates.size < 3;
-  const effectiveCap = warmupActive ? Math.min(5, maxPerDay) : maxPerDay;
-  if (todayCounted >= effectiveCap) {
-    fail(`Daily Cap REACHED: ${todayCounted}/${effectiveCap} (${warmupActive ? 'Warm-up Days 1-3 cap: 5/day' : `Standard cap: ${maxPerDay}/day`}). Submission BLOCKED.`);
-    failures++;
-  } else {
-    ok(`Daily Cap OK: ${todayCounted}/${effectiveCap} (${warmupActive ? 'Warm-up Days 1-3 cap: 5/day' : `Standard cap: ${maxPerDay}/day`}, dry_run: ${dryRun ? 'ON' : 'OFF'})`);
-  }
+  const violations = [...gate.violations];
+  const warnings = [];
+  let draftReport = null;
 
   // 2. Outreach / draft word-count check (--draft <file> or --text "<msg>")
   let draftContent = null;
   let draftSource = null;
-  if (opts.draft) {
-    const draftPath = path.resolve(process.cwd(), opts.draft);
+  if (preSubmitOpts.draft) {
+    const draftPath = path.resolve(process.cwd(), preSubmitOpts.draft);
     if (!fs.existsSync(draftPath)) {
       throw new Error(`Draft file not found: ${draftPath}`);
     }
     draftContent = fs.readFileSync(draftPath, 'utf8');
     draftSource = draftPath;
-  } else if (opts.text !== null) {
-    draftContent = opts.text;
+  } else if (preSubmitOpts.text !== null) {
+    draftContent = preSubmitOpts.text;
     draftSource = '--text';
   }
 
   if (draftContent !== null) {
     const words = draftContent.trim().split(/\s+/).filter(Boolean);
     const wordCount = words.length;
+    const maxWords = preSubmitOpts.maxWords;
+    const hasEmDash = draftContent.includes('—');
+    const bannedCliches = BANNED_AI_CLICHES.filter(cl => buildSkillRegex(cl).test(draftContent));
+    draftReport = {
+      source: draftSource,
+      word_count: wordCount,
+      max_words: maxWords,
+      ok: wordCount > 0 && wordCount <= maxWords && bannedCliches.length === 0,
+      has_em_dash: hasEmDash,
+      banned_cliches: bannedCliches,
+    };
     if (wordCount === 0) {
-      fail(`Draft (${draftSource}) is empty (0 words).`);
-      failures++;
-    } else if (wordCount > opts.maxWords) {
-      fail(`Draft Word Cap EXCEEDED: ${wordCount}/${opts.maxWords} words (${draftSource}). Trim before sending.`);
-      failures++;
-    } else {
-      ok(`Draft Word Cap OK: ${wordCount}/${opts.maxWords} words (${draftSource})`);
+      violations.push({ code: 'draft_empty', message: `Draft (${draftSource}) is empty (0 words).` });
+    } else if (wordCount > maxWords) {
+      violations.push({ code: 'draft_word_cap_exceeded', message: `Draft Word Cap EXCEEDED: ${wordCount}/${maxWords} words (${draftSource}). Trim before sending.` });
     }
-    if (draftContent.includes('—')) {
-      warn(`Style warning: prose em-dash (—) detected in ${draftSource}; consider replacing before sending.`);
+    if (bannedCliches.length > 0) {
+      violations.push({
+        code: 'draft_banned_cliches',
+        message: `Draft contains banned AI cliché(s) in ${draftSource}: ${bannedCliches.join(', ')}. Rewrite with plain, grounded language.`,
+      });
+    }
+    if (hasEmDash) {
+      warnings.push(`Style warning: prose em-dash (—) detected in ${draftSource}; consider replacing before sending.`);
+    }
+  }
+
+  const allowed = violations.length === 0;
+  if (preSubmitOpts.json || opts.json) {
+    console.log(JSON.stringify({
+      root: ROOT,
+      allowed,
+      dry_run: gate.dry_run,
+      violations,
+      warnings,
+      checks: { ...gate.checks, draft: draftReport },
+    }, null, 2));
+    if (!allowed) process.exitCode = 1;
+    return;
+  }
+
+  console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+  console.log(paint('36', `Veycraft Pre-Submit Deterministic Gate — ${ROOT}\n`));
+
+  const dc = gate.checks.daily_cap;
+  if (dc.ok) {
+    ok(`Daily Cap OK: ${dc.today_counted}/${dc.effective_cap} (${dc.warmup_active ? 'Warm-up Days 1-3 cap: 5/day' : `Standard cap: ${dc.max_per_day}/day`}, uncertain: ${dc.today_submission_uncertain}, dry_run: ${dc.dry_run ? 'ON' : 'OFF'})`);
+  }
+  if (gate.checks.platform_cap?.ok) {
+    const pc = gate.checks.platform_cap;
+    ok(`Platform Cap OK (${pc.platform}): ${pc.today_counted}/${pc.cap ?? 'unlimited'}`);
+  }
+  if (gate.checks.circuit_breaker?.ok) {
+    ok(`Circuit Breaker OK (${gate.checks.circuit_breaker.platform}): no active cooldown`);
+  }
+  if (gate.checks.blacklist?.ok) {
+    ok('Blacklist Check OK: company/domain not blacklisted');
+  }
+  if (gate.checks.deduplication?.ok) {
+    ok('Deduplication OK: no duplicate job_id, canonical URL, or 60-day fingerprint');
+  }
+  if (draftReport) {
+    if (draftReport.ok) {
+      ok(`Draft Word Cap OK: ${draftReport.word_count}/${draftReport.max_words} words (${draftReport.source})`);
     }
   } else {
     info('Draft Word Check: skipped (pass --draft <file> or --text "<msg>" to verify <= 75-word outreach cap).');
   }
+  for (const v of violations) fail(v.message);
+  for (const w of warnings) warn(w);
 
   // 3. Re-surface compact pre-submit invariants (<500 bytes)
   const invFile = [path.join(ROOT, 'config', 'invariants.txt'), path.join(SOURCE, 'config', 'invariants.txt')].find(f => fs.existsSync(f));
@@ -2026,20 +2098,13 @@ function cmdPreSubmit() {
   }
 
   console.log('');
-  if (failures > 0) {
-    fail(`Pre-Submit Gate BLOCKED (${failures} violation(s)). Do NOT click Submit/Save/Post/Send.`);
+  if (!allowed) {
+    fail(`Pre-Submit Gate BLOCKED (${violations.length} violation(s)). Do NOT click Submit/Save/Post/Send.`);
     process.exitCode = 1;
   } else {
     ok('Pre-Submit Deterministic Gate PASSED (still requires explicit fresh owner APPROVE before Submit/Send).');
   }
 }
-
-const BANNED_AI_CLICHES = [
-  'delve', 'testament', 'tapestry', 'spearheaded', 'synergy', 'thrilled to apply',
-  'moreover', 'furthermore', 'orchestrated', 'hit the ground running',
-  'results-driven', 'passionate about', 'seasoned professional', 'dynamic team player',
-  'fast-paced environment', 'leveraged', 'proven track record', 'deeply excited',
-];
 
 function decodeHtmlEntities(str) {
   return String(str || '')
@@ -2192,7 +2257,7 @@ function cmdAudit() {
   }
 
   // 1. AI-Slop Clichés & Prose Em-Dashes (25 pts)
-  const clichésFound = BANNED_AI_CLICHES.slice(0, 14).filter(cl => buildSkillRegex(cl).test(trimmed));
+  const clichésFound = BANNED_AI_CLICHES.filter(cl => buildSkillRegex(cl).test(trimmed));
   const emDashCount = (trimmed.match(/—/g) || []).length;
   const tonePenalty = Math.min(25, clichésFound.length * 6 + Math.min(10, emDashCount * 2));
   const toneScore = 25 - tonePenalty;
@@ -2660,6 +2725,10 @@ function verifyArtifactFile(filePath, factsConfig = null) {
       const res = validateDailyRun(parsed);
       return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
     }
+    if (isObj(parsed) && parsed.kind === 'session_checkpoint') {
+      const res = validateSessionCheckpoint(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
     if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'type') && Object.prototype.hasOwnProperty.call(parsed, 'period') && Object.prototype.hasOwnProperty.call(parsed, 'generated_at')) {
       const res = validateCareerInsights(parsed);
       return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
@@ -2899,7 +2968,22 @@ function cmdCareer() {
     if (res.exitCode !== 0) process.exitCode = res.exitCode;
     return;
   }
-  throw new Error(`Unknown or missing career subcommand "${sub}". Supported: summary [--json], analytics [--period <all|YYYY-Www|YYYY-MM>] [--write] [--json], dashboard [--no-open], migrate [--dry-run | --apply] [--json], cv-versions [--json], sync <preview|status|verify-schema|approve|mark-in-flight|apply-receipt|record-failure|expire-stale|reconcile|reset-permanent|release-stale-lock>.`);
+  if (CAREER_WRITE_SUB_SET.has(sub)) {
+    const res = runCareerWriteCli(ROOT, sub, careerWriteArgs, {
+      home: HOME,
+      sourceRoot: SOURCE,
+    });
+    if (res.json) {
+      console.log(JSON.stringify(res.data, null, 2));
+    } else {
+      console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+      console.log(paint('36', `Veycraft Career Lifecycle — ${ROOT}\n`));
+      for (const line of res.lines) info(line);
+    }
+    if (res.exitCode !== 0) process.exitCode = res.exitCode;
+    return;
+  }
+  throw new Error(`Unknown or missing career subcommand "${sub}". Supported: summary [--json], analytics [--period <all|YYYY-Www|YYYY-MM>] [--write] [--json], dashboard [--no-open], migrate [--dry-run | --apply] [--json], cv-versions [--json], next [--job-id <id>] [--json], record|reserve|confirm-submit|transition|skip|cv-register|run-start|run-triage|run-enqueue|prepare|run-checkpoint|run-resume|run-finish|lock-status|release-stale-lock|recover-tx [--help], sync <preview|status|verify-schema|approve|mark-in-flight|apply-receipt|record-failure|expire-stale|reconcile|reset-permanent|release-stale-lock>.`);
 }
 
 function cmdVersion() {
@@ -2934,14 +3018,17 @@ Quick Start:
   veycraft audit <cv.md|txt|docx|html|doc> [--share] Instant offline CV hygiene audit + PII-safe scorecard
 
 Core & Verification Commands:
-  veycraft verify <dir|file> [--facts <json|md>]   Validate deliverables, ledgers, CV versions & update plans
+  veycraft verify <dir|file> [--facts <json|md>]   Validate deliverables, ledgers, checkpoints, CV versions & plans
   veycraft career summary [--json]                 Print submitted funnel, active rounds & overdue follow-ups
   veycraft career analytics [--period <p>] [--write] Deterministic funnel, CV & source analytics (MIN_N = 5)
   veycraft career dashboard [--no-open]            Generate local read-only Career Analytics & Kanban dashboard
   veycraft career migrate [--dry-run | --apply]    Safely enrich logs/applications-log.json to schema v2.0
   veycraft career cv-versions [--json]             List owner CV versions & linked application counts
+  veycraft career next [--job-id <id>] [--json]    Read-only prioritized workflow queue, blockers & CV selector
+  veycraft career run-start|run-triage|run-enqueue|prepare|run-checkpoint|run-resume|run-finish [--help] Run & prep orchestration
+  veycraft career record|reserve|confirm-submit|transition|skip|cv-register [--help] Atomic ledger & CV writes
   veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery
-  veycraft pre-submit [--draft <f> | --text <t>]   Enforce <=75-word outreach cap & daily warm-up limit
+  veycraft pre-submit [--draft <f> | --text <t>] [--platform <p> --company <c> --title <t> --url <u> --job-id <id>] [--json] Pre-submit cap, dedup, blacklist & word-cap gate
   veycraft eval [--baseline | --file <json> | --journeys] Run deterministic safety assertions & journey tests
   veycraft proof [--global | -g]                   Generate reproducible proof-card.svg & proof-card.md
   veycraft status [--global | -g] [--json]         Print readiness gates, warm-up cap & pipeline funnel summary

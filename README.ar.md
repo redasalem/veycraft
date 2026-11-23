@@ -202,12 +202,23 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | `veycraft init [--global] [--force] [--ide <name>]` | تهيئة `~/.veycraft` (أو المجلد الحالي) وربط مهارات المحررات ومزامنة MCP دون حذف القواعد القائمة |
 | `veycraft route "<request>" [--json]` | توجيه أي طلب طبيعي (عربي أو إنجليزي) لأقل مجموعة مهارات مناسبة مع البديل الآمن |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |
-| `veycraft verify <dir\|file> [--facts <json\|md>]` | التحقق بعد الكتابة من المخرجات وخطط `Profile Update Plan` ومخزن الحقائق |
-| `veycraft pre-submit [--draft <f> \| --text <t>]` | فرض حد `<= 75` كلمة للرسائل وحدود التقديم اليومية وأيام الإحماء 1–3 |
-| `veycraft eval [--baseline \| --file <json> \| --journeys]` | تشغيل 20 اختبارًا حتميًا أو تقييم نموذج خارجي أو 17 اختبارًا تكامليًا عبر `node:test` |
+| `veycraft verify <dir\|file> [--facts <json\|md>]` | التحقق بعد الكتابة من المخرجات وسجلات التقديم ونقاط حفظ الجلسة (`current-session-checkpoint.json`) وإصدارات الـ CV وخطط/حالة Notion وخطط `Profile Update Plan` ومخزن الحقائق |
+| `veycraft career summary [--json]` | عرض ملخص التقديمات الفعلية والمقابلات الجارية والمتابعات المتأخرة وحالة مزامنة Notion (`logs/sync-state.json` أولاً) |
+| `veycraft career analytics [--period <all\|YYYY-Www\|YYYY-MM>] [--write] [--json]` | تحليلات حتمية لقمع التوظيف وشرائح التطابق وإصدارات السيرة والمصادر (`MIN_N = 5`، والصمت `>= 14` يومًا لا يُحسب رفضًا) |
+| `veycraft career dashboard [--no-open]` | توليد لوحة تحكم HTML محلية للقراءة فقط (تحليلات + Kanban) بدون أي استدعاءات خارجية |
+| `veycraft career migrate [--dry-run \| --apply] [--json]` | ترقية آمنة مع نسخة احتياطية لسجل `logs/applications-log.json` إلى مخطط `v2.0` (`--dry-run` افتراضيًا) |
+| `veycraft career cv-versions [--json]` | استعراض إصدارات السيرة الذاتية للمالك في `logs/cv-versions.json` مع عزل صارم لملفات الغير |
+| `veycraft career next [--job-id <id>] [--persona <id>] [--lang <code>] [--json]` | قائمة أولويات للقراءة فقط تعرض عوائق الأمان `P0` وطابور التجهيز واختيار أنسب CV ومتابعات 7 أيام وفحص صمت 14 يومًا |
+| `veycraft career run-start\|run-triage\|run-enqueue\|prepare\|run-checkpoint\|run-resume\|run-finish [--help]` | محرك الجلسة اليومية ونقاط الحفظ (`checkpoint`) وفرز `Tier A/B/C` وطابور الموافقة المرحلية (`submission_authorized: false`) والتحقق من حزمة التقديم |
+| `veycraft career record\|reserve\|confirm-submit\|transition\|skip\|cv-register [--help]` | كتابة ذرّية محمية بقفل (`logs/.ledger.lock`) ومحققة بالمخطط لسجل التقديمات والمستبعدات وإصدارات الـ CV (+ `lock-status` و`release-stale-lock` و`recover-tx`) |
+| `veycraft career sync <subcommand> [--help]` | محرك مزامنة أحادي الاتجاه إلى Notion (`preview` و`status` و`verify-schema` و`approve` و`mark-in-flight` و`apply-receipt` و`record-failure` و`expire-stale` و`reconcile` و`reset-permanent` و`release-stale-lock`) دون أي كتابة خارجية من الـ CLI |
+| `veycraft pre-submit [--draft <f> \| --text <t>] [--platform <p> --company <c> --title <t> --url <u> --job-id <id>] [--json]` | فرض الحد اليومي وحدود الإحماء 1–3 (مع احتساب حجوزات `submission_uncertain`) وحدود المنصات وقواطع الحماية والقائمة السوداء ومنع التكرار والكليشيهات وحد `<= 75` كلمة |
+| `veycraft eval [--baseline \| --file <json> \| --journeys]` | تشغيل 20 اختبارًا حتميًا أو تقييم نموذج خارجي أو كامل حزمة اختبارات التكامل عبر `node:test` |
 | `veycraft status [--global] [--json]` | عرض حالة البوابات والحد اليومي وملخص التقديمات |
-| `veycraft proof` / `dashboard [--no-open]` / `bundle` | توليد بطاقة الإثبات، فتح لوحة Kanban المحلية، أو تصدير برومبت ويب شات موحد |
-| `veycraft sync-mcp` / `login` / `unlock` / `backup` / `update` | مزامنة MCP، فتح متصفح دائم، إزالة الأقفال العالقة، النسخ الاحتياطي، أو التحديث الموقّع بـ SSH |
+| `veycraft proof` / `dashboard [--global] [--no-open]` / `bundle` | توليد بطاقة الإثبات، فتح لوحة Kanban الكلاسيكية، أو تصدير برومبت ويب شات موحد |
+| `veycraft sync-mcp` / `login` / `unlock` / `backup` / `update` | مزامنة MCP، فتح متصفح دائم، إزالة الأقفال العالقة، النسخ الاحتياطي الشامل، أو التحديث الموقّع بـ SSH |
+
+*(ملاحظة: عند تمرير `--global` أو `-g` مع أوامر `career` مثل `career sync` أو `career record` أو `career next`، ضعه قبل `career`، مثلًا: `veycraft --global career sync status`.)*
 
 ---
 
@@ -215,7 +226,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 
 يفصل Veycraft بوضوح بين **الفحوصات الحتمية في الكود** و**قواعد عمل الوكيل** ([`docs/execution-safety.md`](docs/execution-safety.md)):
 
-- **ضوابط CLI الحتمية:** فرض صلاحيات المنصات من السجل، التحقق من الحقائق والمخططات (`verify`)، كشف التوكنات وSSRF و`.docx` المزيف (`audit`)، فحص الحدود (`pre-submit`)، خطاف `.git/hooks/pre-commit` لمنع تسريب PII، والتحقق بتوقيع SSH (`update`).
+- **ضوابط CLI الحتمية (`bin/cli.mjs`، `bin/profile-intelligence.mjs`، `bin/career-intelligence.mjs`، `bin/notion-sync.mjs`):** فرض صلاحيات المنصات من السجل، التحقق من الحقائق والمخططات (`verify`)، كشف التوكنات وSSRF و`.docx` المزيف (`audit`)، فحص الحدود ومنع التكرار والقائمة السوداء والكليشيهات (`pre-submit`)، كتابة ذرّية محمية بقفل ومعاملات قابلة للتراجع (`logs/.ledger.lock` و`logs/.ledger-tx.json`)، عزل سير الغير ومعيار `MIN_N = 5` (`career`)، مزامنة Notion أحادية الاتجاه بقاطع أمان حي (`config/guardrails.yaml`) وتوقيع `--plan-hash` وصلاحية 24 ساعة وإيصالات موثّقة (`career sync`)، خطاف `.git/hooks/pre-commit` لمنع تسريب PII، والتحقق بتوقيع SSH (`update`).
 - **بوابات الوكيل:** الحماية من حقن الأوامر في صفحات الويب، قاعدة رفع الـ CV أولاً، جدول قراءة DOM الحي، وضع `DRAFT_ONLY` افتراضيًا، قاطع الحماية 24 ساعة، وموافقة بشرية صريحة (`APPROVE`) قبل أي إرسال أو حفظ.
 - **حماية البيانات الخاصة:** مجلدات `context/*` (عدا `*.example`) و`logs/` و`*.pdf` و`browser-profile/` و`.env` محجوبة عن Git ومستبعدة تمامًا من حزمة npm (`npm run pack:check`).
 
