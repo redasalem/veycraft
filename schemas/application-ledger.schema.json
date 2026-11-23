@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/redasalem/veycraft/schemas/application-ledger.schema.json",
+  "title": "Veycraft Application Ledger",
+  "description": "Backward-compatible local JSON array schema for logs/applications-log.json. Preserves all v1 legacy fields while adding optional structured v2 Career Intelligence fields.",
+  "type": "array",
+  "items": { "$ref": "#/$defs/application_record" },
+  "$defs": {
+    "canonical_status": {
+      "enum": [
+        "discovered",
+        "prepared",
+        "dry_run",
+        "skipped",
+        "needs_review",
+        "failed",
+        "aborted",
+        "applied",
+        "interview",
+        "assessment",
+        "offer",
+        "rejected",
+        "withdrawn"
+      ]
+    },
+    "cv_tailoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_tailored"],
+      "properties": {
+        "is_tailored": { "type": "boolean" },
+        "base_cv_version_id": { "type": ["string", "null"] },
+        "ats_keyword_before_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "ats_keyword_after_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "tailored_folder_rel": { "type": ["string", "null"] },
+        "tailoring_notes_rel": { "type": ["string", "null"] }
+      }
+    },
+    "stage_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "from_status", "to_status", "at", "source", "verified"],
+      "properties": {
+        "event_id": { "type": "string", "minLength": 1 },
+        "from_status": {
+          "oneOf": [
+            { "$ref": "#/$defs/canonical_status" },
+            { "type": "null" }
+          ]
+        },
+        "to_status": { "$ref": "#/$defs/canonical_status" },
+        "at": { "type": "string", "format": "date-time" },
+        "source": {
+          "enum": [
+            "discovery",
+            "preparation",
+            "ats_submission_receipt",
+            "owner_manual_update",
+            "recruiter_inbox_triage",
+            "follow_up_radar",
+            "email_intelligence_approved",
+            "migration_backfill"
+          ]
+        },
+        "verified": { "type": "boolean" },
+        "notes": { "type": "string" }
+      }
+    },
+    "interview_round": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interview_id", "round", "stage", "status", "outcome"],
+      "properties": {
+        "interview_id": { "type": "string", "minLength": 1 },
+        "round": { "type": "integer", "minimum": 1 },
+        "stage": {
+          "enum": [
+            "recruiter_screen",
+            "hiring_manager",
+            "technical_screen",
+            "system_design",
+            "live_coding",
+            "panel",
+            "culture_bar_raiser",
+            "executive",
+            "final",
+            "other"
+          ]
+        },
+        "scheduled_at": { "type": ["string", "null"], "format": "date-time" },
+        "timezone": { "type": ["string", "null"] },
+        "status": {
+          "enum": ["invited", "scheduled", "completed", "rescheduled", "cancelled", "no_show"]
+        },
+        "outcome": {
+          "enum": ["pending", "passed", "failed", "withdrew", "unknown"]
+        },
+        "dossier_rel": { "type": ["string", "null"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "assessment_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assessment_id", "type", "status", "outcome"],
+      "properties": {
+        "assessment_id": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "take_home",
+            "coding_challenge",
+            "system_design_doc",
+            "case_study",
+            "live_pair",
+            "questionnaire",
+            "other"
+          ]
+        },
+        "received_at": { "type": ["string", "null"], "format": "date-time" },
+        "due_at": { "type": ["string", "null"], "format": "date-time" },
+        "submitted_at": { "type": ["string", "null"], "format": "date-time" },
+        "status": {
+          "enum": ["assigned", "in_progress", "submitted", "expired", "declined"]
+        },
+        "outcome": {
+          "enum": ["pending", "passed", "failed", "no_feedback", "unknown"]
+        },
+        "blueprint_rel": { "type": ["string", "null"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "follow_up_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["follow_up_count", "status"],
+      "properties": {
+        "next_due_at": { "type": ["string", "null"], "format": "date-time" },
+        "last_followed_up_at": { "type": ["string", "null"], "format": "date-time" },
+        "follow_up_count": { "type": "integer", "minimum": 0 },
+        "status": {
+          "enum": ["not_needed", "pending", "overdue", "drafted", "sent", "closed"]
+        },
+        "draft_rel": { "type": ["string", "null"] }
+      }
+    },
+    "provenance_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created_by", "third_party_subject"],
+      "properties": {
+        "created_by": { "type": "string", "minLength": 1 },
+        "created_at": { "type": ["string", "null"], "format": "date-time" },
+        "last_updated_by": { "type": ["string", "null"] },
+        "receipt_verified": { "type": "boolean" },
+        "third_party_subject": { "type": "boolean" },
+        "email_message_id": { "type": ["string", "null"] }
+      }
+    },
+    "notion_sync_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "enum": [
+            "ineligible_not_submitted",
+            "pending_sync",
+            "blocked_privacy",
+            "previewed",
+            "in_flight",
+            "synced",
+            "failed_retryable",
+            "conflict_duplicate_remote",
+            "receipt_uncertain"
+          ]
+        },
+        "page_id": { "type": ["string", "null"] },
+        "last_synced_at": { "type": ["string", "null"], "format": "date-time" },
+        "last_synced_hash": { "type": ["string", "null"] },
+        "retry_count": { "type": "integer", "minimum": 0 },
+        "last_error": { "type": ["string", "null"] }
+      }
+    },
+    "application_record": {
+      "type": "object",
+      "required": ["job_id", "status"],
+      "properties": {
+        "schema_version": { "const": "2.0" },
+        "application_id": { "type": "string", "pattern": "^app_[a-f0-9]{12}$" },
+        "job_id": { "type": "string", "minLength": 1 },
+        "canonical_fingerprint": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] },
+        "role": { "type": ["string", "null"] },
+        "company": { "type": ["string", "null"] },
+        "platform": { "type": ["string", "null"] },
+        "source_channel": {
+          "enum": [
+            "job_board",
+            "direct_ats",
+            "b2b_network",
+            "referral",
+            "company_site",
+            "recruiter_inbound",
+            "email_direct",
+            "other",
+            null
+          ]
+        },
+        "url": { "type": ["string", "null"] },
+        "location": { "type": ["string", "null"] },
+        "work_mode": { "enum": ["remote", "hybrid", "onsite", "unknown", null] },
+        "employment_type": { "enum": ["full_time", "contract", "b2b", "part_time", "internship", "unknown", null] },
+        "apply_type": { "enum": ["easy_apply", "external", "manual_apply", null] },
+        "discovered_at": { "type": ["string", "null"], "format": "date-time" },
+        "applied_at": { "type": ["string", "null"], "format": "date-time" },
+        "updated_at": { "type": ["string", "null"], "format": "date-time" },
+        "verified_at": { "type": ["string", "null"] },
+        "date": { "type": ["string", "null"] },
+        "run_id": { "type": ["string", "null"] },
+        "status": { "type": "string", "minLength": 1 },
+        "legacy_status": { "type": ["string", "null"] },
+        "match_score": { "type": ["number", "null"], "minimum": 0, "maximum": 10 },
+        "matched_skills": { "type": "array", "items": { "type": "string" } },
+        "missing_skills": { "type": "array", "items": { "type": "string" } },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["question"],
+                "properties": {
+                  "question": { "type": "string", "minLength": 1 },
+                  "field_type": { "type": "string" }
+                }
+              }
+            ]
+          }
+        },
+        "persona_id": { "type": ["string", "null"] },
+        "cv_version_id": { "type": ["string", "null"] },
+        "cv_tailoring": { "oneOf": [{ "$ref": "#/$defs/cv_tailoring" }, { "type": "null" }] },
+        "stage_history": { "type": "array", "items": { "$ref": "#/$defs/stage_event" } },
+        "interviews": { "type": "array", "items": { "$ref": "#/$defs/interview_round" } },
+        "assessments": { "type": "array", "items": { "$ref": "#/$defs/assessment_record" } },
+        "follow_up": { "oneOf": [{ "$ref": "#/$defs/follow_up_record" }, { "type": "null" }] },
+        "provenance": { "$ref": "#/$defs/provenance_record" },
+        "screenshot": { "type": ["string", "null"] },
+        "notes": { "type": ["string", "null"] },
+        "submission_uncertain": { "type": "boolean" },
+        "notion_synced": { "type": "boolean" },
+        "notion_page_id": { "type": ["string", "null"] },
+        "notion_sync": { "$ref": "#/$defs/notion_sync_record" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "schema_version": { "const": "2.0" } },
+            "required": ["schema_version"]
+          },
+          "then": {
+            "required": ["application_id"],
+            "properties": {
+              "status": { "$ref": "#/$defs/canonical_status" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

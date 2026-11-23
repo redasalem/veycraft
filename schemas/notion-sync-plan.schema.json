@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/redasalem/veycraft/schemas/notion-sync-plan.schema.json",
+  "title": "Veycraft Notion Sync Plan & Local Sync State",
+  "description": "Validates preview-gated, one-way Notion sync plans (logs/insights/notion-sync-plan-YYYY-MM-DD.json) and logs/sync-state.json. Strictly restricts application sync eligibility to submitted outcomes only.",
+  "oneOf": [
+    { "$ref": "#/$defs/sync_plan" },
+    { "$ref": "#/$defs/sync_state_file" }
+  ],
+  "$defs": {
+    "submitted_only_status": {
+      "enum": ["applied", "interview", "assessment", "offer", "rejected", "withdrawn"]
+    },
+    "target_database": {
+      "enum": ["applications", "daily_runs", "insights"]
+    },
+    "notion_uuid": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$"
+    },
+    "sync_item_state": {
+      "enum": [
+        "ineligible_not_submitted",
+        "pending_sync",
+        "blocked_privacy",
+        "previewed",
+        "in_flight",
+        "synced",
+        "failed_retryable",
+        "failed_permanent",
+        "conflict_duplicate_remote",
+        "receipt_uncertain"
+      ]
+    },
+    "executable_operation_state": {
+      "enum": [
+        "previewed",
+        "in_flight",
+        "synced",
+        "failed_retryable",
+        "failed_permanent",
+        "conflict_duplicate_remote",
+        "receipt_uncertain"
+      ]
+    },
+    "privacy_violation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field_path", "code", "reason"],
+      "properties": {
+        "field_path": { "type": "string", "minLength": 1 },
+        "code": {
+          "enum": [
+            "secret_token",
+            "private_email",
+            "phone_number",
+            "local_file_path",
+            "eeo_or_sensitive_key",
+            "raw_cv_dump",
+            "unsafe_url",
+            "third_party_subject"
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "plan_approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approved_plan_hash",
+        "approved_plan_id",
+        "approved_at",
+        "approved_by",
+        "operation_count"
+      ],
+      "properties": {
+        "approved_plan_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "approved_plan_id": { "type": "string", "minLength": 1 },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "approved_by": { "const": "owner" },
+        "operation_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "planned_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "database",
+        "canonical_key",
+        "action",
+        "sync_hash",
+        "payload",
+        "status"
+      ],
+      "properties": {
+        "operation_id": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+        "database": { "$ref": "#/$defs/target_database" },
+        "canonical_key": { "type": "string", "minLength": 1 },
+        "application_status": { "$ref": "#/$defs/submitted_only_status" },
+        "action": { "enum": ["create", "update", "skip_unchanged"] },
+        "existing_page_id": {
+          "oneOf": [
+            { "$ref": "#/$defs/notion_uuid" },
+            { "type": "null" }
+          ]
+        },
+        "sync_hash": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+        "payload": { "type": "object" },
+        "status": { "$ref": "#/$defs/executable_operation_state" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "database": { "const": "applications" } },
+            "required": ["database"]
+          },
+          "then": {
+            "required": ["application_status"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "action": { "const": "create" } },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "existing_page_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "action": { "const": "update" } },
+            "required": ["action"]
+          },
+          "then": {
+            "required": ["existing_page_id"],
+            "properties": {
+              "existing_page_id": { "$ref": "#/$defs/notion_uuid" }
+            }
+          }
+        }
+      ]
+    },
+    "blocked_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["database", "canonical_key", "state", "violations"],
+      "properties": {
+        "database": { "$ref": "#/$defs/target_database" },
+        "canonical_key": { "type": "string", "minLength": 1 },
+        "state": { "const": "blocked_privacy" },
+        "violations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/privacy_violation" }
+        }
+      }
+    },
+    "sync_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "plan_id",
+        "plan_hash",
+        "created_at",
+        "mode",
+        "eligibility_policy",
+        "transport_enabled",
+        "dry_run",
+        "operations",
+        "blocked_items",
+        "skipped_ineligible"
+      ],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "plan_id": { "type": "string", "minLength": 1 },
+        "plan_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "mode": { "enum": ["preview", "approved_execute", "verified"] },
+        "eligibility_policy": { "const": "submitted_only" },
+        "transport_enabled": { "type": "boolean" },
+        "dry_run": { "type": "boolean" },
+        "approval": {
+          "oneOf": [
+            { "$ref": "#/$defs/plan_approval" },
+            { "type": "null" }
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/planned_operation" }
+        },
+        "blocked_items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/blocked_item" }
+        },
+        "skipped_ineligible": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["canonical_key", "status", "reason"],
+            "properties": {
+              "canonical_key": { "type": "string", "minLength": 1 },
+              "status": { "type": "string" },
+              "reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "mode": { "enum": ["approved_execute", "verified"] } },
+            "required": ["mode"]
+          },
+          "then": {
+            "required": ["approval"],
+            "properties": {
+              "approval": { "$ref": "#/$defs/plan_approval" }
+            }
+          }
+        }
+      ]
+    },
+    "sync_state_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["database", "canonical_key", "state"],
+      "properties": {
+        "database": { "$ref": "#/$defs/target_database" },
+        "canonical_key": { "type": "string", "minLength": 1 },
+        "state": { "$ref": "#/$defs/sync_item_state" },
+        "page_id": {
+          "oneOf": [
+            { "$ref": "#/$defs/notion_uuid" },
+            { "type": "null" }
+          ]
+        },
+        "last_synced_hash": {
+          "oneOf": [
+            { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+            { "type": "null" }
+          ]
+        },
+        "attempted_hash": {
+          "oneOf": [
+            { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+            { "type": "null" }
+          ]
+        },
+        "attempted_at": { "type": ["string", "null"], "format": "date-time" },
+        "last_synced_at": { "type": ["string", "null"], "format": "date-time" },
+        "operation_id": {
+          "oneOf": [
+            { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+            { "type": "null" }
+          ]
+        },
+        "approved_plan_hash": {
+          "oneOf": [
+            { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            { "type": "null" }
+          ]
+        },
+        "retry_count": { "type": "integer", "minimum": 0 },
+        "next_retry_after": { "type": ["string", "null"], "format": "date-time" },
+        "conflicting_page_ids": { "type": "array", "items": { "$ref": "#/$defs/notion_uuid" } },
+        "last_error": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "state": { "const": "synced" } },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["page_id", "last_synced_hash"],
+            "properties": {
+              "page_id": { "$ref": "#/$defs/notion_uuid" },
+              "last_synced_hash": { "type": "string", "pattern": "^[a-f0-9]{16}$" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "in_flight" } },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["attempted_hash", "attempted_at", "operation_id", "approved_plan_hash"],
+            "properties": {
+              "attempted_hash": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+              "attempted_at": { "type": "string", "format": "date-time" },
+              "operation_id": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+              "approved_plan_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "conflict_duplicate_remote" } },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["conflicting_page_ids"],
+            "properties": {
+              "conflicting_page_ids": {
+                "type": "array",
+                "minItems": 2,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/notion_uuid" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sync_state_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "updated_at", "records"],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "updated_at": { "type": ["string", "null"], "format": "date-time" },
+        "records": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/sync_state_entry" }
+        }
+      }
+    }
+  }
+}

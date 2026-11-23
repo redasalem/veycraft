@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/redasalem/veycraft/schemas/cv-versions.schema.json",
+  "title": "Veycraft CV Version Registry",
+  "description": "Metadata registry for owner base and job-tailored CV versions stored in logs/cv-versions.json. Stores version hashes and metrics only (never raw CV prose); isolates third-party CVs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "versions"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "updated_at": { "type": ["string", "null"], "format": "date-time" },
+    "versions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cv_version" }
+    }
+  },
+  "$defs": {
+    "tailoring_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_role"],
+      "properties": {
+        "target_job_id": { "type": ["string", "null"] },
+        "target_role": { "type": "string", "minLength": 1 },
+        "emphasized_skills": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "true_gaps_excluded": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "ats_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keyword_match_before_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "keyword_match_after_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "hygiene_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "page_count": { "type": ["integer", "null"], "minimum": 1, "maximum": 10 }
+      }
+    },
+    "cv_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cv_version_id",
+        "version_number",
+        "label",
+        "kind",
+        "owner_scope",
+        "created_at",
+        "application_ids"
+      ],
+      "properties": {
+        "cv_version_id": { "type": "string", "minLength": 1 },
+        "version_number": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["generic", "tailored"] },
+        "owner_scope": { "enum": ["owner", "third_party"] },
+        "base_cv_version_id": { "type": ["string", "null"] },
+        "content_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "persona_id": { "type": ["string", "null"] },
+        "language": { "type": "string", "minLength": 2, "maxLength": 12 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": ["string", "null"], "format": "date-time" },
+        "local_ref_rel": { "type": ["string", "null"] },
+        "tailoring_metadata": {
+          "oneOf": [
+            { "$ref": "#/$defs/tailoring_metadata" },
+            { "type": "null" }
+          ]
+        },
+        "ats_metrics": {
+          "oneOf": [
+            { "$ref": "#/$defs/ats_metrics" },
+            { "type": "null" }
+          ]
+        },
+        "application_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

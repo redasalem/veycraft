@@ -9,6 +9,34 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { spawnSync, spawn } from 'node:child_process';
 import { validateProfileUpdatePlan, validateProfileVault } from './profile-intelligence.mjs';
+import {
+  validateApplicationLedger,
+  validateCvVersionsRegistry,
+  validateCareerInsights,
+  validateDailyRun,
+  migrateApplicationsLedger,
+  listOwnerCvVersions,
+  computeCareerAnalytics,
+  runCareerAnalyticsForWorkspace,
+  summarizeCareerWorkspace,
+  loadCareerSyncInputs,
+} from './career-intelligence.mjs';
+import {
+  validateNotionSyncPlan,
+  verifySyncStateIntegrity,
+  runNotionSyncCli,
+} from './notion-sync.mjs';
+import {
+  normalizePathForCompare,
+  isSamePath,
+  isObj,
+  sleepSync,
+  isWithinDir,
+  refuseSymlink as refuseSymlinkBase,
+  writeAtomic as writeAtomicBase,
+  readJsonSafe as readJsonSafeBase,
+  isBlockedSsrfUrl,
+} from './fs-safety.mjs';
 
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOME = os.homedir();
@@ -25,7 +53,7 @@ const fail = msg => console.error(paint('31', `[✗] ${msg}`));
 const ATTRIBUTION_BANNER = 'Veycraft — Created by Reda Salem (@redasalem) | https://github.com/redasalem/veycraft';
 const PINNED_SIGNING_PRINCIPAL = '192090175+redasalem@users.noreply.github.com';
 const PINNED_SIGNING_PUBKEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7t6GfNExgWOy+djcVZlb62BD9DKRrz81Xk++LTZTSo';
-const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys']);
+const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys', '--dry-run', '--apply', '--write']);
 const positional = [];
 const opts = {
   global: false,
@@ -39,6 +67,10 @@ const opts = {
   share: false,
   json: false,
   journeys: false,
+  dryRun: false,
+  apply: false,
+  write: false,
+  period: null,
   file: null,
   facts: null,
   draft: null,
@@ -46,8 +78,13 @@ const opts = {
   maxWords: 75,
 };
 let argErr = null;
+let careerSyncArgs = [];
 
 for (let i = 0; i < ARGV.length; i++) {
+  if (positional[0] === 'career' && (positional[1] || '').toLowerCase() === 'sync') {
+    careerSyncArgs = ARGV.slice(i);
+    break;
+  }
   const a = ARGV[i];
   if (a === '--global' || a === '-g') opts.global = true;
   else if (a === '--help' || a === '-h') opts.help = true;
@@ -60,6 +97,18 @@ for (let i = 0; i < ARGV.length; i++) {
   else if (a === '--share') opts.share = true;
   else if (a === '--json') opts.json = true;
   else if (a === '--journeys') opts.journeys = true;
+  else if (a === '--dry-run') opts.dryRun = true;
+  else if (a === '--apply') opts.apply = true;
+  else if (a === '--write') opts.write = true;
+  else if (a === '--period') {
+    const val = ARGV[++i];
+    if (!val || val.startsWith('-')) argErr = '--period requires a value ("all", "YYYY-Www", or "YYYY-MM").';
+    else opts.period = val;
+  } else if (a.startsWith('--period=')) {
+    const val = a.slice(9);
+    if (!val) argErr = '--period= requires a value ("all", "YYYY-Www", or "YYYY-MM").';
+    else opts.period = val;
+  }
   else if (a === '--file' || a === '-f') {
     const val = ARGV[++i];
     if (!val || val.startsWith('-')) argErr = '--file requires a path to a JSON model-output file.';
@@ -115,15 +164,6 @@ for (let i = 0; i < ARGV.length; i++) {
 
 const command = positional[0] || (opts.help ? 'help' : 'help');
 
-function normalizePathForCompare(p) {
-  const resolved = path.resolve(p);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-}
-
-function isSamePath(a, b) {
-  return path.relative(normalizePathForCompare(a), normalizePathForCompare(b)) === '';
-}
-
 const PRIMARY_GLOBAL_ROOT = path.join(HOME, '.veycraft');
 const LEGACY_GLOBAL_ROOT = path.join(HOME, '.job-hunter-os');
 
@@ -161,85 +201,13 @@ function resolveRoot() {
 
 const ROOT = resolveRoot();
 
-// ---------------- FS safety helpers ----------------
-function isObj(v) {
-  return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
-}
-
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-function isWithinDir(targetPath, dirPath) {
-  const rel = path.relative(normalizePathForCompare(dirPath), normalizePathForCompare(targetPath));
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
+// ---------------- FS safety helpers (delegated to bin/fs-safety.mjs) ----------------
 function refuseSymlink(target, boundary = ROOT) {
-  let cursor = path.resolve(target);
-  const resolvedRoot = path.resolve(boundary || ROOT);
-  const resolvedHome = path.resolve(HOME);
-
-  let stop;
-  let stopInclusive = true;
-  if (isWithinDir(cursor, resolvedRoot)) {
-    stop = resolvedRoot;
-    stopInclusive = true;
-  } else if (isWithinDir(cursor, resolvedHome)) {
-    stop = resolvedHome;
-    stopInclusive = false;
-  } else {
-    stop = cursor;
-    stopInclusive = true;
-  }
-
-  while (true) {
-    if (!stopInclusive && cursor === stop) return;
-    let stat;
-    try { stat = fs.lstatSync(cursor); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    if (stat?.isSymbolicLink()) {
-      throw new Error(`Refusing symbolic-link destination: ${cursor}`);
-    }
-    if (cursor === stop) return;
-    const parent = path.dirname(cursor);
-    if (parent === cursor) break;
-    cursor = parent;
-  }
+  return refuseSymlinkBase(target, boundary, HOME);
 }
 
 function writeAtomic(file, content, { preserve = false, mode = 0o644 } = {}) {
-  refuseSymlink(file);
-  if (preserve && fs.existsSync(file)) return false;
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
-  fs.writeFileSync(tmp, content, { flag: 'wx', mode });
-  try {
-    const retryDelays = [50, 150, 300];
-    let lastErr = null;
-    for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
-      try {
-        fs.renameSync(tmp, file);
-        lastErr = null;
-        break;
-      } catch (err) {
-        lastErr = err;
-        if (attempt < retryDelays.length && (err?.code === 'EPERM' || err?.code === 'EBUSY')) {
-          sleepSync(retryDelays[attempt]);
-          continue;
-        }
-        throw err;
-      }
-    }
-    if (lastErr) throw lastErr;
-    if (process.platform !== 'win32') {
-      try { fs.chmodSync(file, mode); } catch { /* ignore */ }
-    }
-  } finally {
-    try {
-      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
-    } catch { /* ignore cleanup error so primary error is preserved */ }
-  }
-  return true;
+  return writeAtomicBase(file, content, { preserve, mode, boundary: ROOT, home: HOME });
 }
 
 function copyTree(from, to, { preserve = false, filter = () => true, skipped = null } = {}) {
@@ -496,16 +464,7 @@ function installIdeSkills(srcRoot, targetRoot, { isGlobal, ide, preserve = false
 
 // ---------------- MCP merge ----------------
 function readJsonSafe(file) {
-  refuseSymlink(file);
-  if (!fs.existsSync(file)) return {};
-  let parsed;
-  try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    throw new Error(`Invalid JSON in ${file}; refusing to overwrite.`);
-  }
-  if (!isObj(parsed)) throw new Error(`Unsupported JSON root in ${file}; expected object.`);
-  return parsed;
+  return readJsonSafeBase(file, { boundary: ROOT, home: HOME });
 }
 
 function mcpTargetFiles(root, isGlobal) {
@@ -932,35 +891,6 @@ function extractProfileUrls(root) {
     }
   }
   return [...urls];
-}
-
-function isBlockedSsrfUrl(parsedUrl) {
-  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-    return 'non-HTTP(S) protocol';
-  }
-  const host = parsedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  if (!host || host === 'localhost' || host.endsWith('.localhost') || host === '::1' || host === '::' || host === '0:0:0:0:0:0:0:1') {
-    return 'loopback/localhost host';
-  }
-  // Check IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1 or ::ffff:7f00:1)
-  if (host.startsWith('::ffff:') || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) {
-    return 'private/link-local IPv6 address';
-  }
-  const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4Match) {
-    const [a, b] = [Number(ipv4Match[1]), Number(ipv4Match[2])];
-    if (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168)
-    ) {
-      return 'private/loopback/link-local IPv4 range';
-    }
-  }
-  return null;
 }
 
 async function verifyProfileLinks(root, isProfileReady) {
@@ -1595,16 +1525,34 @@ function cmdDashboard() {
   ].find(f => fs.existsSync(f));
   if (!tplPath) throw new Error('templates/analytics-dashboard.html not found.');
 
+  const logFile = path.join(ROOT, 'logs', 'applications-log.json');
+  if (fs.existsSync(logFile)) refuseSymlink(logFile);
   const records = readApplicationsLog(ROOT);
+
+  let cvRegistry = null;
+  const cvPath = path.join(ROOT, 'logs', 'cv-versions.json');
+  if (fs.existsSync(cvPath)) {
+    refuseSymlink(cvPath);
+    try {
+      cvRegistry = JSON.parse(fs.readFileSync(cvPath, 'utf8'));
+    } catch { /* ignore invalid optional cv-versions.json in read-only dashboard view */ }
+  }
+  const analytics = computeCareerAnalytics(records, cvRegistry);
+  // M3: Never embed third-party application records into the generated owner dashboard HTML
+  const ownerRecords = records.filter(r => !(isObj(r) && r.provenance?.third_party_subject === true));
   const tpl = fs.readFileSync(tplPath, 'utf8');
-  const safeJson = JSON.stringify(records).replace(
+  const escapeForScript = obj => JSON.stringify(obj).replace(
     /[<>&\u2028\u2029]/g,
     c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
   );
-  const injected = tpl.replace('/*__APPLICATIONS_DATA__*/[]', () => safeJson);
+  const safeJson = escapeForScript(ownerRecords);
+  const safeAnalytics = escapeForScript(analytics);
+  const injected = tpl
+    .replace('/*__APPLICATIONS_DATA__*/[]', () => safeJson)
+    .replace('/*__CAREER_ANALYTICS__*/null', () => safeAnalytics);
   const outFile = path.join(ROOT, 'logs', 'exports', 'dashboard.html');
-  writeAtomic(outFile, injected);
-  ok(`Generated local Kanban & Analytics Dashboard (${records.length} record(s)) -> ${outFile}`);
+  writeAtomic(outFile, injected, { mode: 0o600 });
+  ok(`Generated local Kanban & Analytics Dashboard (${ownerRecords.length} record(s)) -> ${outFile}`);
   openFileInBrowser(outFile);
 }
 
@@ -1672,7 +1620,13 @@ function cmdUnlock() {
 }
 
 function cmdBackup() {
-  const jsonFiles = ['logs/applications-log.json', 'logs/skipped-jobs.json', 'logs/circuit-breaker.json'];
+  const jsonFiles = [
+    'logs/applications-log.json',
+    'logs/skipped-jobs.json',
+    'logs/circuit-breaker.json',
+    'logs/cv-versions.json',
+    'logs/sync-state.json',
+  ];
   let verifiedCount = 0;
   for (const rel of jsonFiles) {
     const f = path.join(ROOT, rel);
@@ -2686,6 +2640,38 @@ function verifyArtifactFile(filePath, factsConfig = null) {
       const res = validateProfileVault(parsed);
       return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
     }
+    const isSkippedJobsArray = Array.isArray(parsed) && (
+      /^skipped-jobs\.json$/i.test(name) ||
+      (parsed.length > 0 && parsed.every(item => isObj(item) && (Object.prototype.hasOwnProperty.call(item, 'skip_reason') || Object.prototype.hasOwnProperty.call(item, 'skipped_at')) && !Object.prototype.hasOwnProperty.call(item, 'status')))
+    );
+    const isApplicationLedgerArray = Array.isArray(parsed) && !isSkippedJobsArray && (
+      /^applications-log\.json$/i.test(name) ||
+      (parsed.length > 0 && parsed.some(item => isObj(item) && (Object.prototype.hasOwnProperty.call(item, 'application_id') || (Object.prototype.hasOwnProperty.call(item, 'job_id') && Object.prototype.hasOwnProperty.call(item, 'status')))))
+    );
+    if (isApplicationLedgerArray) {
+      const res = validateApplicationLedger(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
+    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'schema_version') && Array.isArray(parsed.versions)) {
+      const res = validateCvVersionsRegistry(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
+    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'run_id') && Object.prototype.hasOwnProperty.call(parsed, 'counts')) {
+      const res = validateDailyRun(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
+    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'type') && Object.prototype.hasOwnProperty.call(parsed, 'period') && Object.prototype.hasOwnProperty.call(parsed, 'generated_at')) {
+      const res = validateCareerInsights(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
+    if (isObj(parsed) && parsed.eligibility_policy === 'submitted_only' && Array.isArray(parsed.operations)) {
+      const res = validateNotionSyncPlan(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
+    if (isObj(parsed) && parsed.schema_version === '1.0' && isObj(parsed.records) && Object.prototype.hasOwnProperty.call(parsed, 'updated_at')) {
+      const res = verifySyncStateIntegrity(parsed);
+      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
+    }
     return { name, errors, warnings };
   }
 
@@ -2802,6 +2788,120 @@ function cmdVerify() {
   }
 }
 
+function cmdCareer() {
+  const sub = (positional[1] || '').toLowerCase();
+  if (sub === 'summary') {
+    const res = summarizeCareerWorkspace(ROOT, { home: HOME });
+    if (opts.json) {
+      console.log(JSON.stringify(res, null, 2));
+      return;
+    }
+    const f = res.funnel;
+    const cb = f.rates.callback_rate;
+    const cbLabel = cb.sample_sufficient ? `${cb.rate_pct}% (${cb.numerator}/${cb.denominator})` : `n/a (${cb.numerator}/${cb.denominator}, n < ${res.sample_sufficiency.min_threshold})`;
+    console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+    console.log(paint('36', `Veycraft Career Summary — ${ROOT}\n`));
+    info(`Submitted Funnel:     Submitted: ${f.submitted_count} (Prepared-only: ${f.prepared_only_count} | Excluded: ${f.excluded_non_submitted_count})`);
+    info(`Lifecycle Breakdown:  Active (<14d): ${f.pending_active_count} | Silent (>=14d): ${f.silent_14d_count} | Interviewed: ${f.ever_interviewed_count} | Assessed: ${f.ever_assessed_count} | Offers: ${f.offer_count} | Rejected: ${f.rejected_count} | Withdrawn: ${f.withdrawn_count}`);
+    info(`Callback Rate:        ${cbLabel}`);
+    info(`Active Rounds:        Interviews: ${res.active_interviews} | Assessments: ${res.active_assessments}`);
+    info(`Follow-Ups Overdue:   ${res.overdue_follow_ups_count} (applied >= 7 days with no follow-up logged)`);
+    info(`Pending Notion Sync:  ${res.pending_notion_sync_count} submitted application(s)`);
+    return;
+  }
+  if (sub === 'analytics') {
+    const periodArg = opts.period || 'all';
+    const res = runCareerAnalyticsForWorkspace(ROOT, { home: HOME, period: periodArg, write: opts.write });
+    if (opts.json) {
+      console.log(JSON.stringify({ ...res.analytics, written_path: res.written_path }, null, 2));
+      return;
+    }
+    const a = res.analytics;
+    const f = a.funnel;
+    const fmtRate = r => (r.sample_sufficient ? `${r.rate_pct}% (${r.numerator}/${r.denominator})` : `n/a (${r.numerator}/${r.denominator}, n < ${a.min_sample_size})`);
+    console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+    console.log(paint('36', `Veycraft Deterministic Career Analytics (${a.period}) — ${ROOT}\n`));
+    info(`Sample Sufficiency:   ${a.sample_sufficiency.submitted_n} submitted (${a.sample_sufficiency.decided_n} decided, min threshold: ${a.min_sample_size}) -> ${a.sample_sufficiency.sufficient ? 'SUFFICIENT' : 'INSUFFICIENT SAMPLE'}`);
+    info(`Funnel Counts:        Submitted: ${f.submitted_count} | Interviewed: ${f.ever_interviewed_count} | Assessed: ${f.ever_assessed_count} | Offers: ${f.offer_count} | Rejected: ${f.rejected_count} | Withdrawn: ${f.withdrawn_count} | Silent (>=14d): ${f.silent_14d_count}`);
+    info(`Conversion Rates:     Callback: ${fmtRate(f.rates.callback_rate)} | Interview: ${fmtRate(f.rates.interview_rate)} | Assessment: ${fmtRate(f.rates.assessment_rate)} | Offer: ${fmtRate(f.rates.offer_rate)}`);
+    info(`Aging (Applied):      0-6d: ${a.timing.aging_buckets.fresh_0_6d} | 7-13d: ${a.timing.aging_buckets.followup_window_7_13d} | 14-29d: ${a.timing.aging_buckets.silent_14_29d} | 30d+: ${a.timing.aging_buckets.stale_30d_plus}`);
+    info(`Response Time:        ${a.timing.response_time.sample_sufficient ? `Median ${a.timing.response_time.median_days}d / P75 ${a.timing.response_time.p75_days}d (n=${a.timing.response_time.sample_n})` : (a.timing.response_time.sample_n > 0 ? `n/a (n=${a.timing.response_time.sample_n} < ${a.min_sample_size})` : 'n/a (no verified response timestamps)')}`);
+    info(`Overdue Follow-Ups:   ${a.timing.overdue_follow_ups.length}`);
+    if (res.written_path) {
+      ok(`Saved schema-validated insights artifact -> ${res.written_path}`);
+    }
+    return;
+  }
+  if (sub === 'migrate') {
+    if (opts.dryRun && opts.apply) {
+      throw new Error('Cannot pass both --dry-run and --apply to `veycraft career migrate`.');
+    }
+    const res = migrateApplicationsLedger(ROOT, { apply: opts.apply, home: HOME });
+    if (opts.json) {
+      console.log(JSON.stringify(res, null, 2));
+      return;
+    }
+    console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+    console.log(paint('36', `Veycraft Career Ledger Migration (${res.mode}) — ${ROOT}\n`));
+    if (res.idempotent_no_op) {
+      ok(`Ledger already at schema v2.0 (${res.total_records} record(s), 0 changes needed).`);
+      return;
+    }
+    if (res.mode === 'dry_run') {
+      info(`Dry-run only (0 files modified): ${res.to_enrich}/${res.total_records} record(s) would be enriched to schema v2.0.`);
+      if (res.status_remaps.length > 0) {
+        info(`Legacy status remaps: ${res.status_remaps.map(r => `${r.job_id} (${r.from} -> ${r.to})`).join(', ')}`);
+      }
+      info('Run `veycraft career migrate --apply` to create a verified backup and apply.');
+      return;
+    }
+    ok(`Verified backup created -> ${res.backup_dir}`);
+    ok(`Migrated ${res.to_enrich}/${res.total_records} record(s) to schema v2.0 -> ${res.ledger_path}`);
+    return;
+  }
+  if (sub === 'cv-versions') {
+    const res = listOwnerCvVersions(ROOT, { home: HOME });
+    if (opts.json) {
+      console.log(JSON.stringify(res, null, 2));
+      return;
+    }
+    console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+    console.log(paint('36', `Veycraft Owner CV Versions — ${ROOT}\n`));
+    if (!res.registry_exists || res.versions.length === 0) {
+      info('No owner CV versions registered yet in logs/cv-versions.json.');
+      return;
+    }
+    for (const v of res.versions) {
+      info(`${v.cv_version_id} (v${v.version_number} · ${v.kind}) — ${v.label} · linked apps: ${v.linked_applications_count}`);
+    }
+    if (res.third_party_excluded > 0) {
+      info(`Excluded ${res.third_party_excluded} third-party CV record(s) (isolated).`);
+    }
+    return;
+  }
+  if (sub === 'dashboard') {
+    cmdDashboard();
+    return;
+  }
+  if (sub === 'sync') {
+    const res = runNotionSyncCli(ROOT, careerSyncArgs, {
+      home: HOME,
+      sourceRoot: SOURCE,
+      loadInputs: loadCareerSyncInputs,
+    });
+    if (res.json) {
+      console.log(JSON.stringify(res.data, null, 2));
+    } else {
+      console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+      console.log(paint('36', `Veycraft Career Sync — ${ROOT}\n`));
+      for (const line of res.lines) info(line);
+    }
+    if (res.exitCode !== 0) process.exitCode = res.exitCode;
+    return;
+  }
+  throw new Error(`Unknown or missing career subcommand "${sub}". Supported: summary [--json], analytics [--period <all|YYYY-Www|YYYY-MM>] [--write] [--json], dashboard [--no-open], migrate [--dry-run | --apply] [--json], cv-versions [--json], sync <preview|status|verify-schema|approve|mark-in-flight|apply-receipt|record-failure|expire-stale|reconcile|reset-permanent|release-stale-lock>.`);
+}
+
 function cmdVersion() {
   const { version, runtimeDeps, devDeps } = readPackageMeta();
   if (opts.json) {
@@ -2834,7 +2934,13 @@ Quick Start:
   veycraft audit <cv.md|txt|docx|html|doc> [--share] Instant offline CV hygiene audit + PII-safe scorecard
 
 Core & Verification Commands:
-  veycraft verify <dir|file> [--facts <json|md>]   Validate deliverables, Profile Update Plans & fact integrity
+  veycraft verify <dir|file> [--facts <json|md>]   Validate deliverables, ledgers, CV versions & update plans
+  veycraft career summary [--json]                 Print submitted funnel, active rounds & overdue follow-ups
+  veycraft career analytics [--period <p>] [--write] Deterministic funnel, CV & source analytics (MIN_N = 5)
+  veycraft career dashboard [--no-open]            Generate local read-only Career Analytics & Kanban dashboard
+  veycraft career migrate [--dry-run | --apply]    Safely enrich logs/applications-log.json to schema v2.0
+  veycraft career cv-versions [--json]             List owner CV versions & linked application counts
+  veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery
   veycraft pre-submit [--draft <f> | --text <t>]   Enforce <=75-word outreach cap & daily warm-up limit
   veycraft eval [--baseline | --file <json> | --journeys] Run deterministic safety assertions & journey tests
   veycraft proof [--global | -g]                   Generate reproducible proof-card.svg & proof-card.md
@@ -2861,12 +2967,21 @@ try {
     throw new Error(`Node.js >= 18 is required (found ${process.versions.node}). Upgrade from https://nodejs.org/.`);
   }
   if (argErr) throw new Error(argErr);
+  if ((opts.dryRun || opts.apply) && !(command === 'career' && (positional[1] || '').toLowerCase() === 'migrate')) {
+    const used = [opts.dryRun ? '--dry-run' : null, opts.apply ? '--apply' : null].filter(Boolean).join(', ');
+    throw new Error(`Option ${used} is only supported with \`veycraft career migrate\`.`);
+  }
+  if ((opts.write || opts.period !== null) && !(command === 'career' && (positional[1] || '').toLowerCase() === 'analytics')) {
+    const used = [opts.write ? '--write' : null, opts.period !== null ? '--period' : null].filter(Boolean).join(', ');
+    throw new Error(`Option ${used} is only supported with \`veycraft career analytics\`.`);
+  }
   if (opts.version || command === 'version') cmdVersion();
   else if (command === 'help' || opts.help) cmdHelp();
   else if (command === 'init') cmdInit();
   else if (command === 'audit') cmdAudit();
   else if (command === 'route') cmdRoute();
   else if (command === 'verify') cmdVerify();
+  else if (command === 'career') cmdCareer();
   else if (command === 'update') cmdUpdate();
   else if (command === 'doctor') await cmdDoctor();
   else if (command === 'eval') cmdEval();
