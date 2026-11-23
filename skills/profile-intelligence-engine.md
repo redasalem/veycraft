@@ -56,6 +56,7 @@ Shared, platform-agnostic intelligence layer for optimizing, updating, and verif
    - Inspect only relevant sections through an authorized path (pasted text, PDF export, screenshot, or signed-in browser session using targeted extraction rather than dumping entire pages).
 3. **Evaluate Across 7 Optimization Criteria:**
    - Score and diagnose fields for **Relevance**, **Keyword coverage** (natural, zero stuffing), **Clarity**, **Impact** (evidence-backed), **Consistency** (zero CV/date contradictions), **Discoverability**, and **Quality** (removing redundancy, vagueness, or stale copy).
+   - **PDF-Import OCR & Date-Conflict Guard:** On job boards that auto-import CVs (e.g., Wellfound), scan for OCR typos (`Al -> AI`, `Ul -> UI`), duplicate employer/education entries, and unverified template skills. Never silently delete entries or alter conflicting dates across CV, LinkedIn, and job boards—flag them with `requires_confirmation: true` first.
    - When a target JD is supplied: extract requirements/keywords, compare against verified vault facts, list strengths/gaps/mismatches, prioritize high-impact fields, tailor without inventing qualifications, and explain material edits concisely.
 4. **Build & Validate the Profile Update Plan:**
    - Generate one comprehensive plan conforming to `schemas/profile-update-plan.schema.json` and save it to `logs/insights/profile-update-plan-<platform>-YYYY-MM-DD.json`.

@@ -32,8 +32,9 @@ Recruiters and Engineering Managers click your GitHub and portfolio links within
 
 ## Deterministic Step-by-Step Execution
 
-1. **Inspect GitHub Profile & Pinned Repositories (Playwright MCP, read-only):**
-   - Navigate to the owner's verified `github_url` with 3–9 s pacing and take a `browser_snapshot`.
+1. **Inspect GitHub Profile & Pinned Repositories (Playwright MCP or `gh` CLI, read-only):**
+   - **Fast `gh` CLI Path (when `gh` is authenticated):** Run `gh repo list <user>` and inspect key `package.json` / `README.md` files (`gh api repos/<user>/<repo>/contents/package.json`) to surface real production projects and dependencies missing from `context/cv.md` (keeping private repo details local). Note: updating `<user>/<user>/README.md` uses `repo` scope (`gh api -X PUT ... -f` flags cleanly on Windows), whereas `PATCH /user` metadata requires `user` scope (`gh auth refresh -h github.com -s user`).
+   - **Browser Path:** Navigate to the owner's verified `github_url` with 3–9 s pacing and take a `browser_snapshot`.
    - Audit:
      - **Bio & Headline:** Does the bio clearly match the target roles in `context/preferences.yaml` (or active persona in `context/personas/`)?
      - **Pinned Repositories (up to 6):** Open each pinned repo and check:
