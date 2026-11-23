@@ -2159,7 +2159,7 @@ function cmdPreSubmit() {
       source: draftSource,
       word_count: wordCount,
       max_words: maxWords,
-      ok: wordCount > 0 && wordCount <= maxWords && bannedCliches.length === 0,
+      ok: wordCount > 0 && wordCount <= maxWords && bannedCliches.length === 0 && !hasEmDash,
       has_em_dash: hasEmDash,
       banned_cliches: bannedCliches,
     };
@@ -2175,7 +2175,10 @@ function cmdPreSubmit() {
       });
     }
     if (hasEmDash) {
-      warnings.push(`Style warning: prose em-dash (—) detected in ${draftSource}; consider replacing before sending.`);
+      violations.push({
+        code: 'draft_prose_em_dash',
+        message: `Draft contains prose em-dash (—) in ${draftSource}; replace with periods or commas before sending.`,
+      });
     }
   }
 

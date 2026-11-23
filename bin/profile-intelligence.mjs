@@ -35,6 +35,7 @@ export const ALLOWED_VERIFICATION_OUTCOMES = Object.freeze([
   'not_verified',
 ]);
 
+// Keep in sync with bin/career-intelligence.mjs BANNED_AI_CLICHES, evals/fixtures/ground-truth.json, and skills/03-tailor-resume-and-verify.md
 export const DEFAULT_BANNED_CLICHES = Object.freeze([
   'delve',
   'testament',
@@ -42,18 +43,19 @@ export const DEFAULT_BANNED_CLICHES = Object.freeze([
   'spearheaded',
   'synergy',
   'thrilled to apply',
+  'fast-paced environment',
   'moreover',
   'furthermore',
+  'leveraged',
   'orchestrated',
-  'hit the ground running',
-  'results-driven',
   'passionate about',
+  'dynamic environment',
+  'proven track record',
+  'hit the ground running',
+  'deeply excited',
+  'results-driven',
   'seasoned professional',
   'dynamic team player',
-  'fast-paced environment',
-  'leveraged',
-  'proven track record',
-  'deeply excited',
 ]);
 
 export const PLATFORM_ADAPTERS = Object.freeze({

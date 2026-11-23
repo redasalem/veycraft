@@ -60,7 +60,7 @@ Compare EVERY claim in `resume.html` (and `cover-letter.html`) line-by-line agai
 
 ### 3. Anti-AI Slop & Humanizer Filter (Mandatory Before Printing)
 Scan every summary sentence, bullet, and cover-letter paragraph and rewrite if ANY of these appear:
-- **Banned AI clichés (case-insensitive):** `delve`, `testament`, `tapestry`, `spearheaded`, `synergy`, `thrilled to apply`, `fast-paced environment`, `moreover`, `furthermore`, `leveraged`, `orchestrated`, `passionate about`, `dynamic environment`, `proven track record`, `hit the ground running`, `deeply excited`.
+- **Banned AI clichés (case-insensitive; keep in sync with `bin/career-intelligence.mjs` `BANNED_AI_CLICHES` and `evals/fixtures/ground-truth.json`):** `delve`, `testament`, `tapestry`, `spearheaded`, `synergy`, `thrilled to apply`, `fast-paced environment`, `moreover`, `furthermore`, `leveraged`, `orchestrated`, `passionate about`, `dynamic environment`, `proven track record`, `hit the ground running`, `deeply excited`, `results-driven`, `seasoned professional`, `dynamic team player`.
 - **Banned em-dash overuse (`—`):** Use **0 em-dashes** inside prose sentences (use periods, commas, or parentheses; structural `Title — Employer` headings are fine).
 - **Tone rule:** Write like a direct, practical peer engineer using concrete technical nouns and active plain verbs (`built`, `shipped`, `cut`, `migrated`, `tested`, `debugged`).
 

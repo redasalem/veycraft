@@ -4,7 +4,7 @@
   "candidate": "Alex Rivera",
   "ground_truth_metrics": ["38%", "$4.2M", "14", "22 minutes", "9 minutes", "99.95%", "3", "6", "5", "4"],
   "forbidden_skills": ["Rust", "Kubernetes", "Solidity", "Swift"],
-  "banned_ai_cliches": ["delve", "testament", "tapestry", "spearheaded", "synergy", "thrilled to apply", "moreover", "furthermore", "orchestrated", "hit the ground running"],
+  "banned_ai_cliches": ["delve", "testament", "tapestry", "spearheaded", "synergy", "thrilled to apply", "fast-paced environment", "moreover", "furthermore", "leveraged", "orchestrated", "passionate about", "dynamic environment", "proven track record", "hit the ground running", "deeply excited", "results-driven", "seasoned professional", "dynamic team player"],
   "jd_evaluations": {
     "01-strong-match": {
       "job_id": "greenhouse-70112",
