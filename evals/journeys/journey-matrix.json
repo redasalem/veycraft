@@ -60,21 +60,21 @@
       "id": "J02",
       "prompt": "Improve my CV summary.",
       "expected_intent": "cv-edit",
-      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "meta-self-verification"],
+      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
       "requires_full_setup": false
     },
     {
       "id": "J03",
       "prompt": "Create a CV from scratch.",
       "expected_intent": "cv-create",
-      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify"],
+      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "J04",
       "prompt": "Tailor my CV to this job.",
       "expected_intent": "tailor-cv",
-      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "21-ats-keyword-heatmap"],
+      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "21-ats-keyword-heatmap", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
@@ -95,7 +95,7 @@
       "id": "J07",
       "prompt": "Add this new project to my CV.",
       "expected_intent": "cv-edit",
-      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "meta-self-verification"],
+      "required_skills": ["01-resume-ingestion", "03-tailor-resume-and-verify", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
       "requires_full_setup": false
     },
     {
@@ -130,7 +130,7 @@
       "id": "J12",
       "prompt": "Improve my LinkedIn headline.",
       "expected_intent": "linkedin-profile",
-      "required_skills": ["linkedin-growth", "03-tailor-resume-and-verify", "meta-self-verification"],
+      "required_skills": ["linkedin-growth", "03-tailor-resume-and-verify", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
       "requires_full_setup": false
     },
     {
@@ -151,56 +151,56 @@
       "id": "LI01",
       "prompt": "Review my LinkedIn profile.",
       "expected_intent": "linkedin-profile",
-      "required_skills": ["linkedin-growth"],
+      "required_skills": ["linkedin-growth", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "LI02",
       "prompt": "Improve my LinkedIn headline and About section.",
       "expected_intent": "linkedin-profile",
-      "required_skills": ["linkedin-growth", "03-tailor-resume-and-verify"],
+      "required_skills": ["linkedin-growth", "03-tailor-resume-and-verify", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "LI03",
       "prompt": "Make my profile consistent with my CV.",
       "expected_intent": "linkedin-profile",
-      "required_skills": ["linkedin-growth"],
+      "required_skills": ["linkedin-growth", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "LI04",
       "prompt": "Optimize my profile for React and Full-Stack JavaScript roles.",
       "expected_intent": "linkedin-profile",
-      "required_skills": ["linkedin-growth"],
+      "required_skills": ["linkedin-growth", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "JP01",
       "prompt": "Find suitable remote React jobs.",
       "expected_intent": "job-discovery-and-triage",
-      "required_skills": ["02-discover-and-triage", "platforms/linkedin"],
+      "required_skills": ["02-discover-and-triage", "28-recruiter-brand-and-domain-intelligence", "platforms/linkedin"],
       "requires_full_setup": false
     },
     {
       "id": "JP02",
       "prompt": "Find Full-Stack JavaScript jobs in Egypt.",
       "expected_intent": "job-discovery-and-triage",
-      "required_skills": ["02-discover-and-triage"],
+      "required_skills": ["02-discover-and-triage", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "JP03",
       "prompt": "Analyze this LinkedIn job and tell me whether I should apply.",
       "expected_intent": "job-discovery-and-triage",
-      "required_skills": ["02-discover-and-triage", "25-prompt-injection-defense"],
+      "required_skills": ["02-discover-and-triage", "25-prompt-injection-defense", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
       "id": "JP04",
       "prompt": "Compare these jobs and rank them by suitability.",
       "expected_intent": "job-discovery-and-triage",
-      "required_skills": ["02-discover-and-triage"],
+      "required_skills": ["02-discover-and-triage", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {
@@ -214,7 +214,7 @@
       "id": "EX02",
       "prompt": "Compare my CV against this job description.",
       "expected_intent": "tailor-cv",
-      "required_skills": ["03-tailor-resume-and-verify", "21-ats-keyword-heatmap"],
+      "required_skills": ["03-tailor-resume-and-verify", "21-ats-keyword-heatmap", "28-recruiter-brand-and-domain-intelligence"],
       "requires_full_setup": false
     },
     {

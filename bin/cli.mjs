@@ -2540,7 +2540,7 @@ const ROUTE_RULES = [
   {
     intent: 'linkedin-profile',
     match: q => /(^|\s)\/linkedin-growth\b/i.test(q) || (/\blinkedin\b/i.test(q) && /\b(profile|headline|about|consistent|optimize|audit|review|improve|post|outreach)\b/i.test(q) && !/\b(job|apply|jobs)\b/i.test(q)) || /\b(profile consistent with my cv|optimize my profile)\b/i.test(q),
-    skills: ['linkedin-growth', 'profile-intelligence-engine', '03-tailor-resume-and-verify', '05-outreach-and-interview-prep', 'meta-self-verification'],
+    skills: ['linkedin-growth', 'profile-intelligence-engine', '03-tailor-resume-and-verify', '05-outreach-and-interview-prep', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: '.agent/workflows/linkedin-growth.md',
     readiness: 'task-specific (profile text/PDF/screenshot or signed-in Playwright + CV facts; no /setup required)',
     required_inputs: ['LinkedIn profile (pasted, PDF, screenshot, or signed-in Playwright)', 'verified CV facts'],
@@ -2558,7 +2558,7 @@ const ROUTE_RULES = [
         /\b(professional profile|career profile|job profile|job board profiles?|linkedin profile|github profile|portfolio profile|my profile|profile fields?|profiles? across|headline and about)\b/i.test(q) &&
         !/\bfind\b.*\bjobs?\b/i.test(q)
       ),
-    skills: ['profile-intelligence-engine', '01-resume-ingestion', '03-tailor-resume-and-verify', 'meta-self-verification'],
+    skills: ['profile-intelligence-engine', '01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: '.agent/workflows/profile-update.md',
     readiness: 'task-specific (verified CV/profile facts + target role/goal; no /setup required)',
     required_inputs: ['verified CV/profile facts', 'target role, JD, or positioning goal'],
@@ -2613,7 +2613,7 @@ const ROUTE_RULES = [
   {
     intent: 'job-discovery-and-triage',
     match: q => /\b(find .*jobs?|jobs? in |remote .*jobs?|analy[sz]e this .*job|should i apply|compare these jobs|rank them|discover jobs)\b/i.test(q),
-    skills: ['02-discover-and-triage', '25-prompt-injection-defense', '26-deduplication-and-blacklist-guard', 'platforms/linkedin'],
+    skills: ['02-discover-and-triage', '25-prompt-injection-defense', '26-deduplication-and-blacklist-guard', '28-recruiter-brand-and-domain-intelligence', 'platforms/linkedin'],
     workflow: null,
     readiness: 'task-specific (verified CV facts + query or URLs/JDs/screenshots; no /setup wall for read-only analysis)',
     required_inputs: ['verified CV facts', 'search query or job URLs/pasted JDs/screenshots'],
@@ -2624,7 +2624,7 @@ const ROUTE_RULES = [
   {
     intent: 'tailor-cv',
     match: q => /(^|\s)\/(?:quick-tailor|tailor-cv)\b|\b(tailor (?:my )?cv|compare (?:my )?cv against)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '21-ats-keyword-heatmap'],
+    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '21-ats-keyword-heatmap', '28-recruiter-brand-and-domain-intelligence'],
     workflow: '.agent/workflows/quick-tailor.md',
     readiness: 'task-specific (CV + 1 JD; zero browser login or /setup required)',
     required_inputs: ['candidate CV', 'target job description (or URL)'],
@@ -2657,7 +2657,7 @@ const ROUTE_RULES = [
   {
     intent: 'cv-create',
     match: q => /\b(create|build|write|make)\b/i.test(q) && /\b(new cv|cv from scratch|resume from scratch|from scratch)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify'],
+    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence'],
     workflow: null,
     readiness: 'task-specific (guided interview; zero /setup or browser login required)',
     required_inputs: ['guided interview answers (contact, roles/dates, projects, skills, education)'],
@@ -2668,7 +2668,7 @@ const ROUTE_RULES = [
   {
     intent: 'cv-edit',
     match: q => /\b(improve|edit|update|rewrite|strengthen|shorten|reorder|remove|add .*project|change .*summary|summary|bullet)\b/i.test(q) && /\b(cv|resume|summary|project|skills|bullets|section|page)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', 'meta-self-verification'],
+    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: null,
     readiness: 'task-specific (existing CV or session CV + requested edit; preserves original)',
     required_inputs: ['existing CV (if not already loaded)', 'requested section change'],

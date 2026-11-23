@@ -1,6 +1,6 @@
 ---
 name: universal-cv-builder
-version: "1.0.0"
+version: "1.1.0"
 description: Load whenever building, rebuilding, auditing, or iteratively updating a professional ATS-ready CV for ANY person (repo owner or third party, tech or non-tech, fresh graduate or senior, with or without an existing CV); enforces fixed step-by-step SOPs, fact-confirmation gates, field/seniority adaptation, persistent revision state, and multi-format verified output.
 triggers:
   - create a CV for someone or from scratch
@@ -16,6 +16,7 @@ preconditions:
 requires_skills:
   - resume-ingestion
   - tailor-resume-and-verify
+  - recruiter-brand-and-domain-intelligence
   - meta-self-verification
 verification:
   - third-party CVs are strictly isolated under logs/resumes/cv-<person-slug>/ without modifying owner context/ files
@@ -32,7 +33,7 @@ Use as the canonical, fixed rulebook whenever creating a professional ATS-compli
 - **Load when:** `create a CV for someone or from scratch`; `build a professional CV with or without an existing resume`; `rebuild, upgrade, or iteratively revise a saved CV`; `non-tech, fresh-graduate, or third-party CV creation`.
 - **Preconditions (stop if any is false):**
   - user requested creating, rebuilding, or revising a CV for themselves or another person
-- **Requires skills:** `resume-ingestion`, `tailor-resume-and-verify`, `meta-self-verification` (plus `multilingual-adaptation` if Arabic/bilingual/EU). **MCP:** none (`playwright` optional for PDF reading/export).
+- **Requires skills:** `resume-ingestion`, `tailor-resume-and-verify`, `recruiter-brand-and-domain-intelligence`, `meta-self-verification` (plus `multilingual-adaptation` if Arabic/bilingual/EU). **MCP:** none (`playwright` optional for PDF reading/export).
 
 ## Deterministic Step-by-Step Execution
 
@@ -57,12 +58,12 @@ Use as the canonical, fixed rulebook whenever creating a professional ATS-compli
   - **Student / Fresh Graduate (`0–1` yr):** Header -> 2-line Summary -> Education -> Projects / Internships -> Skills -> Certifications / Volunteering -> Languages.
   - **Experienced (`2+` yrs):** Header -> Professional Summary (2–3 lines) -> Professional Experience -> Skills / Core Competencies -> Selected Projects (if relevant) -> Education & Certifications -> Languages.
   - **Career Switcher:** Header -> Target-Aligned Summary -> Relevant Projects & Transferable Skills -> Experience (framed around transferable results) -> Education & Certifications.
-- **Field-Aware Headings:** Use `Technical Skills` for software/IT/data roles; use `Core Competencies & Tools` (or `Key Skills`) for business, marketing, sales, finance, HR, operations, healthcare, or legal roles.
+- **Field-Aware Headings & Market Positioning:** Detect the candidate's **Domain Archetype** via `skills/28-recruiter-brand-and-domain-intelligence.md` (Steps 1 & 3) to bind domain-authentic peer tone, adaptive headings (`Technical Skills` for software/IT/data; `Core Competencies & Tools`, `Clinical Licensure & Competencies`, or `Key Skills` for business, marketing, sales, finance, HR, operations, healthcare, or legal roles), Buyer Pain Point summary positioning, 6–10 second visual scan ordering, and truthful risk framing (gaps, contract sprints, career pivots) without hiding dates.
 - **Language & Direction:** For Arabic or bilingual CVs, apply `skills/15-multilingual-adaptation.md` (`dir="rtl"` for Arabic, `dir="ltr"` for English; keep brand/tool acronyms crisp).
 
 ### 4. Fixed Quality Gates, Rendering & Verification
 Apply all 4 non-negotiable gates from `skills/03-tailor-resume-and-verify.md` before delivering:
-1. **Bullet Engineering (XYZ / STAR):** Start every bullet with a strong plain action verb (`Built`, `Managed`, `Reduced`, `Designed`, `Closed`, `Coordinated`) + concrete scope + verified result/tool. Ban passive openers (`Responsible for`, `Duties included`, `Helped with`, `Worked on`). Keep every bullet `<= 160` characters (`1–2` printed lines).
+1. **Bullet Engineering (XYZ / STAR + Proof Density):** Start every bullet with a strong plain action verb appropriate to the candidate's domain (`Built`, `Managed`, `Reduced`, `Designed`, `Closed`, `Audited`, `Coordinated`) and rank content by `skills/28` Proof Density Hierarchy (`Quantified Business Outcome > Verified Operational Scope > Shipped Artifact/Deliverable > Credential/Tool`). Ban passive openers (`Responsible for`, `Duties included`, `Helped with`, `Worked on`). Keep every bullet `<= 160` characters (`1–2` printed lines).
 2. **Zero Hallucination & Anti-AI Slop:** Zero unverified `%`, `$`, multipliers, dates, titles, or tools. Zero banned AI clichés (`spearheaded`, `synergy`, `delve`, `leveraged`, `orchestrated`, `proven track record`, `fast-paced environment`, `passionate about`) and zero prose em-dashes (`—`).
 3. **ATS Layout & Page Budget:** Render single-column HTML from `templates/ats-resume-template.html` (zero tables, sidebars, icons, or progress bars; `@page { size: A4; margin: 12mm 14mm; }`). Enforce **1-page A4** (`<= 38` content lines) for `< 8` years of experience, or a **balanced 2-page A4** (`>= 70%` fill on page 2) for `>= 8` years. Never allow 1–8 orphan lines on page 2.
 4. **Persistent Deliverables & Self-Verification (`skills/meta-self-verification.md`):**

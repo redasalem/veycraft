@@ -1,6 +1,6 @@
 # System Architecture & Execution Lifecycle
 
-`veycraft` combines **50 Markdown-first skills** (loaded progressively by your existing AI IDE or CLI harness) with a **zero-dependency Node.js CLI (`bin/cli.mjs`, `dependencies: {}`, `devDependencies: {}`)**.
+`veycraft` combines **51 Markdown-first skills** (loaded progressively by your existing AI IDE or CLI harness) with a **zero-dependency Node.js CLI (`bin/cli.mjs`, `dependencies: {}`, `devDependencies: {}`)**.
 
 > **Enforcement Transparency:** Deterministic validations (`pre-submit` cap/word/cliché checks, `career` ledger lifecycle writes, run-session/checkpoint orchestration, preparation verification, `next` queue planning, analytics/migration, `career sync` offline planning/approval/locking/receipts/reconciliation, `eval`, `proof`, `audit`, `verify`, `doctor`, `backup`, `unlock`, Git pre-commit PII hook) run locally in `bin/cli.mjs`, `bin/career-intelligence.mjs`, and `bin/notion-sync.mjs`. Semantic workflow steps (CV fact-checking, prompt-injection quarantine, DOM inspection, and human `APPROVE` gating) are agent workflow requirements in `AGENTS.md` and `skills/*.md`—see [`docs/execution-safety.md`](execution-safety.md).
 
@@ -56,13 +56,13 @@ Phase 0  READ context/ -> missing or .example placeholders or dead 404 URLs?
 Phase 1  CIRCUIT BREAKER & AUTH CHECK (skills/24-circuit-breaker-and-antiban.md)
          -> check logs/circuit-breaker.json -> verify signed-in session (3-9 s pacing)
 
-Phase 2  DISCOVER, INJECTION DEFENSE & DEDUPLICATION (skills/02, skills/25, skills/26)
+Phase 2  DISCOVER, INJECTION DEFENSE & DEDUPLICATION (skills/02, skills/25, skills/26, skills/28)
          -> construct URL from context/targets.yaml -> expand full JD ("See more")
          -> scan UNTRUSTED_EXTERNAL_DATA for prompt injections & recruiter codewords
          -> check blacklisted_companies / domains & canonical company::role_title fingerprint
          -> filter ghost jobs (>30d / closed) -> score 0-10 -> present Mission Control Table
 
-Phase 3  TAILOR, KEYWORD HEATMAP & OVERFLOW GATE (skills/03, skills/21)
+Phase 3  TAILOR, KEYWORD HEATMAP & OVERFLOW GATE (skills/03, skills/21, skills/28)
          -> compute Before vs. After ATS Keyword Match % table
          -> Fact-Check Guard (0 hallucinated metrics/tools) + Humanizer (0 AI clichés)
          -> verify 1-page A4 character/line budget -> export PDF via Playwright MCP

@@ -641,3 +641,65 @@ test('9. Anti-Slop Contract Parity & Pre-Submit Hardening (PR #5): unified 19 cl
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('10. Recruiter, Brand & Domain Intelligence (Skill 28): routing, <= 7 cap, offline parity, and domain-agnostic coverage', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  // 1. Manifest parity & offline requires_mcp: ["none"]
+  const s28 = byName.get('recruiter-brand-and-domain-intelligence');
+  assert.ok(s28, 'recruiter-brand-and-domain-intelligence missing from skills-manifest.json');
+  assert.equal(s28.path, 'skills/28-recruiter-brand-and-domain-intelligence.md');
+  assert.deepEqual(s28.requires_mcp, ['none']);
+  assert.deepEqual(s28.requires_skills, ['meta-self-verification']);
+
+  for (const caller of [
+    'discover-and-triage',
+    'tailor-resume-and-verify',
+    'persona-switcher',
+    'ats-keyword-heatmap',
+    'universal-cv-builder',
+    'linkedin-growth',
+    'profile-intelligence-engine',
+  ]) {
+    const entry = byName.get(caller);
+    assert.ok(entry && entry.requires_skills.includes('recruiter-brand-and-domain-intelligence'), `${caller} must require recruiter-brand-and-domain-intelligence`);
+  }
+
+  // 2. CLI routing includes skill 28 on standalone intents while enforcing <= 7 skills everywhere (including /daily-run)
+  const routeChecks = [
+    ['Tailor my CV for a Clinical Operations Lead role.', 'tailor-cv', true],
+    ['Analyze this Enterprise AE job description and rank fit.', 'job-discovery-and-triage', true],
+    ['Optimize my LinkedIn profile for Finance Director roles.', 'linkedin-profile', true],
+    ['Optimize my professional profile for Product Manager jobs.', 'profile-intelligence', true],
+    ['Create a new CV from scratch.', 'cv-create', true],
+    ['Improve my CV summary.', 'cv-edit', true],
+    ['/daily-run', 'daily-run', false],
+  ];
+  for (const [prompt, expectedIntent, mustInclude28] of routeChecks) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, expectedIntent);
+    assert.ok(parsed.skills.length <= 7, `Skill count > 7 for ${expectedIntent}: ${parsed.skills.length}`);
+    if (mustInclude28) {
+      assert.ok(parsed.skills.includes('28-recruiter-brand-and-domain-intelligence'), `Missing skill 28 on "${prompt}"`);
+    }
+  }
+
+  // 3. Domain-agnostic & HR/Brand coverage in skill 28 + de-biased caller skills
+  const s28Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '28-recruiter-brand-and-domain-intelligence.md'), 'utf8');
+  for (const term of ['Healthcare/Clinical/Pharma', 'Sales/Marketing/Growth', 'Finance/Accounting/Legal/Risk', 'Buyer Pain Point', 'Proof Density Hierarchy', 'Recruiter Boolean', '50-Skill Cap']) {
+    assert.ok(s28Text.includes(term), `skills/28 missing domain/recruiter/brand term: ${term}`);
+  }
+
+  const s02Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '02-discover-and-triage.md'), 'utf8');
+  const s03Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '03-tailor-resume-and-verify.md'), 'utf8');
+  const s21Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '21-ats-keyword-heatmap.md'), 'utf8');
+  const liText = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'linkedin-growth.md'), 'utf8');
+  assert.doesNotMatch(s02Text, /Core Stack \(40%\)/);
+  assert.doesNotMatch(s02Text, /Full\+Stack\+OR\+React\+OR\+Next\.js/);
+  assert.doesNotMatch(s03Text, /direct, practical peer engineer/i);
+  assert.doesNotMatch(liText, /4 Proven Engineering Post Templates/);
+  assert.match(s21Text, /Credentials, Licensure & Compliance/);
+});
