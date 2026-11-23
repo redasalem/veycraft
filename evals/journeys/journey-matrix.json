@@ -230,6 +230,20 @@
       "expected_intent": "tracking-and-insights",
       "required_skills": ["06-log-and-insights"],
       "requires_full_setup": false
+    },
+    {
+      "id": "GH01",
+      "prompt": "Audit my GitHub repos and extract real projects for my CV.",
+      "expected_intent": "github-portfolio-audit",
+      "required_skills": ["11-portfolio-and-github-auditor", "01-resume-ingestion", "03-tailor-resume-and-verify", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "GH02",
+      "prompt": "Clean up my GitHub repos and archive old ones.",
+      "expected_intent": "github-portfolio-audit",
+      "required_skills": ["11-portfolio-and-github-auditor", "meta-self-verification"],
+      "requires_full_setup": false
     }
   ]
 }

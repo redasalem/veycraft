@@ -133,7 +133,7 @@ export const PLATFORM_ADAPTERS = Object.freeze({
     required_permissions: ['public_read_or_explicit_repo_write_approval'],
     requires_approval: true,
     limitations: [
-      'Audits live links and drafts bio/README improvements without mutating remote repositories.',
+      'Audits live links and drafts additive bio/README improvements without mutating remote repositories directly in Profile Update Plans; full-account gh CLI repo audits, metadata/README marketing mutations, tiered repo cleanup (private/archive/gated delete), and context/github-projects.md extraction delegate to skills/11-portfolio-and-github-auditor.md.',
     ],
     field_mappings: {
       bio: ['Bio', 'Tagline'],

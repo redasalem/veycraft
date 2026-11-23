@@ -123,6 +123,7 @@ veycraft route "حسّن ملفي المهني على LinkedIn وزامنه مع
 - **`/demo`** — محاكاة اصطناعية في 15 ثانية ([`examples/sandbox-demo/`](examples/sandbox-demo/sample-jds.md)) بدون أي بيانات شخصية أو تسجيل دخول.
 - **`/quick-tailor`** — تفصيل سيرتك لوظيفة واحدة (`HTML / TXT / .doc` + `True Gaps`) بدون متصفح.
 - **`/profile-update`** — تحليل وتخطيط تحسينات البروفايل عبر المنصات بوضع `DRAFT_ONLY` ومخطط مُتحقق منه.
+- **`/github-audit`** — تدقيق شامل لمستودعات GitHub عبر `gh` CLI، واستخراج مشاريع موثّقة للسيرة الذاتية (`context/github-projects.md`)، وتحسين الـ README وتنظيف المستودعات بأمان.
 - **`/setup` ← `/daily-run`** — النظام الكامل الاختياري عند الحاجة لأتمتة المتصفح.
 
 ---
@@ -184,6 +185,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 |---|---|---|
 | **تفصيل سيرة ذاتية موثّق** | `/quick-tailor` أو `/tailor-cv` أو طلب طبيعي | `HTML + TXT + .doc` متوافق مع Word (بدون تزوير `.docx`)، خريطة أدلة، مقارنة كلمات ATS، عزل `True Gaps`، والحفاظ على الملف الأصلي |
 | **محرك ذكاء البروفايل** | `/profile-update` أو *"حسّن ملفي المهني"* | تدقيق من 7 معايير عبر `linkedin` و`wellfound` و`ats` و`job_boards` و`portfolio` ووضع `generic` الاحتياطي، وخطة `DRAFT_ONLY` (`add`/`replace` فقط بلا `remove`) والتحقق بالقراءة بعد الحفظ |
+| **تدقيق وتسويق GitHub واستخراج مشاريع CV** | `/github-audit` أو *"دقّق مستودعات GitHub"* | فحص شامل عبر `gh` CLI، واستخراج مشاريع موثّقة من الكود إلى `context/github-projects.md` (مع عزل الأرقام غير المؤكدة)، وتحسين الوصف والـ README بوضع `DRAFT_ONLY`، وتنظيف متدرّج (`private`/`archive` أولًا ثم تأكيد `DELETE <owner>/<repo>` لكل مستودع) |
 | **نمو وSEO لينكدإن** | `/linkedin-growth` | فصل صارم بين القراءة فقط، والمسودات `DRAFT_ONLY`، والتعديل الحي المشروط بـ `APPROVE` مع مسودات تواصل `<= 75` كلمة |
 | **اكتشاف متعدد المصادر وتجهيز ATS** | `/daily-run` أو `/apply-url <url>` | يدعم LinkedIn وWellfound وIndeed وGreenhouse وLever وAshby وWorkday وبوابات الشرق الأوسط وشبكات العقود B2B أو أي رابط وظيفة HTTPS مباشر |
 | **المقابلات والعروض والعقود** | طلب باللغة الطبيعية | `interview-dossier.md`، خطط اختبارات تقنية، مسودات تفاوض راتب، وتدقيق بنود عقود وNDA |

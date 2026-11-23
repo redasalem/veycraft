@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **GitHub CLI Intelligence, Recruiter Marketing, Tiered Cleanup & CV Project Extraction (`skills/11-portfolio-and-github-auditor.md` v2.0.0, `.agent/workflows/github-audit.md`, `commands/github-audit.md`, `bin/cli.mjs`, `bin/profile-intelligence.mjs`):** Upgraded Skill 11 to `requires_mcp: ["none"]` (`optional_mcp: ["playwright"]`) with full-account `gh` CLI inventory, code-verified `context/github-projects.md` project extraction (consumed by `skills/03` v2.2.0 and `skills/27` v1.2.0 with `requires_user_confirmation` & NDA isolation), `DRAFT_ONLY` -> `APPROVE` recruiter README/metadata polish with fresh `gh` read-back, tiered cleanup (`private`/`archive` first; blast-radius warning + per-repo typed `DELETE <owner>/<repo>` gate), dedicated `github-portfolio-audit` CLI route, and Test 11 regression coverage.
 - **Contributor Acceptance Contract, PR Bar & Synthetic Tailoring Notes Sample (`ACCEPTANCE.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `examples/outputs/sample-tailoring-notes.md`, `CONTRIBUTING.md`, `README.md`):** Added a human-readable contributor acceptance matrix mapping Veycraft non-negotiables (`A1–E1`) to CI/CLI checks, expanded the PR template with professionalism impact, risk/non-goals, and test-plan sections, and added a synthetic Evidence Map + domain-adaptive ATS Keyword Heatmap + True Gaps tailoring-notes reference grounded in `examples/sandbox-demo/demo-profile.md`.
 
 ### Changed

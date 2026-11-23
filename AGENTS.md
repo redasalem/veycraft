@@ -66,7 +66,7 @@ At the start of every session, read `AGENTS.md` and `skills/REGISTRY.md` first. 
   - `skills/08-follow-up-radar.md` — 7-day `applied` follow-up radar (`<= 75`-word drafts)
   - `skills/09-offer-negotiator.md` — Offer & B2B rate negotiation analysis (`DRAFT_ONLY`)
   - `skills/10-autonomous-scheduler-loop.md` — Scheduled `/loop` runner within `active_hours` & warm-up caps
-  - `skills/11-portfolio-and-github-auditor.md` — Pre-application GitHub & live portfolio audit
+  - `skills/11-portfolio-and-github-auditor.md` — `gh` CLI full-account GitHub audit (`/github-audit`), recruiter README/metadata polish (`DRAFT_ONLY` -> `APPROVE`), tiered safe repo cleanup (`private`/`archive` first, per-repo `DELETE <owner>/<repo>` gate), verified `context/github-projects.md` CV project extraction & live portfolio audit
   - `skills/12-recruiter-inbox-triage.md` — Recruiter reply triage, status update & slot drafting
   - `skills/13-company-due-diligence.md` — Tier A employer health badge, churn & scam vetting
   - `skills/14-privacy-pii-shield.md` — PII & credential redaction for demos, logs & commits

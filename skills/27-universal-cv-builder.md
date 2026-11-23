@@ -1,6 +1,6 @@
 ---
 name: universal-cv-builder
-version: "1.1.0"
+version: "1.2.0"
 description: Load whenever building, rebuilding, auditing, or iteratively updating a professional ATS-ready CV for ANY person (repo owner or third party, tech or non-tech, fresh graduate or senior, with or without an existing CV); enforces fixed step-by-step SOPs, fact-confirmation gates, field/seniority adaptation, persistent revision state, and multi-format verified output.
 triggers:
   - create a CV for someone or from scratch
@@ -47,6 +47,7 @@ Use as the canonical, fixed rulebook whenever creating a professional ATS-compli
   - **Batch 1 (Target & Identity):** Target job title(s), CV language (`EN` / `AR` / both), career stage (student/fresh grad, mid-level, senior, career switcher), full name, city/country, email, phone, and relevant links (LinkedIn/Portfolio/GitHub if applicable).
   - **Batch 2 (Experience / Internships / Volunteering):** For each role: organization, title, location, `YYYY-MM` start/end dates, core responsibilities, and any real numbers/outcomes (team size, volume, revenue, speed, customers—never guess).
   - **Batch 3 (Education, Projects & Skills):** Degree, university, graduation year, notable projects/courses/certifications, hard skills/tools, and spoken languages.
+- **GitHub Project Dossier Hook (When Available):** For repo-owner CVs where `context/github-projects.md` exists (never read owner `context/github-projects.md` for third-party CVs per Step 1 isolation; for isolated third-party GitHub audits, read only `logs/resumes/cv-<person-slug>/`), pull code-verified project dossiers to strengthen the Projects section — strictly holding back any `requires_user_confirmation` metrics and NDA/private repositories until explicitly confirmed by the user.
 - **Path B — Has an Existing CV (Diagnostic Audit & Gap-Fill):**
   - Ingest via the best local path (`skills/01-resume-ingestion.md` Tiers 1–4). If a PDF is scanned/image-only or unreadable, warn clearly and request pasted text or `.docx`/`.md`/`.txt`. Always preserve the original file untouched.
   - Present a concise **5-Point Diagnostic Audit** before rewriting: (1) ATS readability, (2) section order & relevance, (3) bullet strength (passive duties vs. impact), (4) missing scope/dates/metrics, (5) length/bloat/clichés.

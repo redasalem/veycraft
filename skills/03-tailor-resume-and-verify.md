@@ -1,6 +1,6 @@
 ---
 name: tailor-resume-and-verify
-version: "2.1.0"
+version: "2.2.0"
 description: Load when tailoring or revising a CV or cover letter (/quick-tailor, /tailor-cv, Tier A pre-generation, or standalone format conversion/edits); renders verified facts into templates/ats-resume-template.html, runs the Fact-Check Guard and Anti-AI Slop filter, writes and re-reads HTML/TXT/Word-compatible .doc (never fake .docx), and exports PDF optionally via Playwright MCP.
 triggers:
   - /tailor-cv <url>
@@ -47,6 +47,7 @@ Use for job-specific tailoring (`/quick-tailor`, `/tailor-cv`, Tier A pre-genera
 - Apply `skills/28-recruiter-brand-and-domain-intelligence.md` (Steps 1–3): identify the target **Domain Archetype**, extract the **Buyer Pain Point** (top 2–3 business problems to solve in 90 days), separate true knock-out screeners/credentials from HR wishlist fluff, and determine domain-appropriate section headings and KPI proof order (for standalone general improvements, optimize structure, clarity, and impact using only verified facts).
 - Copy `templates/ats-resume-template.html` to `logs/resumes/<folder>/resume.html`.
 - Populate ONLY verified owner facts from `context/` or confirmed session facts:
+  - If `context/github-projects.md` exists (owner CVs only), inspect it alongside `context/cv.md` and `context/resume-data.json` to select the strongest JD-matching, code-verified repositories — strictly excluding any `requires_user_confirmation` impact metrics until explicitly confirmed by the owner, and respecting private/NDA confidentiality flags.
   - Tailor the 2–3 sentence **Professional Summary** to answer the Buyer Pain Point using only verified roles, domain credentials, years, and outcomes relevant to the target role.
   - Reorder the skills section (using the domain-adaptive heading from `skills/28`, e.g., `Technical Skills`, `Core Competencies & Tools`, `Clinical Licensure & Competencies`, or `Credentials, Licensure & Systems`) so JD-matched verified competencies appear first (never add unverified JD items—record missing ones in `tailoring-notes.md`).
   - Reorder and lightly rephrase **Experience / Project** bullets using the **Proof Density Hierarchy** (`Quantified Business Outcome > Verified Operational Scope > Shipped Artifact/Deliverable > Credential/Tool`) while keeping exact employers, titles, `YYYY-MM` dates, and verified metrics intact, and applying truthful red-flag mitigation (for gaps, contract sprints, or pivots) without hiding dates.
@@ -55,7 +56,7 @@ Use for job-specific tailoring (`/quick-tailor`, `/tailor-cv`, Tier A pre-genera
 - **Cover Letter (ONLY if requested or required by the portal):** Copy `templates/ats-cover-letter-template.html` to `cover-letter.html` (~150–220 words, grounded facts only), show the exact text in chat, and wait for owner approval before final export/use.
 
 ### 2. Anti-Hallucination Fact-Check Guard (Mandatory Before Printing)
-Compare EVERY claim in `resume.html` (and `cover-letter.html`) line-by-line against `context/profile.md` and `context/resume-data.json`:
+Compare EVERY claim in `resume.html` (and `cover-letter.html`) line-by-line against `context/profile.md`, `context/resume-data.json`, and (when present for owner CVs) code-verified entries in `context/github-projects.md`:
 - **Numbers & Metrics:** Check every percentage (`%`), currency figure (`$`, `€`, `£`), multiplier (`3x`, `10x`), user/team headcount, and years-of-experience number. If ANY number does not exist in `context/profile.md` or `context/resume-data.json`, **BLOCK that unverified number**, revert to truthful qualitative phrasing, and **ask the owner in the same reply** whether they want to supply and confirm the real number (or accept an `EDIT` revision).
 - **Entities & Dates:** Check every employer name, job title, start/end date, university, degree, project name, and listed skill. Zero fabricated tools, inflated titles, or stretched dates. If the owner confirms a new real fact in chat, save it back to `context/profile.md` / `context/cv.md` before regenerating.
 

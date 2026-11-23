@@ -2558,13 +2558,27 @@ const ROUTE_RULES = [
         /\b(professional profile|career profile|job profile|job board profiles?|linkedin profile|github profile|portfolio profile|my profile|profile fields?|profiles? across|headline and about)\b/i.test(q) &&
         !/\bfind\b.*\bjobs?\b/i.test(q)
       ),
-    skills: ['profile-intelligence-engine', '01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
+    skills: ['profile-intelligence-engine', '01-resume-ingestion', '03-tailor-resume-and-verify', '11-portfolio-and-github-auditor', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: '.agent/workflows/profile-update.md',
     readiness: 'task-specific (verified CV/profile facts + target role/goal; no /setup required)',
     required_inputs: ['verified CV/profile facts', 'target role, JD, or positioning goal'],
-    optional_tools: ['playwright (optional for live platform read, batch-fill, and read-back verification)'],
+    optional_tools: ['playwright (optional for live platform read, batch-fill, and read-back verification)', 'gh CLI (optional for GitHub repo audits, marketing edits, and safe cleanup)'],
     fallback: 'Works 100% offline as a DRAFT_ONLY Profile Update Plan (schemas/profile-update-plan.schema.json) from pasted/exported profile data',
     outputs: ['logs/insights/profile-update-plan-<platform>-YYYY-MM-DD.json', 'Consolidated field-level diff & truthful verification summary'],
+  },
+  {
+    intent: 'github-portfolio-audit',
+    match: q =>
+      /(^|\s)\/github-audit\b/i.test(q) ||
+      /\b(github audit|portfolio audit|audit (?:my )?(?:github|portfolio)|check (?:my )?portfolio links?|clean\s?up (?:my )?github|delete (?:junk|old|unused) repos?|archive (?:old|unused) repos?|extract (?:real )?projects from github|github readme|profile readme)\b/i.test(q) ||
+      (/\bgithub\b/i.test(q) && /\b(repos?|repositories|readme|topics?|pinned|archive|private|delete|clean\s?up|extract|audit|optimize|polish)\b/i.test(q)),
+    skills: ['11-portfolio-and-github-auditor', '01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
+    workflow: '.agent/workflows/github-audit.md',
+    readiness: 'task-specific (gh CLI auth or GitHub/portfolio URLs + target role/goal; no /setup or Playwright required)',
+    required_inputs: ['authenticated gh CLI session or GitHub/portfolio URLs', 'target role or positioning goal'],
+    optional_tools: ['gh CLI (for full repo inventory, codebase inspection, and APPROVE-gated edits/cleanup)', 'playwright (optional for live portfolio visual/link verification)'],
+    fallback: 'Works read-only from Playwright or pasted repo URLs/READMEs if gh CLI is unavailable; all mutations default to DRAFT_ONLY with APPROVE (and per-repo typed DELETE <owner>/<repo> for deletions)',
+    outputs: ['5-tier GitHub Inventory Scorecard', 'context/github-projects.md verified CV project dossier', 'DRAFT_ONLY Before/After marketing diff & tiered cleanup matrix'],
   },
   {
     intent: 'interview-prep',

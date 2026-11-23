@@ -20,7 +20,7 @@ Every skill in `veycraft` (`51` consolidated skills total: `33` core/career play
 | `08` | [`skills/08-follow-up-radar.md`](../skills/08-follow-up-radar.md) | 7-day `applied` follow-up radar (`<= 75`-word draft-only check-ins) |
 | `09` | [`skills/09-offer-negotiator.md`](../skills/09-offer-negotiator.md) | Salary & B2B hourly/monthly rate negotiation drafter (`DRAFT_ONLY`) |
 | `10` | [`skills/10-autonomous-scheduler-loop.md`](../skills/10-autonomous-scheduler-loop.md) | Scheduled `/loop` runner inside `active_hours` and Days 1–3 warm-up caps |
-| `11` | [`skills/11-portfolio-and-github-auditor.md`](../skills/11-portfolio-and-github-auditor.md) | Consolidated GitHub profile, pinned repository README, and live portfolio link auditor |
+| `11` | [`skills/11-portfolio-and-github-auditor.md`](../skills/11-portfolio-and-github-auditor.md) | `gh` CLI full-account GitHub auditor (`requires_mcp: none`, optional `playwright`), recruiter README/metadata marketing optimizer, tiered safe repo cleanup (`private`/`archive`/per-repo `DELETE` gate), verified `context/github-projects.md` CV extractor, and live portfolio link checker |
 | `12` | [`skills/12-recruiter-inbox-triage.md`](../skills/12-recruiter-inbox-triage.md) | Recruiter message classification, `logs/applications-log.json` status update, and slot drafting |
 | `13` | [`skills/13-company-due-diligence.md`](../skills/13-company-due-diligence.md) | Employer domain verification, layoff/repost churn signals, and `GREEN`/`YELLOW`/`RED` Health Badges |
 | `14` | [`skills/14-privacy-pii-shield.md`](../skills/14-privacy-pii-shield.md) | PII, token, cookie, and pre-commit redaction shield |

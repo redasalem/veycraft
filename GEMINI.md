@@ -15,7 +15,7 @@ This is a **Markdown-first career operations repository with a zero-dependency N
 - 7-day follow-up -> `skills/08-follow-up-radar.md`
 - Offer negotiation -> `skills/09-offer-negotiator.md`
 - Scheduled `/loop` -> `skills/10-autonomous-scheduler-loop.md`
-- Portfolio/GitHub audit -> `skills/11-portfolio-and-github-auditor.md`
+- `/github-audit` or GitHub/Portfolio audit, cleanup & CV extraction -> `skills/11-portfolio-and-github-auditor.md` (`gh` CLI inventory, `context/github-projects.md`, `DRAFT_ONLY` marketing diffs, `private`/`archive` first, per-repo typed `DELETE <owner>/<repo>` gate)
 - Recruiter inbox triage -> `skills/12-recruiter-inbox-triage.md`
 - Company due diligence -> `skills/13-company-due-diligence.md`
 - Privacy & PII redaction shield -> `skills/14-privacy-pii-shield.md`

@@ -132,6 +132,7 @@ test('2. Metadata parity: offline-capable skills never require Playwright/Notion
     'tailor-resume-and-verify',
     'outreach-and-interview-prep',
     'log-and-insights',
+    'portfolio-and-github-auditor',
     'recruiter-inbox-triage',
     'multilingual-adaptation',
     'linkedin-growth',
@@ -702,4 +703,69 @@ test('10. Recruiter, Brand & Domain Intelligence (Skill 28): routing, <= 7 cap, 
   assert.doesNotMatch(s03Text, /direct, practical peer engineer/i);
   assert.doesNotMatch(liText, /4 Proven Engineering Post Templates/);
   assert.match(s21Text, /Credentials, Licensure & Compliance/);
+});
+
+test('11. GitHub CLI Audit, Marketing Polish, Tiered Cleanup & CV Extraction (Skill 11 v2.0.0)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  // 1. Manifest parity for Skill 11 v2.0.0 & updated caller skill versions
+  const s11 = byName.get('portfolio-and-github-auditor');
+  assert.ok(s11, 'portfolio-and-github-auditor missing from skills-manifest.json');
+  assert.equal(s11.version, '2.0.0');
+  assert.equal(s11.path, 'skills/11-portfolio-and-github-auditor.md');
+  assert.deepEqual(s11.requires_mcp, ['none']);
+  assert.deepEqual(s11.optional_mcp, ['playwright']);
+  for (const dep of [
+    'resume-ingestion',
+    'tailor-resume-and-verify',
+    'recruiter-brand-and-domain-intelligence',
+    'privacy-pii-shield',
+    'prompt-injection-defense',
+    'meta-self-verification',
+  ]) {
+    assert.ok(s11.requires_skills.includes(dep), `Skill 11 manifest missing requires_skills dep: ${dep}`);
+  }
+  assert.equal(byName.get('tailor-resume-and-verify').version, '2.2.0');
+  assert.equal(byName.get('universal-cv-builder').version, '1.2.0');
+  assert.equal(byName.get('profile-intelligence-engine').version, '1.2.0');
+
+  // 2. CLI routing for github-portfolio-audit + non-regression on profile-intelligence
+  const routeExpectations = [
+    ['audit my github repos and extract projects for my CV', 'github-portfolio-audit'],
+    ['/github-audit', 'github-portfolio-audit'],
+    ['clean up my github repos', 'github-portfolio-audit'],
+    ['delete junk repos', 'github-portfolio-audit'],
+    ['optimize my github profile', 'profile-intelligence'],
+  ];
+  for (const [prompt, expectedIntent] of routeExpectations) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, expectedIntent, `Intent mismatch for "${prompt}"`);
+    assert.ok(parsed.skills.includes('11-portfolio-and-github-auditor'), `Missing 11-portfolio-and-github-auditor on "${prompt}"`);
+    assert.ok(parsed.skills.length <= 7, `Skill count > 7 for "${prompt}": ${parsed.skills.length}`);
+  }
+
+  // 3. Safety, truthfulness, cleanup gate & downstream CV read-hooks
+  const s11Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '11-portfolio-and-github-auditor.md'), 'utf8');
+  for (const clause of [
+    'DRAFT_ONLY',
+    'DELETE <owner>/<repo>',
+    'context/github-projects.md',
+    'requires_user_confirmation',
+    'Blast-Radius Warning',
+    'SEC-02',
+    'private',
+    'archive',
+  ]) {
+    assert.ok(s11Text.includes(clause), `skills/11 missing required safety/contract clause: ${clause}`);
+  }
+
+  const s03Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '03-tailor-resume-and-verify.md'), 'utf8');
+  const s27Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '27-universal-cv-builder.md'), 'utf8');
+  const piText = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'profile-intelligence-engine.md'), 'utf8');
+  assert.ok(s03Text.includes('context/github-projects.md'), 'skills/03 missing context/github-projects.md read-hook');
+  assert.ok(s27Text.includes('context/github-projects.md'), 'skills/27 missing context/github-projects.md read-hook');
+  assert.ok(piText.includes('skills/11-portfolio-and-github-auditor.md'), 'profile-intelligence-engine missing delegation note to skills/11');
 });

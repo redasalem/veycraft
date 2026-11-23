@@ -1,6 +1,6 @@
 ---
 name: profile-intelligence-engine
-version: "1.1.0"
+version: "1.2.0"
 description: Load when optimizing, auditing, syncing, or updating a professional profile across LinkedIn, job boards, ATS portals, or portfolios (/profile-update); normalizes profile data, drafts an evidence-grounded Profile Update Plan, maps fields via platform adapters, and supports batch fill with fresh read-back verification.
 triggers:
   - /profile-update
@@ -55,6 +55,7 @@ Shared, platform-agnostic intelligence layer for optimizing, updating, and verif
    - Resolve the target adapter via `bin/profile-intelligence.mjs` (`linkedin`, `wellfound`, `ats`, `job_boards`, `portfolio`, or conservative `generic` fallback).
    - Check declared capabilities (`read`, `draft`, `fill`, `save`, `verify`), `supported_sections`, `required_permissions`, and `limitations`. Unknown platforms default to read/draft preview only and never assume fill or save support.
    - Inspect only relevant sections through an authorized path (pasted text, PDF export, screenshot, or signed-in browser session using targeted extraction rather than dumping entire pages).
+   - **GitHub Repository & `gh` CLI Delegation:** While Profile Intelligence Engine handles additive (`add`/`replace`) profile field drafting across platforms including GitHub (`portfolio` adapter), full-account `gh` CLI repository audits, repo metadata/README marketing mutations, tiered repository cleanup (`private`/`archive`/gated `delete`), and `context/github-projects.md` project extraction delegate to `skills/11-portfolio-and-github-auditor.md`.
 3. **Evaluate Across 7 Domain-Adaptive Optimization Criteria (`skills/28` Lenses):**
    - First infer the target **Domain Archetype** and extract the **Buyer Pain Point** + mandatory credentials via `skills/28-recruiter-brand-and-domain-intelligence.md` (Steps 1–4), then score and diagnose fields using concrete HR & Recruiter-SEO heuristics:
      - **Relevance:** Prioritize verified experience and credentials solving the buyer pain point; separate true knock-outs from wishlist items.

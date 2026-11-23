@@ -133,7 +133,7 @@
     },
     {
       "name": "tailor-resume-and-verify",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "category": "core",
       "description": "Load when tailoring or revising a CV or cover letter (/quick-tailor, /tailor-cv, Tier A pre-generation, or standalone format conversion/edits); renders verified facts into templates/ats-resume-template.html, runs the Fact-Check Guard and Anti-AI Slop filter, writes and re-reads HTML/TXT/Word-compatible .doc (never fake .docx), and exports PDF optionally via Playwright MCP.",
       "triggers": [
@@ -162,7 +162,8 @@
         "evidence map links every tailored bullet and summary claim to an exact verified fact from confirmed candidate data",
         "fact-check audit confirmed 0 unverified percentages, currency amounts, multipliers, years, dates, employers, degrees, or tools",
         "humanized prose contains 0 banned AI-slop clichés and no em-dash overuse",
-        "page-overflow & character budget gate checked (clean 1-page A4 fit or balanced 2-page layout with zero <10-line orphan spill)"
+        "page-overflow & character budget gate checked (clean 1-page A4 fit or balanced 2-page layout with zero <10-line orphan spill)",
+        "saved HTML, TXT, Word-compatible .doc (never renamed .docx), and tailoring-notes.md in logs/resumes/<folder>/ were re-read to verify 0 placeholders and factual parity (plus resume.pdf <= 200 KB when PDF export is available, or Print-to-PDF guidance)"
       ],
       "path": "skills/03-tailor-resume-and-verify.md"
     },
@@ -382,28 +383,41 @@
     },
     {
       "name": "portfolio-and-github-auditor",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "category": "core",
-      "description": "Load when the owner asks to audit their GitHub profile, pinned repositories, or portfolio website before applying; checks live links, README quality, and bio alignment against target roles in context/preferences.yaml without inventing claims.",
+      "description": "Load when the owner asks to audit, optimize, clean up, archive, make private, or delete GitHub repositories via gh CLI, polish GitHub profile or flagship READMEs and repo metadata for recruiters, extract real GitHub projects for CV creation or tailoring, or verify live portfolio links (/github-audit).",
       "triggers": [
+        "/github-audit",
         "audit my GitHub or portfolio",
         "check portfolio links before applying",
-        "portfolio-auditor"
+        "portfolio-auditor",
+        "optimize my GitHub repos, profile README, topics, or pinned repos",
+        "clean up, archive, make private, or delete junk GitHub repos",
+        "extract real projects from GitHub for my CV"
       ],
       "requires_mcp": [
+        "none"
+      ],
+      "optional_mcp": [
         "playwright"
       ],
       "preconditions": [
-        "verified GitHub and/or portfolio URLs exist in context/profile.md or context/resume-data.json",
-        "target roles loaded from context/preferences.yaml"
+        "authenticated gh CLI session, verified GitHub/portfolio URLs in context/, or user-supplied repository links/READMEs",
+        "target roles or career positioning goal loaded from context/preferences.yaml or supplied in chat"
       ],
       "requires_skills": [
-        "resume-ingestion"
+        "resume-ingestion",
+        "tailor-resume-and-verify",
+        "recruiter-brand-and-domain-intelligence",
+        "privacy-pii-shield",
+        "prompt-injection-defense",
+        "meta-self-verification"
       ],
       "verification": [
-        "every link on the portfolio and GitHub profile was checked live (broken 404/error links flagged)",
-        "pinned repositories were audited for README clarity, live demo/screenshots, and stack alignment with target roles",
-        "concrete prioritized fixes were presented in chat without inventing project metrics or modifying remote repos unapproved"
+        "full repository inventory classified with SEC-02 owner isolation enforced and zero tokens or secrets printed",
+        "context/github-projects.md separates code-verified repository facts from requires_user_confirmation impact metrics and respects private/NDA confidentiality",
+        "all repo metadata, README, profile README, and bio drafts contain 0 banned AI clichés and 0 prose em-dashes, default to DRAFT_ONLY, and verify via fresh gh read-back after explicit APPROVE",
+        "cleanup recommends private or archive first, blocks gh repo delete without blast-radius check and per-repo typed DELETE <owner>/<repo> confirmation, and verifies live portfolio URLs"
       ],
       "path": "skills/11-portfolio-and-github-auditor.md"
     },
@@ -1130,7 +1144,7 @@
     },
     {
       "name": "on-demand-mcp-routing",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "core",
       "description": "Load at phase boundaries to minimize context bloat by routing MCP tool usage strictly on demand — using zero MCP tools for local JSON/Markdown phases (/weekly-report, rejection patterns, score calibration, PII audit) and invoking Playwright MCP or Notion MCP only in the exact browser or sync phases that require them.",
       "triggers": [
@@ -1360,7 +1374,7 @@
     },
     {
       "name": "universal-cv-builder",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "category": "core",
       "description": "Load whenever building, rebuilding, auditing, or iteratively updating a professional ATS-ready CV for ANY person (repo owner or third party, tech or non-tech, fresh graduate or senior, with or without an existing CV); enforces fixed step-by-step SOPs, fact-confirmation gates, field/seniority adaptation, persistent revision state, and multi-format verified output.",
       "triggers": [
@@ -1462,7 +1476,7 @@
     },
     {
       "name": "profile-intelligence-engine",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "category": "core",
       "description": "Load when optimizing, auditing, syncing, or updating a professional profile across LinkedIn, job boards, ATS portals, or portfolios (/profile-update); normalizes profile data, drafts an evidence-grounded Profile Update Plan, maps fields via platform adapters, and supports batch fill with fresh read-back verification.",
       "triggers": [
@@ -1493,7 +1507,8 @@
       "verification": [
         "every proposed claim traces to verified candidate evidence or is flagged needs_user_confirmation",
         "plan validated against schemas/profile-update-plan.schema.json via node ./bin/cli.mjs verify",
-        "existing profile content preserved (add/replace actions only; zero remove actions)"
+        "existing profile content preserved (add/replace actions only; zero remove actions)",
+        "fresh read-back verification confirms saved state before reporting verified"
       ],
       "path": "skills/profile-intelligence-engine.md"
     }
