@@ -256,8 +256,8 @@ npm run pack:check   # Verifies npm pack --dry-run tarball contents and zero PII
 node bin/cli.mjs doctor
 ```
 
-- **Documentation Index:** [`AGENTS.md`](AGENTS.md) · [`skills/REGISTRY.md`](skills/REGISTRY.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/SKILL_CATALOG.md`](docs/SKILL_CATALOG.md) · [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) · [`docs/chat-commands.md`](docs/chat-commands.md) · [`docs/execution-safety.md`](docs/execution-safety.md) · [`PLATFORMS.md`](PLATFORMS.md) · [`SECURITY.md`](SECURITY.md) · [`CHANGELOG.md`](CHANGELOG.md)
-- **Contribute:** See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`HIRED.md`](HIRED.md), or share an outcome via [Share Outcome Issue](https://github.com/redasalem/veycraft/issues/new?template=share-success.yml).
+- **Documentation Index:** [`AGENTS.md`](AGENTS.md) · [`skills/REGISTRY.md`](skills/REGISTRY.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/SKILL_CATALOG.md`](docs/SKILL_CATALOG.md) · [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) · [`docs/chat-commands.md`](docs/chat-commands.md) · [`docs/execution-safety.md`](docs/execution-safety.md) · [`ACCEPTANCE.md`](ACCEPTANCE.md) · [`examples/outputs/sample-tailoring-notes.md`](examples/outputs/sample-tailoring-notes.md) · [`PLATFORMS.md`](PLATFORMS.md) · [`SECURITY.md`](SECURITY.md) · [`CHANGELOG.md`](CHANGELOG.md)
+- **Contribute:** See [`CONTRIBUTING.md`](CONTRIBUTING.md), [`ACCEPTANCE.md`](ACCEPTANCE.md), and [`HIRED.md`](HIRED.md), or share an outcome via [Share Outcome Issue](https://github.com/redasalem/veycraft/issues/new?template=share-success.yml).
 
 ## License & Attribution
 

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Contributor Acceptance Contract, PR Bar & Synthetic Tailoring Notes Sample (`ACCEPTANCE.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `examples/outputs/sample-tailoring-notes.md`, `CONTRIBUTING.md`, `README.md`):** Added a human-readable contributor acceptance matrix mapping Veycraft non-negotiables (`A1–E1`) to CI/CLI checks, expanded the PR template with professionalism impact, risk/non-goals, and test-plan sections, and added a synthetic Evidence Map + domain-adaptive ATS Keyword Heatmap + True Gaps tailoring-notes reference grounded in `examples/sandbox-demo/demo-profile.md`.
+
 ### Changed
 - **Anti-Slop Contract Alignment & Stricter `pre-submit` (`bin/cli.mjs`, `bin/profile-intelligence.mjs`, `evals/fixtures/ground-truth.json`, `evals/results/baseline-verified-run.json`, `skills/03-tailor-resume-and-verify.md`, `config/invariants.txt`, `docs/execution-safety.md`):** Unified the 19-item banned AI-cliché list across CLI/career/profile modules, eval fixtures, and the tailoring playbook; upgraded `veycraft pre-submit --draft|--text` to hard-fail on prose em-dashes (`—`) alongside banned clichés (aligned with `veycraft verify`); and expanded `< 500`-byte Veycraft pre-submit invariants with Evidence Map / True Gaps, anti-slop, and untrusted-JD rules.
 
