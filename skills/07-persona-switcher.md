@@ -1,7 +1,7 @@
 ---
 name: persona-switcher
-version: "1.0.0"
-description: Load when the owner maintains multiple target tracks (e.g., Fullstack Engineer, AI Agent Engineer, B2B Contractor) in context/personas/ and asks to switch active persona, CV focus, target roles, or rate floors in chat.
+version: "1.1.0"
+description: Load when the owner maintains multiple target tracks across any industry or seniority in context/personas/ and asks to switch active persona, domain archetype, CV focus, target roles, or rate floors in chat.
 triggers:
   - switch persona to <name>
   - list personas
@@ -13,32 +13,33 @@ preconditions:
   - persona definitions live under context/personas/ (private, gitignored)
 requires_skills:
   - interrogate-and-onboard
+  - recruiter-brand-and-domain-intelligence
 verification:
-  - active persona name, target roles, rate floor, and CV emphasis match an owner-confirmed file under context/personas/
-  - no unverified skills, employers, or inflated years were introduced when switching personas
+  - active persona name, domain archetype, target roles, KPI proof style, mandatory credentials, rate floor, and CV emphasis match an owner-confirmed file under context/personas/
+  - no unverified skills, credentials, employers, or inflated years were introduced when switching personas
   - context/preferences.yaml (or active session briefing) reflects the selected persona before discovery begins
 ---
 # Multi-Persona Career Switcher
 
 ## When to Use & Preconditions
 
-Use when a candidate applies across distinct tracks (for example: **Fullstack Engineer**, **AI Agent Engineer**, or **B2B Remote Contractor**) and needs tailored target roles, rate floors, and CV emphasis without overwriting their base facts.
+Use when a candidate applies across distinct tracks in any field (for example: **Enterprise Account Executive**, **Clinical Operations Lead**, **Product Manager**, **Fullstack Engineer**, or **B2B Consultant**) and needs tailored target roles, domain KPI framing, rate floors, and CV emphasis without overwriting their base facts.
 
 - **Load when:** `switch persona to <name>`; `list personas`; `create new persona`.
 - **Preconditions (stop if any is false):**
   - base owner-verified facts exist in `context/profile.md` and `context/cv.md`
   - persona definitions live under `context/personas/` (private, gitignored)
-- **Requires skills:** `interrogate-and-onboard`. **MCP:** none.
+- **Requires skills:** `interrogate-and-onboard`, `recruiter-brand-and-domain-intelligence`. **MCP:** none.
 
 ## Deterministic Step-by-Step Execution
 
 1. **Discover or initialize `context/personas/`:**
-   - Check `context/personas/*.md` (e.g., `fullstack-engineer.md`, `ai-agent-engineer.md`, `b2b-contractor.md`).
-   - If the owner asks to create a new persona, interview them in 3–4 questions for:
-     - Target role titles & seniority for this track
-     - Core verified skills to foreground (must exist in `context/cv.md` / `context/form-answers.yaml`)
-     - Compensation / B2B rate floor (hourly/monthly/annual + currency) and work-mode/region rules
-     - Voice/positioning summary (grounded strictly in verified projects)
+   - Check `context/personas/*.md` (e.g., `enterprise-ae.md`, `clinical-operations-lead.md`, `product-manager.md`, `fullstack-engineer.md`, `b2b-contractor.md`).
+   - If the owner asks to create a new persona, apply `skills/28-recruiter-brand-and-domain-intelligence.md` (Step 1) and interview them in 3–4 questions for:
+     - **Domain Archetype** (`Engineering/Data/AI`, `Product/Design`, `Sales/Marketing/Growth`, `Finance/Accounting/Legal/Risk`, `Healthcare/Clinical/Pharma`, `Operations/Supply Chain/HR`, or `Executive/Generalist`), target role titles, and seniority for this track
+     - **Domain KPI Proof Style & Core Verified Competencies** to foreground (must exist in `context/cv.md` / `context/form-answers.yaml`)
+     - **Mandatory Credentials / Licensure / Compliance Gates** required in this track (active verified licenses/certifications only)
+     - **Compensation / B2B Rate Floor** (hourly/monthly/annual + currency), work-mode/region rules, and grounded voice/positioning summary
    - Save the confirmed persona file to `context/personas/<slug>.md` (keep inside `context/` so `.gitignore` protects it).
 2. **Switch active persona in chat:**
    - Read the selected `context/personas/<slug>.md` file.

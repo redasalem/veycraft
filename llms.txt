@@ -1,12 +1,12 @@
 # Veycraft (`redasalem/veycraft`)
 
-> Truthful CV tailoring for the AI agent you already use — local-first, Markdown-first AI career operations framework (48 skills) with a zero-dependency Node.js CLI (`dependencies: {}`, `devDependencies: {}`), fact-checked resume diffs, ATS keyword comparison, explicit True Gaps, and unconditional job-specific human `APPROVE` gates. Works across 25+ AI coding apps & CLIs with optional Playwright MCP and optional Notion MCP.
+> Truthful CV tailoring for the AI agent you already use — local-first, Markdown-first AI career operations framework (51 skills) with a zero-dependency Node.js CLI (`dependencies: {}`, `devDependencies: {}`), fact-checked resume diffs, ATS keyword comparison, explicit True Gaps, and unconditional job-specific human `APPROVE` gates. Works across 25+ AI coding apps & CLIs with optional Playwright MCP and optional Notion MCP.
 
 ## Core Entrypoints
 
 - [AGENTS.md](AGENTS.md): Canonical rules, progressive disclosure protocol, strict daily-run execution order, and 10 non-negotiable guardrails.
-- [skills/REGISTRY.md](skills/REGISTRY.md): Consolidated 48-skill routing index (triggers, preconditions, verification contracts).
-- [skills/skills-manifest.json](skills/skills-manifest.json): Machine-readable JSON catalog of all 48 consolidated skills.
+- [skills/REGISTRY.md](skills/REGISTRY.md): Consolidated 51-skill routing index (triggers, preconditions, verification contracts).
+- [skills/skills-manifest.json](skills/skills-manifest.json): Machine-readable JSON catalog of all 51 consolidated skills.
 - [docs/execution-safety.md](docs/execution-safety.md): Explicit separation of deterministic CLI enforcement (`bin/cli.mjs`) vs. agent workflow requirements (`AGENTS.md`, `skills/*.md`).
 - [evals/README.md](evals/README.md) & [evals/RUBRIC.md](evals/RUBRIC.md): Deterministic CI schema & fixture validator (`npx github:redasalem/veycraft eval --baseline` or `--file <output.json>`).
 - [evals/PROMPT.md](evals/PROMPT.md): Zero-shot reproducible evaluation prompt for external LLMs.
@@ -47,7 +47,10 @@
 - [Circuit Breaker & Anti-Ban](skills/24-circuit-breaker-and-antiban.md): Immediate 24-hour platform cooldown on CAPTCHA, Cloudflare/DataDome, 429s, or forced login redirects.
 - [Prompt-Injection Defense](skills/25-prompt-injection-defense.md): Treats scraped JDs as untrusted data, blocks honeypots/injections, and surfaces benign recruiter attention checks.
 - [Deduplication & Blacklist Guard](skills/26-deduplication-and-blacklist-guard.md): Cross-channel `company::role_title` fingerprinting and employer/domain blacklists.
+- [Universal CV Builder](skills/27-universal-cv-builder.md): Universal CV builder and persistent iterative revision SOP for any person or field (with third-party workspace isolation).
+- [Recruiter, Personal Brand & Domain Intelligence](skills/28-recruiter-brand-and-domain-intelligence.md): Cross-cutting Senior HR JD decoder, 6-10s CV scan & truthful risk framing, LinkedIn Recruiter SEO, and dynamic multi-industry adapter.
 - [LinkedIn Growth & Recruiter-SEO Optimizer](skills/linkedin-growth.md): Grounded `0-100` LinkedIn profile audit and section-by-section optimizer (`DRAFT_ONLY` + `APPROVE` gate).
+- [Profile Intelligence Engine](skills/profile-intelligence-engine.md): Cross-platform Profile Intelligence Engine with schema-validated update plans, batch-fill, and fresh read-back verification.
 - [B2B Contract Networks](skills/platforms/b2b-contract-networks.md): Playbook for Toptal, Braintrust, Lemon.io, Gun.io, Contra, Arc.dev, and Turing.
 
 ## Examples & Adapters

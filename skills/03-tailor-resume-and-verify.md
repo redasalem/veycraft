@@ -1,6 +1,6 @@
 ---
 name: tailor-resume-and-verify
-version: "2.0.0"
+version: "2.1.0"
 description: Load when tailoring or revising a CV or cover letter (/quick-tailor, /tailor-cv, Tier A pre-generation, or standalone format conversion/edits); renders verified facts into templates/ats-resume-template.html, runs the Fact-Check Guard and Anti-AI Slop filter, writes and re-reads HTML/TXT/Word-compatible .doc (never fake .docx), and exports PDF optionally via Playwright MCP.
 triggers:
   - /tailor-cv <url>
@@ -18,6 +18,7 @@ preconditions:
 requires_skills:
   - resume-ingestion
   - ats-keyword-heatmap
+  - recruiter-brand-and-domain-intelligence
 verification:
   - evidence map links every tailored bullet and summary claim to an exact verified fact from confirmed candidate data
   - fact-check audit confirmed 0 unverified percentages, currency amounts, multipliers, years, dates, employers, degrees, or tools
@@ -37,18 +38,18 @@ Use for job-specific tailoring (`/quick-tailor`, `/tailor-cv`, Tier A pre-genera
 - **Preconditions (stop if any is false):**
   - verified candidate facts loaded from `context/` OR confirmed directly in the active session (`skills/01-resume-ingestion.md`)
   - full expanded job description captured (or standalone CV edit/conversion requested)
-- **Requires skills:** `resume-ingestion`, `ats-keyword-heatmap`. **MCP:** none (`playwright` optional for PDF export).
+- **Requires skills:** `resume-ingestion`, `ats-keyword-heatmap`, `recruiter-brand-and-domain-intelligence`. **MCP:** none (`playwright` optional for PDF export).
 
 ## Deterministic Step-by-Step Execution
 
 ### 1. Build the Evidence Map & Tailor `templates/ats-resume-template.html`
 - Create folder `logs/resumes/<company-slug>-<role-slug>-<job-id-slug>/` (or `logs/resumes/quick-tailor-<slug>/` / `logs/resumes/cv-<slug>/`).
-- Extract JD requirements, preferred skills, and location/seniority notes (for standalone general improvements, optimize structure, clarity, and impact using only verified facts).
+- Apply `skills/28-recruiter-brand-and-domain-intelligence.md` (Steps 1–3): identify the target **Domain Archetype**, extract the **Buyer Pain Point** (top 2–3 business problems to solve in 90 days), separate true knock-out screeners/credentials from HR wishlist fluff, and determine domain-appropriate section headings and KPI proof order (for standalone general improvements, optimize structure, clarity, and impact using only verified facts).
 - Copy `templates/ats-resume-template.html` to `logs/resumes/<folder>/resume.html`.
 - Populate ONLY verified owner facts from `context/` or confirmed session facts:
-  - Tailor the 2–3 sentence **Professional Summary** using only verified roles, years, and stacks relevant to the target role.
-  - Reorder **Technical Skills** so JD-matched verified skills appear first (never add unverified JD tools—record missing skills in `tailoring-notes.md`).
-  - Reorder and lightly rephrase **Experience / Project** bullets to highlight relevant work while keeping exact employers, titles, `YYYY-MM` dates, and verified metrics intact.
+  - Tailor the 2–3 sentence **Professional Summary** to answer the Buyer Pain Point using only verified roles, domain credentials, years, and outcomes relevant to the target role.
+  - Reorder the skills section (using the domain-adaptive heading from `skills/28`, e.g., `Technical Skills`, `Core Competencies & Tools`, `Clinical Licensure & Competencies`, or `Credentials, Licensure & Systems`) so JD-matched verified competencies appear first (never add unverified JD items—record missing ones in `tailoring-notes.md`).
+  - Reorder and lightly rephrase **Experience / Project** bullets using the **Proof Density Hierarchy** (`Quantified Business Outcome > Verified Operational Scope > Shipped Artifact/Deliverable > Credential/Tool`) while keeping exact employers, titles, `YYYY-MM` dates, and verified metrics intact, and applying truthful red-flag mitigation (for gaps, contract sprints, or pivots) without hiding dates.
   - Escape HTML special chars (`&`, `<`, `>`, `"`, `'`), keep single-column layout, remove empty sections, and NEVER add `<script>`, remote images/fonts, or hidden white text.
 - Write `logs/resumes/<folder>/tailoring-notes.md` with: **What JD asked** -> **What changed** -> **Evidence Map** -> **True Gaps (not claimed in CV)**.
 - **Cover Letter (ONLY if requested or required by the portal):** Copy `templates/ats-cover-letter-template.html` to `cover-letter.html` (~150–220 words, grounded facts only), show the exact text in chat, and wait for owner approval before final export/use.
@@ -62,12 +63,12 @@ Compare EVERY claim in `resume.html` (and `cover-letter.html`) line-by-line agai
 Scan every summary sentence, bullet, and cover-letter paragraph and rewrite if ANY of these appear:
 - **Banned AI clichés (case-insensitive; keep in sync with `bin/career-intelligence.mjs` `BANNED_AI_CLICHES` and `evals/fixtures/ground-truth.json`):** `delve`, `testament`, `tapestry`, `spearheaded`, `synergy`, `thrilled to apply`, `fast-paced environment`, `moreover`, `furthermore`, `leveraged`, `orchestrated`, `passionate about`, `dynamic environment`, `proven track record`, `hit the ground running`, `deeply excited`, `results-driven`, `seasoned professional`, `dynamic team player`.
 - **Banned em-dash overuse (`—`):** Use **0 em-dashes** inside prose sentences (use periods, commas, or parentheses; structural `Title — Employer` headings are fine).
-- **Tone rule:** Write like a direct, practical peer engineer using concrete technical nouns and active plain verbs (`built`, `shipped`, `cut`, `migrated`, `tested`, `debugged`).
+- **Tone rule:** Write in the authentic peer voice of the detected **Domain Archetype** (`skills/28-recruiter-brand-and-domain-intelligence.md` Step 1) using plain, concrete domain nouns and active verbs (`built`, `shipped`, `closed`, `audited`, `coordinated`, `reduced`, `delivered`).
 
 ### 4. Character/Bullet Budget & PDF Page-Overflow Gate (Print via Playwright MCP)
 - **Strict Character & Bullet Budgets (Prevent Awkward 2-Page Orphan Spills):**
   - **Professional Summary:** Max `3` lines (`<= 320` characters total).
-  - **Technical Skills:** Group into `3–4` compact category lines (`<= 95` characters per line).
+  - **Skills / Core Competencies:** Group into `3–4` compact category lines (`<= 95` characters per line).
   - **Experience & Projects:** Max `4–5` bullets for the two most recent relevant roles, `2–3` bullets for older roles; each bullet `<= 160` characters (`1–2` printed lines).
   - **Page-Count Gate:** Target a crisp **1-page A4 PDF** (`<= 38` rendered content lines) for `< 8` years of experience, or a well-balanced **2-page A4 PDF** (`>= 70%` fill on page 2) for senior/staff profiles. **Never allow an awkward 2-page overflow where page 2 contains only 1–8 orphan lines**—if overflow occurs, tighten bullet phrasing or trim the lowest-relevance older project bullet and re-render before saving!
 - **Export, Format Honesty & Post-Write Validation (Never Fail Silent on Missing PDF/DOCX Tools):**
@@ -103,10 +104,10 @@ Scan every summary sentence, bullet, and cover-letter paragraph and rewrite if A
 When generating local HTML/PDF resumes, enforce these ATS + visual polish rules:
 - **Layout:** Clean single-column structure, zero tables, zero multi-column sidebars, zero skill progress bars or icons.
 - **Typography & Spacing:** Use clean sans-serif fonts (`Inter`, `Segoe UI`, `Arial`, `Helvetica`), `10–10.5pt` body text, `1.4–1.45` line-height, `18–22pt` candidate name, and `@page { size: A4; margin: 12mm 14mm; }` for crisp print-to-PDF output.
-- **ATS Headings:** Stick to standard section titles (`Summary`, `Technical Skills`, `Professional Experience`, `Projects`, `Education`, `Certifications`, `Languages`).
-- **Bullet Quality:** Lead every bullet with a strong action verb, mirror exact verified JD keywords naturally, and keep each bullet concise (1–2 lines) with zero AI-slop clichés.
+- **ATS Headings:** Stick to domain-appropriate standard section titles per `skills/28-recruiter-brand-and-domain-intelligence.md` Step 1 (`Summary`, domain skills heading such as `Technical Skills` or `Core Competencies & Tools`, `Professional Experience`, optional `Selected Projects`/`Licenses & Certifications`, `Education`, `Languages`).
+- **Bullet Quality:** Lead every bullet with a strong action verb, mirror exact verified JD keywords naturally, follow the Proof Density Hierarchy, and keep each bullet concise (1–2 lines) with zero AI-slop clichés.
 
 ### Smart JD-to-CV Comparison & Top-Third Priority
 Before generating the final tailored CV:
-1. **Comparison Summary:** Present a concise 3-part breakdown: **Matched Keywords**, **Verified Gaps** (never fabricated), and **Highlighted Strengths**.
-2. **Top-Third Priority Re-ordering:** Re-order skills and selected projects so the most relevant stack and projects for the target JD appear in the top third of Page 1 (optimizing for the 6-second recruiter scan).
+1. **Comparison Summary:** Present a concise 3-part breakdown: **Matched Keywords**, **Verified Gaps** (never fabricated), and **Highlighted Strengths & Buyer Pain Alignment**.
+2. **Top-Third Priority Re-ordering:** Apply the **6–10 Second Recruiter Scan Hierarchy** (`skills/28` Step 3): ensure canonical target title alignment, Buyer Pain Point value proposition, and highest-proof domain competencies/deliverables sit in the top third of Page 1.

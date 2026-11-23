@@ -1,6 +1,6 @@
 ---
 name: profile-intelligence-engine
-version: "1.0.0"
+version: "1.1.0"
 description: Load when optimizing, auditing, syncing, or updating a professional profile across LinkedIn, job boards, ATS portals, or portfolios (/profile-update); normalizes profile data, drafts an evidence-grounded Profile Update Plan, maps fields via platform adapters, and supports batch fill with fresh read-back verification.
 triggers:
   - /profile-update
@@ -20,6 +20,7 @@ preconditions:
 requires_skills:
   - resume-ingestion
   - tailor-resume-and-verify
+  - recruiter-brand-and-domain-intelligence
   - meta-self-verification
 verification:
   - every proposed claim traces to verified candidate evidence or is flagged needs_user_confirmation
@@ -29,7 +30,7 @@ verification:
 ---
 # Profile Intelligence Engine
 
-Shared, platform-agnostic intelligence layer for optimizing, updating, and verifying professional profiles across LinkedIn, job boards, ATS forms, and portfolios. Orchestrates existing playbooks (`skills/linkedin-growth.md`, `skills/01-resume-ingestion.md`, `skills/03-tailor-resume-and-verify.md`, `skills/04-fill-and-apply.md`, `skills/18-condition-based-browser-waiting.md`, `skills/19-on-demand-mcp-routing.md`, `skills/24-circuit-breaker-and-antiban.md`, `skills/25-prompt-injection-defense.md`, `skills/meta-dom-recovery.md`, `skills/meta-self-verification.md`) without replacing or weakening them.
+Shared, platform-agnostic intelligence layer for optimizing, updating, and verifying professional profiles across LinkedIn, job boards, ATS forms, and portfolios. Orchestrates existing playbooks (`skills/linkedin-growth.md`, `skills/01-resume-ingestion.md`, `skills/03-tailor-resume-and-verify.md`, `skills/04-fill-and-apply.md`, `skills/28-recruiter-brand-and-domain-intelligence.md`, `skills/18-condition-based-browser-waiting.md`, `skills/19-on-demand-mcp-routing.md`, `skills/24-circuit-breaker-and-antiban.md`, `skills/25-prompt-injection-defense.md`, `skills/meta-dom-recovery.md`, `skills/meta-self-verification.md`) without replacing or weakening them.
 
 ## When to Use & Preconditions
 
@@ -54,10 +55,17 @@ Shared, platform-agnostic intelligence layer for optimizing, updating, and verif
    - Resolve the target adapter via `bin/profile-intelligence.mjs` (`linkedin`, `wellfound`, `ats`, `job_boards`, `portfolio`, or conservative `generic` fallback).
    - Check declared capabilities (`read`, `draft`, `fill`, `save`, `verify`), `supported_sections`, `required_permissions`, and `limitations`. Unknown platforms default to read/draft preview only and never assume fill or save support.
    - Inspect only relevant sections through an authorized path (pasted text, PDF export, screenshot, or signed-in browser session using targeted extraction rather than dumping entire pages).
-3. **Evaluate Across 7 Optimization Criteria:**
-   - Score and diagnose fields for **Relevance**, **Keyword coverage** (natural, zero stuffing), **Clarity**, **Impact** (evidence-backed), **Consistency** (zero CV/date contradictions), **Discoverability**, and **Quality** (removing redundancy, vagueness, or stale copy).
+3. **Evaluate Across 7 Domain-Adaptive Optimization Criteria (`skills/28` Lenses):**
+   - First infer the target **Domain Archetype** and extract the **Buyer Pain Point** + mandatory credentials via `skills/28-recruiter-brand-and-domain-intelligence.md` (Steps 1–4), then score and diagnose fields using concrete HR & Recruiter-SEO heuristics:
+     - **Relevance:** Prioritize verified experience and credentials solving the buyer pain point; separate true knock-outs from wishlist items.
+     - **Keyword coverage:** Align canonical **Experience titles**, **Recruiter Boolean** keywords (`(Title A OR B) AND (Core Skill 1 OR 2)`), spelling/casing, and Experience-linked skill tagging within platform caps (natural, zero stuffing).
+     - **Clarity:** Enforce 6–10s scanability above the fold (`<= 220` chars Headline/About hook) in domain-authentic peer tone.
+     - **Impact:** Rank claims by Proof Density Hierarchy (`Quantified Business Outcome > Verified Operational Scope > Shipped Artifact > Credential`), zero fabricated metrics.
+     - **Consistency:** Eliminate cross-platform CV/LinkedIn/board date, title, and credential contradictions while preserving honest risk-framing labels without hiding dates.
+     - **Discoverability:** Surface domain authority sections (`Licenses & Certifications`, `Publications`, `Services`, `Featured`, `Projects`) and `Open to Work (Recruiters only)` cues where supported.
+     - **Quality:** Remove redundancy, passive duty filler, and AI-slop clichés while keeping `add` / `replace`-only plan actions.
    - **PDF-Import OCR & Date-Conflict Guard:** On job boards that auto-import CVs (e.g., Wellfound), scan for OCR typos (`Al -> AI`, `Ul -> UI`), duplicate employer/education entries, and unverified template skills. Never silently delete entries or alter conflicting dates across CV, LinkedIn, and job boards—flag them with `requires_confirmation: true` first.
-   - When a target JD is supplied: extract requirements/keywords, compare against verified vault facts, list strengths/gaps/mismatches, prioritize high-impact fields, tailor without inventing qualifications, and explain material edits concisely.
+   - When a target JD is supplied: extract requirements/keywords via `skills/28` Step 2, compare against verified vault facts, list strengths/gaps/mismatches, prioritize high-impact fields, tailor without inventing qualifications, and explain material edits concisely.
 4. **Build & Validate the Profile Update Plan:**
    - Generate one comprehensive plan conforming to `schemas/profile-update-plan.schema.json` and save it to `logs/insights/profile-update-plan-<platform>-YYYY-MM-DD.json`.
    - Skip unchanged fields (record them in `skipped_unchanged` rather than emitting redundant edits).

@@ -16,7 +16,7 @@ You find relevant jobs, score them honestly against the owner's CV, apply only w
 ## Universal Guided Workflow Contracts
 
 ### 1. Natural-Language Task Router & Task-Specific Readiness
-Users describe goals naturally without needing slash commands or internal architecture knowledge. Route every request via the **Natural-Language Intent Router** in `skills/REGISTRY.md` to the **smallest relevant group of skills** (never load all 50 skills).
+Users describe goals naturally without needing slash commands or internal architecture knowledge. Route every request via the **Natural-Language Intent Router** in `skills/REGISTRY.md` to the **smallest relevant group of skills** (never load all 51 skills).
 - **Task-specific readiness (never force `/setup` unnecessarily):** Require full 5-gate readiness (`skills/00-interrogate-and-onboard.md`) **only** for `/setup`, `/daily-run`, and live automated ATS submission. Standalone tasks—CV upload/review/edit/creation, `/quick-tailor`, `/tailor-cv`, LinkedIn review/drafts, standalone JD analysis/ranking, interview prep, offer/contract review, and local tracking/reports—execute independently with only the inputs needed for that task.
 
 ### 2. Universal Conversational Contract
@@ -76,13 +76,14 @@ At the start of every session, read `AGENTS.md` and `skills/REGISTRY.md` first. 
   - `skills/18-condition-based-browser-waiting.md` — Snapshot condition checks & `Role -> Label -> Placeholder -> Text` priority
   - `skills/19-on-demand-mcp-routing.md` — Strict phase-based MCP loading to eliminate token bloat
   - `skills/20-skill-authoring-standard.md` — Anthropic/agentskills.io/TDD contributor authoring & CI verification standard
-  - `skills/21-ats-keyword-heatmap.md` — Deterministic Before vs. After ATS keyword coverage table (`Hard Skills`, `Tools/Infra`, `Domain Terms`, `Seniority Signals`)
+  - `skills/21-ats-keyword-heatmap.md` — Deterministic Before vs. After ATS keyword coverage table (`Core Domain Skills & Methodologies`, `Tools, Platforms & Systems`, `Credentials, Licensure & Compliance`, `Business Outcomes & Scope Signals`)
   - `skills/22-technical-assessment-architect.md` — Take-home assignment & system design blueprint, edge-case checklist & live defense Q&A
   - `skills/23-contract-and-nda-auditor.md` — Employment contract, B2B MSA & NDA red-flag clause auditor & counter-clause drafter
   - `skills/24-circuit-breaker-and-antiban.md` — Anti-bot circuit breaker & 24-hour platform cooldown (`logs/circuit-breaker.json`)
   - `skills/25-prompt-injection-defense.md` — Untrusted-DOM prompt-injection defense, honeypot guard & recruiter attention-check detector
   - `skills/26-deduplication-and-blacklist-guard.md` — Employer/domain blacklist & cross-channel canonical job fingerprinting (`company::role_title`)
   - `skills/27-universal-cv-builder.md` — Universal professional CV builder & persistent iterative-revision SOP for any person/field (with or without an existing CV; isolates third-party CVs under `logs/resumes/cv-<slug>/`)
+  - `skills/28-recruiter-brand-and-domain-intelligence.md` — Cross-cutting Senior HR JD decoder, 6–10s CV scan & truthful risk framing, LinkedIn Recruiter SEO & dynamic multi-industry adapter
   - `skills/linkedin-growth.md` — Grounded 0–100 Recruiter-SEO LinkedIn profile audit & optimization (`/linkedin-growth`, `DRAFT_ONLY` + `APPROVE` gate)
   - `skills/profile-intelligence-engine.md` — Shared Profile Intelligence Engine (`/profile-update`, cross-platform profile audit, `schemas/profile-update-plan.schema.json`, `DRAFT_ONLY` consolidated diff, batch-fill & read-back verification)
   - `skills/platforms/b2b-contract-networks.md` — Curated B2B contract networks (Toptal, Braintrust, Lemon.io, Gun.io, Contra, Arc.dev, Turing)

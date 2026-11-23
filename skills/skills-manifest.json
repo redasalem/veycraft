@@ -99,7 +99,7 @@
     },
     {
       "name": "discover-and-triage",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "category": "core",
       "description": "Load when finding suitable jobs across platforms, analyzing or comparing/ranking job descriptions, or running /daily-run and /apply-url; filters ghost/expired postings, scores 0-10 with evidence, and displays Mission Control before any Apply click (with URL/pasted-JD/screenshot fallback when live browsing is unavailable).",
       "triggers": [
@@ -118,6 +118,7 @@
       ],
       "requires_skills": [
         "interrogate-and-onboard",
+        "recruiter-brand-and-domain-intelligence",
         "tailor-resume-and-verify",
         "log-and-insights",
         "meta-dom-recovery"
@@ -132,7 +133,7 @@
     },
     {
       "name": "tailor-resume-and-verify",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "category": "core",
       "description": "Load when tailoring or revising a CV or cover letter (/quick-tailor, /tailor-cv, Tier A pre-generation, or standalone format conversion/edits); renders verified facts into templates/ats-resume-template.html, runs the Fact-Check Guard and Anti-AI Slop filter, writes and re-reads HTML/TXT/Word-compatible .doc (never fake .docx), and exports PDF optionally via Playwright MCP.",
       "triggers": [
@@ -154,14 +155,14 @@
       ],
       "requires_skills": [
         "resume-ingestion",
-        "ats-keyword-heatmap"
+        "ats-keyword-heatmap",
+        "recruiter-brand-and-domain-intelligence"
       ],
       "verification": [
         "evidence map links every tailored bullet and summary claim to an exact verified fact from confirmed candidate data",
         "fact-check audit confirmed 0 unverified percentages, currency amounts, multipliers, years, dates, employers, degrees, or tools",
         "humanized prose contains 0 banned AI-slop clichés and no em-dash overuse",
-        "page-overflow & character budget gate checked (clean 1-page A4 fit or balanced 2-page layout with zero <10-line orphan spill)",
-        "saved HTML, TXT, Word-compatible .doc (never renamed .docx), and tailoring-notes.md in logs/resumes/<folder>/ were re-read to verify 0 placeholders and factual parity (plus resume.pdf <= 200 KB when PDF export is available, or Print-to-PDF guidance)"
+        "page-overflow & character budget gate checked (clean 1-page A4 fit or balanced 2-page layout with zero <10-line orphan spill)"
       ],
       "path": "skills/03-tailor-resume-and-verify.md"
     },
@@ -265,9 +266,9 @@
     },
     {
       "name": "persona-switcher",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "core",
-      "description": "Load when the owner maintains multiple target tracks (e.g., Fullstack Engineer, AI Agent Engineer, B2B Contractor) in context/personas/ and asks to switch active persona, CV focus, target roles, or rate floors in chat.",
+      "description": "Load when the owner maintains multiple target tracks across any industry or seniority in context/personas/ and asks to switch active persona, domain archetype, CV focus, target roles, or rate floors in chat.",
       "triggers": [
         "switch persona to <name>",
         "list personas",
@@ -281,11 +282,12 @@
         "persona definitions live under context/personas/ (private, gitignored)"
       ],
       "requires_skills": [
-        "interrogate-and-onboard"
+        "interrogate-and-onboard",
+        "recruiter-brand-and-domain-intelligence"
       ],
       "verification": [
-        "active persona name, target roles, rate floor, and CV emphasis match an owner-confirmed file under context/personas/",
-        "no unverified skills, employers, or inflated years were introduced when switching personas",
+        "active persona name, domain archetype, target roles, KPI proof style, mandatory credentials, rate floor, and CV emphasis match an owner-confirmed file under context/personas/",
+        "no unverified skills, credentials, employers, or inflated years were introduced when switching personas",
         "context/preferences.yaml (or active session briefing) reflects the selected persona before discovery begins"
       ],
       "path": "skills/07-persona-switcher.md"
@@ -1184,9 +1186,9 @@
     },
     {
       "name": "ats-keyword-heatmap",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "core",
-      "description": "Load before exporting any tailored resume PDF to compute and display a deterministic Before vs. After ATS Keyword Match % table across Hard Skills, Tools/Infra, Domain Terms, and Seniority Signals using only verified facts from context/cv.md.",
+      "description": "Load before exporting any tailored resume PDF to compute and display a deterministic Before vs. After ATS Keyword Match % table across domain-adaptive buckets (Core Domain Skills & Methodologies; Tools, Platforms & Systems; Credentials, Licensure & Compliance; Business Outcomes & Scope Signals) using only verified facts from context/cv.md.",
       "triggers": [
         "ATS keyword heatmap",
         "before vs after keyword match percentage",
@@ -1202,10 +1204,11 @@
       ],
       "requires_skills": [
         "tailor-resume-and-verify",
-        "discover-and-triage"
+        "discover-and-triage",
+        "recruiter-brand-and-domain-intelligence"
       ],
       "verification": [
-        "deterministic 4-row heatmap table (Hard Skills, Tools/Infra, Domain Terms, Seniority Signals) shows exact matched/total counts and Before % vs. After %",
+        "deterministic 4-row domain-adaptive heatmap table (Core Domain Skills & Methodologies; Tools, Platforms & Systems; Credentials, Licensure & Compliance; Business Outcomes & Scope Signals) shows exact matched/total counts and Before % vs. After %",
         "every newly surfaced keyword in the After column maps to a real verified fact in context/cv.md or context/profile.md",
         "missing keywords that the owner does not possess are listed transparently under True Gaps rather than hallucinated into the CV"
       ],
@@ -1357,7 +1360,7 @@
     },
     {
       "name": "universal-cv-builder",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "core",
       "description": "Load whenever building, rebuilding, auditing, or iteratively updating a professional ATS-ready CV for ANY person (repo owner or third party, tech or non-tech, fresh graduate or senior, with or without an existing CV); enforces fixed step-by-step SOPs, fact-confirmation gates, field/seniority adaptation, persistent revision state, and multi-format verified output.",
       "triggers": [
@@ -1378,6 +1381,7 @@
       "requires_skills": [
         "resume-ingestion",
         "tailor-resume-and-verify",
+        "recruiter-brand-and-domain-intelligence",
         "meta-self-verification"
       ],
       "verification": [
@@ -1389,16 +1393,48 @@
       "path": "skills/27-universal-cv-builder.md"
     },
     {
-      "name": "linkedin-growth",
-      "version": "1.3.0",
+      "name": "recruiter-brand-and-domain-intelligence",
+      "version": "1.0.0",
       "category": "core",
-      "description": "Load when the owner runs /linkedin-growth or asks to review their LinkedIn profile, improve headline/About/experience, align LinkedIn with their CV, optimize for target roles, or draft posts/<=75-word outreach; defaults to DRAFT_ONLY and permits live profile updates only with legitimate Playwright auth plus explicit APPROVE and post-save snapshot verification.",
+      "description": "Load whenever decoding or scoring job descriptions, tailoring or building CVs across any industry, switching career personas, or optimizing LinkedIn and cross-platform profiles with senior recruiter, hiring manager, personal-branding, and domain-adaptive lenses.",
+      "triggers": [
+        "decode job description with HR recruiter and hiring manager lens",
+        "adapt CV, persona, or profile to target domain or industry",
+        "optimize CV positioning or truthful red-flag framing for 6-10 second scan",
+        "optimize LinkedIn Recruiter SEO, Boolean alignment, and personal branding"
+      ],
+      "requires_mcp": [
+        "none"
+      ],
+      "preconditions": [
+        "verified candidate facts available in context/ or confirmed in the active session",
+        "target role, job description, CV, persona, or profile text supplied"
+      ],
+      "requires_skills": [
+        "meta-self-verification"
+      ],
+      "verification": [
+        "Domain Archetype detected dynamically from JD and context without assuming Software Engineering",
+        "JD True Knock-Out Screeners separated from HR Wishlist Inflation, organizational signals flagged, and Buyer Pain Point extracted",
+        "CV positioning enforces 6-10s scan hierarchy, Proof Density Hierarchy, and 100% truthful risk framing with zero fabricated facts",
+        "LinkedIn and profile positioning aligns canonical Experience titles, Recruiter Boolean keywords, 50-skill tagging, and authority surfaces using verified facts only"
+      ],
+      "path": "skills/28-recruiter-brand-and-domain-intelligence.md"
+    },
+    {
+      "name": "linkedin-growth",
+      "version": "2.1.0",
+      "category": "core",
+      "description": "Load when the owner runs /linkedin-growth or asks to review/optimize their LinkedIn profile, diagnose ranking & SEO errors, improve headline/About/experience/projects/skills, align LinkedIn with their CV, craft personal-brand marketing copy, or draft/publish LinkedIn posts & <=75-word outreach; defaults to DRAFT_ONLY and permits live updates/publishing only with legitimate browser auth plus explicit APPROVE and post-save snapshot verification.",
       "triggers": [
         "/linkedin-growth",
         "review or audit my LinkedIn profile",
         "improve my LinkedIn headline or About section",
         "make my LinkedIn profile consistent with my CV",
-        "optimize my LinkedIn profile for target roles"
+        "optimize my LinkedIn profile for target roles",
+        "check my LinkedIn rank, analytics, or profile errors",
+        "write or publish a LinkedIn post or personal-brand marketing copy",
+        "add open-source projects or optimize LinkedIn skills and Featured section"
       ],
       "requires_mcp": [
         "none"
@@ -1414,6 +1450,7 @@
       "requires_skills": [
         "tailor-resume-and-verify",
         "outreach-and-interview-prep",
+        "recruiter-brand-and-domain-intelligence",
         "meta-self-verification"
       ],
       "verification": [
@@ -1425,7 +1462,7 @@
     },
     {
       "name": "profile-intelligence-engine",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "core",
       "description": "Load when optimizing, auditing, syncing, or updating a professional profile across LinkedIn, job boards, ATS portals, or portfolios (/profile-update); normalizes profile data, drafts an evidence-grounded Profile Update Plan, maps fields via platform adapters, and supports batch fill with fresh read-back verification.",
       "triggers": [
@@ -1450,13 +1487,13 @@
       "requires_skills": [
         "resume-ingestion",
         "tailor-resume-and-verify",
+        "recruiter-brand-and-domain-intelligence",
         "meta-self-verification"
       ],
       "verification": [
         "every proposed claim traces to verified candidate evidence or is flagged needs_user_confirmation",
         "plan validated against schemas/profile-update-plan.schema.json via node ./bin/cli.mjs verify",
-        "existing profile content preserved (add/replace actions only; zero remove actions)",
-        "fresh read-back verification confirms saved state before reporting verified"
+        "existing profile content preserved (add/replace actions only; zero remove actions)"
       ],
       "path": "skills/profile-intelligence-engine.md"
     }

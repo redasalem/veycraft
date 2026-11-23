@@ -6,7 +6,7 @@
 
 [![Zero Core Dependencies](https://img.shields.io/badge/Core_CLI-0_NPM_Dependencies-2ea44f)](package.json)
 [![Node >= 18](https://img.shields.io/badge/Node-%3E%3D18-339933)](package.json)
-[![50 Markdown Skills](https://img.shields.io/badge/Skills-50_Markdown_Skills-167d60)](skills/REGISTRY.md)
+[![51 Markdown Skills](https://img.shields.io/badge/Skills-51_Markdown_Skills-167d60)](skills/REGISTRY.md)
 [![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
 
@@ -22,7 +22,7 @@
 
 - **صفر خبرات مختلقة:** كل رقم ومهارة وشركة وتاريخ يرتبط بحقائق مؤكدة من ملفك المحلي فقط.
 - **صفر إرسال أعمى:** وضع `dry_run: true` مفعّل افتراضيًا، وأي تقديم حي أو حفظ تعديل على البروفايل يتطلب موافقة بشرية صريحة (`APPROVE`).
-- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`dependencies: {}`, `devDependencies: {}`) مع 50 مهارة Markdown محمولة، بدون مفاتيح API خارجية أو خوادم سحابية.
+- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`dependencies: {}`, `devDependencies: {}`) مع 51 مهارة Markdown محمولة، بدون مفاتيح API خارجية أو خوادم سحابية.
 
 ---
 
@@ -198,7 +198,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | الأمر | الوظيفة |
 |---|---|
 | `veycraft --help` / `veycraft --version [--json]` | عرض دليل الاستخدام (قراءة فقط) أو الإصدار وبيانات الأصل |
-| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 50 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
+| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 51 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
 | `veycraft init [--global] [--force] [--ide <name>]` | تهيئة `~/.veycraft` (أو المجلد الحالي) وربط مهارات المحررات ومزامنة MCP دون حذف القواعد القائمة |
 | `veycraft route "<request>" [--json]` | توجيه أي طلب طبيعي (عربي أو إنجليزي) لأقل مجموعة مهارات مناسبة مع البديل الآمن |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |
