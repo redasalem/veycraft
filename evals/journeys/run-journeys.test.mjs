@@ -547,3 +547,97 @@ test('8. Developer Onboarding & Agent Discovery: clean uninitialized doctor --js
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('9. Anti-Slop Contract Parity & Pre-Submit Hardening (PR #5): unified 19 clichés, em-dash hard-fail, and compact Veycraft invariants', async () => {
+  const { pathToFileURL } = await import('node:url');
+  const binDir = path.dirname(CLI);
+  const { BANNED_AI_CLICHES } = await import(pathToFileURL(path.join(binDir, 'career-intelligence.mjs')).href);
+  const { DEFAULT_BANNED_CLICHES } = await import(pathToFileURL(path.join(binDir, 'profile-intelligence.mjs')).href);
+
+  const groundTruth = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json'), 'utf8'));
+  const baseline = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'evals', 'results', 'baseline-verified-run.json'), 'utf8'));
+  const tailorSkill = fs.readFileSync(path.join(REPO_ROOT, 'skills', '03-tailor-resume-and-verify.md'), 'utf8');
+  const invariantsText = fs.readFileSync(path.join(REPO_ROOT, 'config', 'invariants.txt'), 'utf8');
+
+  // 1. Canonical 19-item banned cliché parity across JS modules, eval fixtures, and tailoring playbook
+  const canonicalSet = [...new Set(BANNED_AI_CLICHES.map(s => s.toLowerCase()))].sort();
+  assert.equal(canonicalSet.length, 19);
+  assert.deepEqual([...new Set(DEFAULT_BANNED_CLICHES.map(s => s.toLowerCase()))].sort(), canonicalSet);
+  assert.deepEqual([...new Set(groundTruth.banned_ai_cliches.map(s => s.toLowerCase()))].sort(), canonicalSet);
+  assert.deepEqual([...new Set(baseline.banned_ai_cliches.map(s => s.toLowerCase()))].sort(), canonicalSet);
+
+  const bannedLine = tailorSkill.split(/\r?\n/).find(l => /Banned AI clichés/i.test(l));
+  assert.ok(bannedLine, 'skills/03-tailor-resume-and-verify.md must define Banned AI clichés line');
+  const skillCliches = [...bannedLine.matchAll(/`([^`]+)`/g)]
+    .map(m => m[1].toLowerCase())
+    .filter(tok => !tok.includes('/') && tok !== 'banned_ai_cliches');
+  assert.deepEqual([...new Set(skillCliches)].sort(), canonicalSet);
+
+  // 2. config/invariants.txt preserves Veycraft branding, stays < 500 bytes, and covers Safe Wedge invariants
+  const invBytes = Buffer.byteLength(invariantsText, 'utf8');
+  assert.ok(invBytes < 500, `config/invariants.txt must stay under 500 bytes (got ${invBytes})`);
+  assert.match(invariantsText, /^VEYCRAFT - PRE-SUBMIT INVARIANTS/m);
+  assert.doesNotMatch(invariantsText, /JOB HUNTER OS|\bjob-hunter\b/i);
+  assert.match(invariantsText, /Evidence Map/i);
+  assert.match(invariantsText, /True Gaps/i);
+  assert.match(invariantsText, /clichés\/em-dashes/i);
+  assert.match(invariantsText, /untrusted data/i);
+
+  // 3. pre-submit passes clean outreach, hard-fails banned clichés, and hard-fails prose em-dashes (—)
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-pr5-antislop-'));
+  try {
+    fs.mkdirSync(path.join(tmp, 'config'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'logs'), { recursive: true });
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'guardrails.yaml'), path.join(tmp, 'config', 'guardrails.yaml'));
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'invariants.txt'), path.join(tmp, 'config', 'invariants.txt'));
+
+    const cleanRes = runCli([
+      'pre-submit',
+      '--text',
+      'Hi hiring team, I applied for the Senior Backend role. I built Node.js and PostgreSQL payment APIs that cut p95 latency by 38%. Happy to share details.',
+      '--json',
+    ], tmp);
+    assert.equal(cleanRes.status, 0, cleanRes.stdout + cleanRes.stderr);
+    const cleanJson = JSON.parse(cleanRes.stdout);
+    assert.equal(cleanJson.allowed, true);
+    assert.equal(cleanJson.checks.draft.ok, true);
+    assert.equal(cleanJson.checks.draft.has_em_dash, false);
+    assert.deepEqual(cleanJson.checks.draft.banned_cliches, []);
+
+    const clicheRes = runCli([
+      'pre-submit',
+      '--text',
+      'Hi team, as a seasoned professional and dynamic team player, I am a results-driven engineer ready to join your team.',
+      '--json',
+    ], tmp);
+    assert.notEqual(clicheRes.status, 0, 'pre-submit must hard-fail outreach containing banned clichés');
+    const clicheJson = JSON.parse(clicheRes.stdout);
+    assert.equal(clicheJson.allowed, false);
+    assert.equal(clicheJson.checks.draft.ok, false);
+    assert.ok(clicheJson.violations.some(v => v.code === 'draft_banned_cliches'));
+    assert.ok(clicheJson.checks.draft.banned_cliches.includes('seasoned professional'));
+    assert.ok(clicheJson.checks.draft.banned_cliches.includes('dynamic team player'));
+    assert.ok(clicheJson.checks.draft.banned_cliches.includes('results-driven'));
+
+    const emDashRes = runCli([
+      'pre-submit',
+      '--text',
+      'Hi team, I built Node.js payment APIs — cutting p95 latency by 38% across 14 partner banks.',
+      '--json',
+    ], tmp);
+    assert.notEqual(emDashRes.status, 0, 'pre-submit must hard-fail outreach containing a prose em-dash');
+    const emDashJson = JSON.parse(emDashRes.stdout);
+    assert.equal(emDashJson.allowed, false);
+    assert.equal(emDashJson.checks.draft.ok, false);
+    assert.equal(emDashJson.checks.draft.has_em_dash, true);
+    assert.ok(emDashJson.violations.some(v => v.code === 'draft_prose_em_dash'));
+
+    const emDashDraftPath = path.join(tmp, 'logs', 'outreach-emdash.md');
+    fs.writeFileSync(emDashDraftPath, 'Hi team, I ship reliable TypeScript services — happy to chat.');
+    const emDashFileRes = runCli(['pre-submit', '--draft', 'logs/outreach-emdash.md'], tmp);
+    assert.notEqual(emDashFileRes.status, 0, 'pre-submit --draft must hard-fail on prose em-dash');
+    assert.match(emDashFileRes.stdout + emDashFileRes.stderr, /prose em-dash/i);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
