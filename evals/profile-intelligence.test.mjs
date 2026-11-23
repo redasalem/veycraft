@@ -256,14 +256,14 @@ test('5. Integration & regression: registry, manifest, wrappers, CLI route, and 
   try {
     const goodPath = path.join(tmp, 'good-plan.json');
     fs.writeFileSync(goodPath, JSON.stringify(makeValidPlan(), null, 2));
-    const goodRun = runCli(['verify', goodPath, '--facts', path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json')]);
+    const goodRun = runCli(['verify', goodPath, '--facts', path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json')], tmp);
     assert.equal(goodRun.status, 0, goodRun.stdout + goodRun.stderr);
 
     const badPlan = makeValidPlan();
     badPlan.changes[0].after = 'Built Kubernetes pipelines reducing cost by 99%.';
     const badPath = path.join(tmp, 'bad-plan.json');
     fs.writeFileSync(badPath, JSON.stringify(badPlan, null, 2));
-    const badRun = runCli(['verify', badPath, '--facts', path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json')]);
+    const badRun = runCli(['verify', badPath, '--facts', path.join(ROOT, 'evals', 'fixtures', 'ground-truth.json')], tmp);
     assert.notEqual(badRun.status, 0);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -516,11 +516,11 @@ test('10. Remediation — Partial verification outcomes, draft_only/review lifec
     assert.equal(engine.validateProfileVault(validVault).valid, true);
     const vPath = path.join(tmp, 'resume-data.json');
     fs.writeFileSync(vPath, JSON.stringify(validVault, null, 2));
-    assert.equal(runCli(['verify', vPath]).status, 0);
+    assert.equal(runCli(['verify', vPath], tmp).status, 0);
 
     const badVaultPath = path.join(tmp, 'bad-resume-data.json');
     fs.writeFileSync(badVaultPath, JSON.stringify({ fact_provenance: { verified_facts: [{ claim: 'Missing source' }] } }));
-    assert.notEqual(runCli(['verify', badVaultPath]).status, 0);
+    assert.notEqual(runCli(['verify', badVaultPath], tmp).status, 0);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

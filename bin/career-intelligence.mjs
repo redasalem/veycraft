@@ -433,6 +433,15 @@ export function validateApplicationLedger(records) {
       }
     }
 
+    const isThirdPartyRec = rec.provenance?.third_party_subject === true;
+    if (typeof rec.screenshot === 'string') {
+      const scCheck = validateSafeWorkspaceRelativePath(rec.screenshot, {
+        allowThirdParty: isThirdPartyRec,
+        label: `${label}.screenshot`,
+      });
+      if (!scCheck.valid) errors.push(scCheck.error);
+    }
+
     const statusInfo = normalizeStatus(rec.status);
     if (!statusInfo.valid) {
       errors.push(`${label}: unrecognized status "${rec.status}".`);
@@ -499,6 +508,15 @@ export function validateApplicationLedger(records) {
             errors.push(`${label}.cv_tailoring.${sKey} must be a string or null.`);
           }
         }
+        for (const relKey of ['tailored_folder_rel', 'tailoring_notes_rel']) {
+          if (typeof rec.cv_tailoring[relKey] === 'string') {
+            const pCheck = validateSafeWorkspaceRelativePath(rec.cv_tailoring[relKey], {
+              allowThirdParty: isThirdPartyRec,
+              label: `${label}.cv_tailoring.${relKey}`,
+            });
+            if (!pCheck.valid) errors.push(pCheck.error);
+          }
+        }
         for (const pctKey of ['ats_keyword_before_pct', 'ats_keyword_after_pct']) {
           const val = rec.cv_tailoring[pctKey];
           if (val !== undefined && val !== null && (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 100)) {
@@ -552,7 +570,15 @@ export function validateApplicationLedger(records) {
             errors.push(`${ivLabel}.scheduled_at must be a valid ISO-8601 date-time or null.`);
           }
           if (!isNullableString(iv.timezone)) errors.push(`${ivLabel}.timezone must be a string or null.`);
-          if (!isNullableString(iv.dossier_rel)) errors.push(`${ivLabel}.dossier_rel must be a string or null.`);
+          if (!isNullableString(iv.dossier_rel)) {
+            errors.push(`${ivLabel}.dossier_rel must be a string or null.`);
+          } else if (typeof iv.dossier_rel === 'string') {
+            const dCheck = validateSafeWorkspaceRelativePath(iv.dossier_rel, {
+              allowThirdParty: isThirdPartyRec,
+              label: `${ivLabel}.dossier_rel`,
+            });
+            if (!dCheck.valid) errors.push(dCheck.error);
+          }
           if (iv.notes !== undefined && typeof iv.notes !== 'string') errors.push(`${ivLabel}.notes must be a string.`);
           if (!INTERVIEW_STATUSES.has(iv.status)) errors.push(`${ivLabel}.status "${iv.status}" is invalid.`);
           if (!INTERVIEW_OUTCOMES.has(iv.outcome)) errors.push(`${ivLabel}.outcome "${iv.outcome}" is invalid.`);
@@ -578,7 +604,15 @@ export function validateApplicationLedger(records) {
               errors.push(`${aLabel}.${dtKey} must be a valid ISO-8601 date-time or null.`);
             }
           }
-          if (!isNullableString(asmt.blueprint_rel)) errors.push(`${aLabel}.blueprint_rel must be a string or null.`);
+          if (!isNullableString(asmt.blueprint_rel)) {
+            errors.push(`${aLabel}.blueprint_rel must be a string or null.`);
+          } else if (typeof asmt.blueprint_rel === 'string') {
+            const bCheck = validateSafeWorkspaceRelativePath(asmt.blueprint_rel, {
+              allowThirdParty: isThirdPartyRec,
+              label: `${aLabel}.blueprint_rel`,
+            });
+            if (!bCheck.valid) errors.push(bCheck.error);
+          }
           if (asmt.notes !== undefined && typeof asmt.notes !== 'string') errors.push(`${aLabel}.notes must be a string.`);
           if (!ASSESSMENT_STATUSES.has(asmt.status)) errors.push(`${aLabel}.status "${asmt.status}" is invalid.`);
           if (!ASSESSMENT_OUTCOMES.has(asmt.outcome)) errors.push(`${aLabel}.outcome "${asmt.outcome}" is invalid.`);
@@ -604,6 +638,12 @@ export function validateApplicationLedger(records) {
         }
         if (!isNullableString(rec.follow_up.draft_rel)) {
           errors.push(`${label}.follow_up.draft_rel must be a string or null.`);
+        } else if (typeof rec.follow_up.draft_rel === 'string') {
+          const drCheck = validateSafeWorkspaceRelativePath(rec.follow_up.draft_rel, {
+            allowThirdParty: isThirdPartyRec,
+            label: `${label}.follow_up.draft_rel`,
+          });
+          if (!drCheck.valid) errors.push(drCheck.error);
         }
       }
     }
@@ -768,6 +808,244 @@ export function isThirdPartyCvPath(relPath) {
   if (typeof relPath !== 'string') return false;
   const norm = relPath.replace(/\\/g, '/').toLowerCase();
   return /(?:^|\/)logs\/resumes\/cv-[^/]+/.test(norm);
+}
+
+export function validateSafeWorkspaceRelativePath(relPath, {
+  allowThirdParty = true,
+  label = 'relative path',
+} = {}) {
+  if (typeof relPath !== 'string' || !relPath.trim()) {
+    return { valid: false, normalized: null, error: `${label} must be a non-empty relative path string.` };
+  }
+  if (/[\x00-\x1f\x7f"<>|?*]/.test(relPath)) {
+    return { valid: false, normalized: null, error: `${label} contains forbidden control, quote, or wildcard characters.` };
+  }
+  const trimmed = relPath.trim();
+  if (trimmed.startsWith('/') || trimmed.startsWith('\\') || /^[A-Za-z]:/.test(trimmed)) {
+    return { valid: false, normalized: null, error: `${label} must be a workspace-relative path (absolute, drive-letter, or UNC paths are forbidden): "${relPath}".` };
+  }
+  const slashNorm = trimmed.replace(/\\/g, '/');
+  if (slashNorm.startsWith('/') || slashNorm.includes('//')) {
+    return { valid: false, normalized: null, error: `${label} contains invalid leading or empty path segments: "${relPath}".` };
+  }
+  const segments = slashNorm.split('/');
+  for (const seg of segments) {
+    if (!seg || seg === '.' || seg === '..') {
+      return { valid: false, normalized: null, error: `${label} must not contain "." or ".." traversal segments: "${relPath}".` };
+    }
+  }
+  const normalized = segments.join('/');
+  if (!allowThirdParty && isThirdPartyCvPath(normalized)) {
+    return { valid: false, normalized: null, error: `${label} references third-party CV path "${normalized}", which is isolated from owner records.` };
+  }
+  return { valid: true, normalized, error: null };
+}
+
+export function isSafeWorkspaceRelativePath(relPath, options = {}) {
+  return validateSafeWorkspaceRelativePath(relPath, options).valid;
+}
+
+export function classifyCvRegistryEntryOwnership(entry, byId) {
+  if (!isObj(entry) || !isNonEmptyString(entry.cv_version_id)) {
+    return { isOwner: false, reason: 'malformed_cv_entry' };
+  }
+  const visited = new Set();
+  let current = entry;
+
+  while (current !== null) {
+    if (!isObj(current) || !isNonEmptyString(current.cv_version_id)) {
+      return { isOwner: false, reason: 'malformed_cv_entry' };
+    }
+    const id = current.cv_version_id.trim();
+    if (visited.has(id)) {
+      return { isOwner: false, reason: 'cyclic_cv_ancestry' };
+    }
+    visited.add(id);
+
+    if (current.owner_scope !== 'owner') {
+      return { isOwner: false, reason: 'third_party_owner_scope' };
+    }
+    if (current.local_ref_rel !== undefined && current.local_ref_rel !== null) {
+      if (typeof current.local_ref_rel !== 'string' || isThirdPartyCvPath(current.local_ref_rel)) {
+        return { isOwner: false, reason: 'third_party_cv_path' };
+      }
+    }
+
+    if (current.base_cv_version_id === undefined || current.base_cv_version_id === null || current.base_cv_version_id === '') {
+      break;
+    }
+    if (typeof current.base_cv_version_id !== 'string' || current.base_cv_version_id.trim().length === 0) {
+      return { isOwner: false, reason: 'malformed_base_cv_version_id' };
+    }
+    const nextId = current.base_cv_version_id.trim();
+    const parent = byId instanceof Map ? byId.get(nextId) : null;
+    if (!parent) {
+      return { isOwner: false, reason: 'missing_base_cv_version_entry' };
+    }
+    current = parent;
+  }
+
+  return { isOwner: true, reason: null };
+}
+
+export function classifyApplicationOwnership(raw, cvVersionsRegistry = null) {
+  if (cvVersionsRegistry !== null && cvVersionsRegistry !== undefined) {
+    const regCheck = validateCvVersionsRegistry(cvVersionsRegistry);
+    if (!regCheck.valid) {
+      throw new Error(`Invalid CV versions registry: ${regCheck.errors.join('; ')}`);
+    }
+  }
+
+  if (!isObj(raw)) {
+    return { isOwner: false, isThirdPartyOrAmbiguous: false, reason: 'not_an_object' };
+  }
+
+  if (raw.provenance !== undefined && raw.provenance !== null) {
+    if (!isObj(raw.provenance)) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'malformed_provenance' };
+    }
+    if (raw.provenance.third_party_subject === true) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_provenance_flag' };
+    }
+    if (raw.provenance.third_party_subject !== undefined && raw.provenance.third_party_subject !== false) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'ambiguous_provenance_flag' };
+    }
+  }
+
+  if (raw.cv_tailoring !== undefined && raw.cv_tailoring !== null) {
+    if (!isObj(raw.cv_tailoring)) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'malformed_cv_tailoring' };
+    }
+    for (const relField of ['tailored_folder_rel', 'tailoring_notes_rel']) {
+      const relVal = raw.cv_tailoring[relField];
+      if (relVal !== undefined && relVal !== null) {
+        if (typeof relVal !== 'string' || (relVal.length > 0 && relVal.trim().length === 0) || isThirdPartyCvPath(relVal)) {
+          return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: `third_party_or_malformed_${relField}` };
+        }
+      }
+    }
+  }
+
+  if (raw.screenshot !== undefined && raw.screenshot !== null) {
+    if (typeof raw.screenshot !== 'string' || isThirdPartyCvPath(raw.screenshot)) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_screenshot' };
+    }
+  }
+  if (isObj(raw.follow_up) && raw.follow_up.draft_rel !== undefined && raw.follow_up.draft_rel !== null) {
+    if (typeof raw.follow_up.draft_rel !== 'string' || isThirdPartyCvPath(raw.follow_up.draft_rel)) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_draft_rel' };
+    }
+  }
+  if (Array.isArray(raw.interviews)) {
+    for (const iv of raw.interviews) {
+      if (isObj(iv) && iv.dossier_rel !== undefined && iv.dossier_rel !== null) {
+        if (typeof iv.dossier_rel !== 'string' || isThirdPartyCvPath(iv.dossier_rel)) {
+          return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_dossier_rel' };
+        }
+      }
+    }
+  }
+  if (Array.isArray(raw.assessments)) {
+    for (const asmt of raw.assessments) {
+      if (isObj(asmt) && asmt.blueprint_rel !== undefined && asmt.blueprint_rel !== null) {
+        if (typeof asmt.blueprint_rel !== 'string' || isThirdPartyCvPath(asmt.blueprint_rel)) {
+          return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_or_malformed_blueprint_rel' };
+        }
+      }
+    }
+  }
+
+  let cvId = null;
+  if (raw.cv_version_id !== undefined && raw.cv_version_id !== null) {
+    if (typeof raw.cv_version_id !== 'string' || (raw.cv_version_id.length > 0 && raw.cv_version_id.trim().length === 0)) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'malformed_cv_version_id' };
+    }
+    if (raw.cv_version_id.trim().length > 0) {
+      cvId = raw.cv_version_id.trim();
+      if (isThirdPartyCvPath(cvId)) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_cv_version_id' };
+      }
+    }
+  }
+
+  let baseCvId = null;
+  if (isObj(raw.cv_tailoring) && raw.cv_tailoring.base_cv_version_id !== undefined && raw.cv_tailoring.base_cv_version_id !== null) {
+    const rawBase = raw.cv_tailoring.base_cv_version_id;
+    if (typeof rawBase !== 'string' || (rawBase.length > 0 && rawBase.trim().length === 0)) {
+      return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'malformed_base_cv_version_id' };
+    }
+    if (rawBase.trim().length > 0) {
+      baseCvId = rawBase.trim();
+      if (isThirdPartyCvPath(baseCvId)) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'third_party_base_cv_version_id' };
+      }
+    }
+  }
+
+  if (cvVersionsRegistry !== null && cvVersionsRegistry !== undefined) {
+    const byId = new Map();
+    for (const v of cvVersionsRegistry.versions) {
+      if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+        byId.set(v.cv_version_id.trim(), v);
+      }
+    }
+
+    const appId = isUsableJobId(raw.job_id)
+      ? computeApplicationId(raw.job_id)
+      : (isNonEmptyString(raw.application_id) ? raw.application_id.trim() : null);
+    const jobKey = isUsableJobId(raw.job_id) ? normalizeJobIdKey(raw.job_id) : null;
+    for (const v of cvVersionsRegistry.versions) {
+      if (!classifyCvRegistryEntryOwnership(v, byId).isOwner) {
+        if (
+          (appId && Array.isArray(v.application_ids) && v.application_ids.includes(appId)) ||
+          (jobKey && isUsableJobId(v.tailoring_metadata?.target_job_id) && normalizeJobIdKey(v.tailoring_metadata.target_job_id) === jobKey)
+        ) {
+          return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'linked_from_third_party_cv_registry_entry' };
+        }
+      }
+    }
+
+    if (cvId !== null) {
+      const primary = byId.get(cvId);
+      if (!primary) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'missing_cv_version_in_registry' };
+      }
+      const ownCheck = classifyCvRegistryEntryOwnership(primary, byId);
+      if (!ownCheck.isOwner) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: ownCheck.reason };
+      }
+      if (isObj(raw.cv_tailoring) && typeof raw.cv_tailoring.is_tailored === 'boolean') {
+        const expectedKind = raw.cv_tailoring.is_tailored ? 'tailored' : 'generic';
+        if (primary.kind !== expectedKind) {
+          return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'conflicting_cv_kind' };
+        }
+      }
+    }
+
+    if (baseCvId !== null) {
+      const baseEntry = byId.get(baseCvId);
+      if (!baseEntry) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'missing_base_cv_version_in_registry' };
+      }
+      const baseCheck = classifyCvRegistryEntryOwnership(baseEntry, byId);
+      if (!baseCheck.isOwner) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: baseCheck.reason };
+      }
+      if (cvId !== null) {
+        const primary = byId.get(cvId);
+        const regBase = isNonEmptyString(primary?.base_cv_version_id) ? primary.base_cv_version_id.trim() : null;
+        if ((regBase !== null && regBase !== baseCvId) || (regBase === null && baseCvId !== primary.cv_version_id.trim())) {
+          return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'contradicting_base_cv_version_id' };
+        }
+      }
+    }
+  }
+
+  return { isOwner: true, isThirdPartyOrAmbiguous: false, reason: null };
+}
+
+export function isOwnerApplicationRecord(raw, cvVersionsRegistry = null) {
+  return classifyApplicationOwnership(raw, cvVersionsRegistry).isOwner;
 }
 
 export function registerCvVersion(registry, entry) {
@@ -1337,15 +1615,22 @@ export function listOwnerCvVersions(root, { home = os.homedir() } = {}) {
     registry = parsed;
   }
 
+  const byId = new Map();
+  for (const v of registry.versions) {
+    if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+      byId.set(v.cv_version_id.trim(), v);
+    }
+  }
+
   const linkedCounts = new Map();
   if (fs.existsSync(logPath)) {
     refuseSymlink(logPath, root, home);
     const rawApps = JSON.parse(fs.readFileSync(logPath, 'utf8'));
     const apps = Array.isArray(rawApps) ? rawApps : (isObj(rawApps) && Array.isArray(rawApps.applications) ? rawApps.applications : []);
     for (const app of apps) {
-      if (!isObj(app) || app.provenance?.third_party_subject === true) continue;
+      if (!isOwnerApplicationRecord(app, registryExists ? registry : null)) continue;
       if (isNonEmptyString(app.cv_version_id)) {
-        linkedCounts.set(app.cv_version_id, (linkedCounts.get(app.cv_version_id) || 0) + 1);
+        linkedCounts.set(app.cv_version_id.trim(), (linkedCounts.get(app.cv_version_id.trim()) || 0) + 1);
       }
     }
   }
@@ -1353,7 +1638,7 @@ export function listOwnerCvVersions(root, { home = os.homedir() } = {}) {
   const ownerVersions = [];
   let thirdPartyExcluded = 0;
   for (const v of registry.versions) {
-    if (v.owner_scope !== 'owner' || isThirdPartyCvPath(v.local_ref_rel)) {
+    if (!classifyCvRegistryEntryOwnership(v, byId).isOwner) {
       thirdPartyExcluded++;
       continue;
     }
@@ -1516,19 +1801,29 @@ export function computeCareerAnalytics(records, cvVersionsRegistry = null, { now
   }
   const periodSpec = parsePeriodSpec(period);
 
-  // Build owner-only CV version metadata lookup (strictly excluding third-party CVs)
+  // Build owner-only CV version metadata lookup (strictly validating registry and excluding third-party CVs + third-party ancestry)
   const cvMetaMap = new Map();
   let thirdPartyCvExcluded = 0;
-  if (isObj(cvVersionsRegistry) && Array.isArray(cvVersionsRegistry.versions)) {
+  if (cvVersionsRegistry !== null && cvVersionsRegistry !== undefined) {
+    const regCheck = validateCvVersionsRegistry(cvVersionsRegistry);
+    if (!regCheck.valid) {
+      throw new Error(`Invalid CV versions registry in computeCareerAnalytics: ${regCheck.errors.join('; ')}`);
+    }
+    const byId = new Map();
+    for (const v of cvVersionsRegistry.versions) {
+      if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+        byId.set(v.cv_version_id.trim(), v);
+      }
+    }
     for (const v of cvVersionsRegistry.versions) {
       if (!isObj(v) || !isNonEmptyString(v.cv_version_id)) continue;
-      if (v.owner_scope !== 'owner' || isThirdPartyCvPath(v.local_ref_rel)) {
+      if (!classifyCvRegistryEntryOwnership(v, byId).isOwner) {
         thirdPartyCvExcluded++;
         continue;
       }
-      cvMetaMap.set(v.cv_version_id, {
-        cv_version_id: v.cv_version_id,
-        label: v.label || v.cv_version_id,
+      cvMetaMap.set(v.cv_version_id.trim(), {
+        cv_version_id: v.cv_version_id.trim(),
+        label: v.label || v.cv_version_id.trim(),
         kind: v.kind || 'unknown',
       });
     }
@@ -1544,8 +1839,14 @@ export function computeCareerAnalytics(records, cvVersionsRegistry = null, { now
       dataQualityWarnings.push(`records[${i}]: skipped non-object entry.`);
       continue;
     }
-    if (raw.provenance?.third_party_subject === true) {
-      thirdPartyAppsExcluded++;
+    const own = classifyApplicationOwnership(raw, cvVersionsRegistry);
+    if (!own.isOwner) {
+      if (own.isThirdPartyOrAmbiguous) {
+        thirdPartyAppsExcluded++;
+        if (own.reason !== 'third_party_provenance_flag') {
+          dataQualityWarnings.push(`records[${i}]: excluded non-owner or unverified CV attribution record (${own.reason}).`);
+        }
+      }
       continue;
     }
     const st = normalizeStatus(raw.status);
@@ -2118,7 +2419,7 @@ export function summarizeCareerWorkspace(root, { home = os.homedir(), nowIso = n
   let pendingNotionSync = 0;
 
   for (const r of records) {
-    if (!isObj(r) || r.provenance?.third_party_subject === true) continue;
+    if (!isOwnerApplicationRecord(r, cvRegistry)) continue;
     const st = normalizeStatus(r.status);
     if (!st.valid) continue;
     if (Array.isArray(r.interviews) && r.interviews.length > 0) {
@@ -2292,6 +2593,38 @@ function assertWorkspacePathSafe(root, targetPath, { home = os.homedir(), label 
   }
   refuseSymlink(resolvedTarget, resolvedRoot, home);
   return resolvedTarget;
+}
+
+function assertOptionalSafeRelativeWorkspacePath(root, rawRelPath, {
+  home = os.homedir(),
+  allowThirdParty = false,
+  label = 'relative path',
+} = {}) {
+  if (rawRelPath === undefined || rawRelPath === null) return rawRelPath;
+  const check = validateSafeWorkspaceRelativePath(rawRelPath, { allowThirdParty, label });
+  if (!check.valid) {
+    throw new Error(check.error);
+  }
+  assertWorkspacePathSafe(root, check.normalized, { home, label });
+  return check.normalized;
+}
+
+function resolveSafeQueueRelativePath(root, candidateRel, fallbackRel, {
+  home = os.homedir(),
+  allowThirdParty = false,
+} = {}) {
+  if (isNonEmptyString(candidateRel)) {
+    const check = validateSafeWorkspaceRelativePath(candidateRel, { allowThirdParty });
+    if (check.valid) {
+      try {
+        assertWorkspacePathSafe(root, check.normalized, { home });
+        return check.normalized;
+      } catch {
+        // Fall back to canonical safe path if symlink or boundary violation is detected
+      }
+    }
+  }
+  return fallbackRel;
 }
 
 function getLedgerLockPath(root) {
@@ -2864,10 +3197,10 @@ function readCircuitBreaker(root, { home = os.homedir() } = {}) {
   return isObj(parsed) ? parsed : null;
 }
 
-function collectDistinctNonAbortedRunDates(root, records, { home = os.homedir() } = {}) {
+function collectDistinctNonAbortedRunDates(root, records, { home = os.homedir(), cvRegistry = null } = {}) {
   const runDates = new Set();
   for (const r of records) {
-    if (!isObj(r) || r.provenance?.third_party_subject === true) continue;
+    if (!isOwnerApplicationRecord(r, cvRegistry)) continue;
     const st = normalizeStatus(r.status);
     if (!st.valid) continue;
     const isSubmitted = SUBMITTED_STATUS_SET.has(st.canonical);
@@ -2924,6 +3257,7 @@ export function evaluatePreSubmitGate(root, candidate = {}, {
   sourceRoot = null,
   nowIso = new Date().toISOString(),
   recordsOverride = null,
+  cvRegistryOverride = undefined,
 } = {}) {
   if (!isValidIsoDateTime(nowIso)) {
     throw new Error(`evaluatePreSubmitGate: invalid nowIso "${nowIso}".`);
@@ -2933,10 +3267,17 @@ export function evaluatePreSubmitGate(root, candidate = {}, {
   const records = recordsOverride !== null
     ? recordsOverride
     : readValidatedApplicationsLedger(resolvedRoot, { home }).records;
+  let cvRegistry = null;
+  if (cvRegistryOverride !== undefined) {
+    cvRegistry = cvRegistryOverride;
+  } else {
+    const cvLoaded = readValidatedCvRegistry(resolvedRoot, { home });
+    cvRegistry = cvLoaded.exists ? cvLoaded.registry : null;
+  }
 
   const todayStr = nowIso.slice(0, 10);
   const nowMs = Date.parse(nowIso);
-  const runDates = collectDistinctNonAbortedRunDates(resolvedRoot, records, { home });
+  const runDates = collectDistinctNonAbortedRunDates(resolvedRoot, records, { home, cvRegistry });
   const warmupActive = guardrails.warmup_enabled && runDates.size < guardrails.warmup_stage_days;
   const effectiveCap = warmupActive
     ? Math.min(guardrails.warmup_initial_cap, guardrails.max_applications_per_day)
@@ -2947,7 +3288,7 @@ export function evaluatePreSubmitGate(root, candidate = {}, {
   const platformTodayCounts = new Map();
 
   for (const r of records) {
-    if (!isObj(r) || r.provenance?.third_party_subject === true) continue;
+    if (!isOwnerApplicationRecord(r, cvRegistry)) continue;
     const st = normalizeStatus(r.status);
     if (!st.valid) continue;
     const isSubmitted = SUBMITTED_STATUS_SET.has(st.canonical);
@@ -3075,7 +3416,7 @@ export function evaluatePreSubmitGate(root, candidate = {}, {
   if (candJobIdKey || candCanonUrl || candFingerprint) {
     const matches = [];
     for (const r of records) {
-      if (!isObj(r) || r.provenance?.third_party_subject === true) continue;
+      if (!isOwnerApplicationRecord(r, cvRegistry)) continue;
       const st = normalizeStatus(r.status);
       if (!st.valid) continue;
       const isActive = SUBMITTED_STATUS_SET.has(st.canonical) || r.submission_uncertain === true;
@@ -3314,6 +3655,13 @@ export function recordApplication(root, input, {
     }
 
     const thirdParty = input.third_party_subject === true || existing?.provenance?.third_party_subject === true;
+    const validatedScreenshot = input.screenshot !== undefined
+      ? assertOptionalSafeRelativeWorkspacePath(resolvedRoot, input.screenshot, {
+        home,
+        allowThirdParty: thirdParty,
+        label: 'screenshot path',
+      })
+      : (existing?.screenshot ?? null);
     const nextRec = normalizeApplicationRecord({
       ...(existing || {}),
       job_id: existing ? existing.job_id : input.job_id.trim(),
@@ -3336,7 +3684,7 @@ export function recordApplication(root, input, {
       missing_skills: Array.isArray(input.missing_skills) ? [...new Set(input.missing_skills)] : (existing?.missing_skills ?? []),
       open_questions: Array.isArray(input.open_questions) ? input.open_questions : (existing?.open_questions ?? []),
       persona_id: input.persona_id !== undefined ? input.persona_id : (existing?.persona_id ?? null),
-      screenshot: input.screenshot !== undefined ? input.screenshot : (existing?.screenshot ?? null),
+      screenshot: validatedScreenshot,
       notes: input.notes !== undefined ? String(input.notes) : (existing?.notes ?? ''),
       submission_uncertain: false,
       canonical_fingerprint: fingerprint,
@@ -3600,13 +3948,22 @@ export function confirmApplicationSubmission(root, input, {
         last_error: null,
       };
 
+    const isThirdPartyConfirm = existing.provenance?.third_party_subject === true;
+    const validatedConfirmScreenshot = input.screenshot !== undefined
+      ? assertOptionalSafeRelativeWorkspacePath(resolvedRoot, input.screenshot, {
+        home,
+        allowThirdParty: isThirdPartyConfirm,
+        label: 'screenshot path',
+      })
+      : existing.screenshot;
+
     const nextRec = normalizeApplicationRecord({
       ...existing,
       status: 'applied',
       applied_at: appliedAt,
       updated_at: Date.parse(nowIso) >= Date.parse(appliedAt) ? nowIso : appliedAt,
       url: finalUrl,
-      screenshot: input.screenshot !== undefined ? input.screenshot : existing.screenshot,
+      screenshot: validatedConfirmScreenshot,
       cv_version_id: finalCvVersionId,
       cv_tailoring: nextCvTailoring,
       submission_uncertain: false,
@@ -3730,6 +4087,13 @@ export function transitionApplicationStage(root, input, {
       const ivId = isNonEmptyString(input.interview.interview_id)
         ? input.interview.interview_id.trim()
         : `iv_r${round}_${stage}`;
+      const validatedDossierRel = input.interview.dossier_rel !== undefined
+        ? assertOptionalSafeRelativeWorkspacePath(resolvedRoot, input.interview.dossier_rel, {
+          home,
+          allowThirdParty: existing.provenance?.third_party_subject === true,
+          label: 'interview.dossier_rel',
+        })
+        : null;
       const ivObj = {
         interview_id: ivId,
         round,
@@ -3738,7 +4102,7 @@ export function transitionApplicationStage(root, input, {
         timezone: input.interview.timezone ?? null,
         status: ivStatus,
         outcome: ivOutcome,
-        dossier_rel: input.interview.dossier_rel ?? null,
+        dossier_rel: validatedDossierRel,
         notes: typeof input.interview.notes === 'string' ? input.interview.notes : '',
       };
       const idx = interviews.findIndex(x => x.interview_id === ivId);
@@ -3758,6 +4122,13 @@ export function transitionApplicationStage(root, input, {
       const aId = isNonEmptyString(input.assessment.assessment_id)
         ? input.assessment.assessment_id.trim()
         : `asmt_${assessments.length + 1}_${aType}`;
+      const validatedBlueprintRel = input.assessment.blueprint_rel !== undefined
+        ? assertOptionalSafeRelativeWorkspacePath(resolvedRoot, input.assessment.blueprint_rel, {
+          home,
+          allowThirdParty: existing.provenance?.third_party_subject === true,
+          label: 'assessment.blueprint_rel',
+        })
+        : null;
       const aObj = {
         assessment_id: aId,
         type: aType,
@@ -3766,7 +4137,7 @@ export function transitionApplicationStage(root, input, {
         submitted_at: input.assessment.submitted_at ?? null,
         status: aStatus,
         outcome: aOutcome,
-        blueprint_rel: input.assessment.blueprint_rel ?? null,
+        blueprint_rel: validatedBlueprintRel,
         notes: typeof input.assessment.notes === 'string' ? input.assessment.notes : '',
       };
       const idx = assessments.findIndex(x => x.assessment_id === aId);
@@ -3789,6 +4160,13 @@ export function transitionApplicationStage(root, input, {
       } else if (input.follow_up.increment_count === true || (fStatus === 'sent' && followUp?.status !== 'sent')) {
         nextCount = prevCount + 1;
       }
+      const validatedDraftRel = input.follow_up.draft_rel !== undefined
+        ? assertOptionalSafeRelativeWorkspacePath(resolvedRoot, input.follow_up.draft_rel, {
+          home,
+          allowThirdParty: existing.provenance?.third_party_subject === true,
+          label: 'follow_up.draft_rel',
+        })
+        : (followUp?.draft_rel ?? null);
       followUp = {
         next_due_at: input.follow_up.next_due_at !== undefined ? input.follow_up.next_due_at : (followUp?.next_due_at ?? null),
         last_followed_up_at: input.follow_up.last_followed_up_at !== undefined
@@ -3796,7 +4174,7 @@ export function transitionApplicationStage(root, input, {
           : (fStatus === 'sent' ? atIso : (followUp?.last_followed_up_at ?? null)),
         follow_up_count: nextCount,
         status: fStatus,
-        draft_rel: input.follow_up.draft_rel !== undefined ? input.follow_up.draft_rel : (followUp?.draft_rel ?? null),
+        draft_rel: validatedDraftRel,
       };
     }
 
@@ -4222,9 +4600,11 @@ export function computeWorkspaceStatusMetrics(root, {
 } = {}) {
   const resolvedRoot = path.resolve(root);
   const loaded = readValidatedApplicationsLedger(resolvedRoot, { home });
+  const cvLoaded = readValidatedCvRegistry(resolvedRoot, { home });
+  const cvRegistry = cvLoaded.exists ? cvLoaded.registry : null;
   const records = loaded.records;
-  const gate = evaluatePreSubmitGate(resolvedRoot, {}, { home, sourceRoot, nowIso, recordsOverride: records });
-  const analytics = computeCareerAnalytics(records, null, { nowIso, period: 'all' });
+  const gate = evaluatePreSubmitGate(resolvedRoot, {}, { home, sourceRoot, nowIso, recordsOverride: records, cvRegistryOverride: cvRegistry });
+  const analytics = computeCareerAnalytics(records, cvRegistry, { nowIso, period: 'all' });
 
   const f = analytics.funnel;
   // Find best platform respecting MIN_N = 5 (never misleadingly claiming 100% on n < 5)
@@ -4432,6 +4812,8 @@ export function deriveRunCountsFromLedger(root, runId, {
   const skippedRecords = skippedOverride !== null
     ? skippedOverride
     : readValidatedSkippedJobs(resolvedRoot, { home }).records;
+  const cvLoaded = readValidatedCvRegistry(resolvedRoot, { home });
+  const cvRegistry = cvLoaded.exists ? cvLoaded.registry : null;
 
   let applied = 0;
   let prepared = 0;
@@ -4451,7 +4833,7 @@ export function deriveRunCountsFromLedger(root, runId, {
 
   for (const raw of records) {
     if (!isObj(raw) || !isUsableJobId(raw.job_id)) continue;
-    if (raw.provenance?.third_party_subject === true) continue;
+    if (!isOwnerApplicationRecord(raw, cvRegistry)) continue;
     const st = normalizeStatus(raw.status);
     if (!st.valid) continue;
     const key = normalizeJobIdKey(raw.job_id);
@@ -5966,10 +6348,16 @@ export function selectBestOwnerCvVersion(root, candidate = {}, {
 
   let thirdPartyExcluded = 0;
   const scored = [];
+  const byId = new Map();
+  for (const v of cvLoaded.registry.versions) {
+    if (isObj(v) && isNonEmptyString(v.cv_version_id)) {
+      byId.set(v.cv_version_id.trim(), v);
+    }
+  }
 
   for (const v of cvLoaded.registry.versions) {
     if (!isObj(v) || !isNonEmptyString(v.cv_version_id)) continue;
-    if (v.owner_scope !== 'owner' || isThirdPartyCvPath(v.local_ref_rel)) {
+    if (!classifyCvRegistryEntryOwnership(v, byId).isOwner) {
       thirdPartyExcluded++;
       continue;
     }
@@ -6118,6 +6506,15 @@ export function prepareApplicationPackage(root, input, {
       throw new Error(`reservation_active: Application "${existing.job_id}" has an unresolved submission_uncertain reservation.`);
     }
 
+    if (isNonEmptyString(input.folder_rel)) {
+      const fCheck = validateSafeWorkspaceRelativePath(input.folder_rel, {
+        allowThirdParty: false,
+        label: 'application preparation folder',
+      });
+      if (!fCheck.valid) {
+        throw new Error(fCheck.error);
+      }
+    }
     const rawFolderRel = isNonEmptyString(input.folder_rel)
       ? input.folder_rel.trim()
       : (existing.cv_tailoring?.tailored_folder_rel || computeCanonicalResumeFolderRel(existing.company, existing.title, existing.job_id));
@@ -6424,6 +6821,32 @@ export function computeCareerWorkflowQueue(root, {
     });
   }
 
+  let cvRegistry = null;
+  let cvRegistryCorrupt = false;
+  try {
+    const cvLoaded = readValidatedCvRegistry(resolvedRoot, { home });
+    cvRegistry = cvLoaded.exists ? cvLoaded.registry : null;
+  } catch (err) {
+    cvRegistryCorrupt = true;
+    blockers.push({
+      code: 'corrupt_cv_versions_registry',
+      message: err.message,
+      recommended_command: 'veycraft verify logs/cv-versions.json',
+    });
+  }
+
+  const checkRecordOwnershipSafe = raw => {
+    if (!isObj(raw)) return { isOwner: false, isThirdPartyOrAmbiguous: false };
+    if (cvRegistryCorrupt) {
+      const hasCvRef = (raw.cv_version_id !== undefined && raw.cv_version_id !== null && raw.cv_version_id !== '') ||
+        (isObj(raw.cv_tailoring) && raw.cv_tailoring.base_cv_version_id !== undefined && raw.cv_tailoring.base_cv_version_id !== null && raw.cv_tailoring.base_cv_version_id !== '');
+      if (hasCvRef) {
+        return { isOwner: false, isThirdPartyOrAmbiguous: true, reason: 'corrupt_cv_versions_registry' };
+      }
+    }
+    return classifyApplicationOwnership(raw, cvRegistry);
+  };
+
   const activeCircuitBreakers = [];
   if (isObj(cbDoc?.platforms)) {
     for (const [plat, info] of Object.entries(cbDoc.platforms)) {
@@ -6446,7 +6869,7 @@ export function computeCareerWorkflowQueue(root, {
   // Unresolved submission_uncertain reservations (owner only)
   const uncertainReservations = [];
   for (const raw of records) {
-    if (!isObj(raw) || raw.provenance?.third_party_subject === true) continue;
+    if (!isObj(raw) || !checkRecordOwnershipSafe(raw).isOwner) continue;
     if (raw.submission_uncertain === true) {
       const norm = normalizeApplicationRecord(raw);
       uncertainReservations.push({
@@ -6478,7 +6901,7 @@ export function computeCareerWorkflowQueue(root, {
 
   // 2. Cap budget & preferences (read-only)
   const prefs = readWorkspaceTargetingPreferences(resolvedRoot, { home });
-  const gate = evaluatePreSubmitGate(resolvedRoot, {}, { home, sourceRoot, nowIso, recordsOverride: records });
+  const gate = evaluatePreSubmitGate(resolvedRoot, {}, { home, sourceRoot, nowIso, recordsOverride: records, cvRegistryOverride: cvRegistry });
   const dc = gate.checks.daily_cap;
   const capBudget = {
     dry_run: dc.dry_run,
@@ -6564,8 +6987,9 @@ export function computeCareerWorkflowQueue(root, {
 
   for (const raw of records) {
     if (!isObj(raw) || !isUsableJobId(raw.job_id)) continue;
-    if (raw.provenance?.third_party_subject === true) {
-      thirdPartyExcluded++;
+    const own = checkRecordOwnershipSafe(raw);
+    if (!own.isOwner) {
+      if (own.isThirdPartyOrAmbiguous) thirdPartyExcluded++;
       continue;
     }
     const norm = normalizeApplicationRecord(raw);
@@ -6602,7 +7026,8 @@ export function computeCareerWorkflowQueue(root, {
       } catch {
         cvRec = null;
       }
-      const folderRel = norm.cv_tailoring?.tailored_folder_rel || computeCanonicalResumeFolderRel(norm.company, norm.title, norm.job_id);
+      const canonicalFolderRel = computeCanonicalResumeFolderRel(norm.company, norm.title, norm.job_id);
+      const folderRel = resolveSafeQueueRelativePath(resolvedRoot, norm.cv_tailoring?.tailored_folder_rel, canonicalFolderRel, { home, allowThirdParty: false });
       preparationQueue.push({
         job_id: norm.job_id,
         application_id: norm.application_id,
@@ -6622,13 +7047,15 @@ export function computeCareerWorkflowQueue(root, {
 
     // Post-application tracking on submitted records
     if (SUBMITTED_STATUS_SET.has(norm.status)) {
-      const folderRel = norm.cv_tailoring?.tailored_folder_rel || computeCanonicalResumeFolderRel(norm.company, norm.title, norm.job_id);
+      const canonicalFolderRel = computeCanonicalResumeFolderRel(norm.company, norm.title, norm.job_id);
+      const folderRel = resolveSafeQueueRelativePath(resolvedRoot, norm.cv_tailoring?.tailored_folder_rel, canonicalFolderRel, { home, allowThirdParty: false });
       const appliedMs = isValidIsoDateTime(norm.applied_at) ? Date.parse(norm.applied_at) : null;
       const ageDays = appliedMs !== null ? Math.floor((nowMs - appliedMs) / DAY_MS) : null;
 
       if (Array.isArray(norm.interviews)) {
         for (const iv of norm.interviews) {
           if (isObj(iv) && (iv.status === 'invited' || iv.status === 'scheduled' || iv.status === 'rescheduled')) {
+            const safeDossierRel = resolveSafeQueueRelativePath(resolvedRoot, iv.dossier_rel, `${folderRel}/interview-dossier.md`, { home, allowThirdParty: false });
             activeInterviews.push({
               job_id: norm.job_id,
               company: norm.company,
@@ -6638,7 +7065,7 @@ export function computeCareerWorkflowQueue(root, {
               round: iv.round,
               status: iv.status,
               scheduled_at: iv.scheduled_at ?? null,
-              dossier_rel: iv.dossier_rel || `${folderRel}/interview-dossier.md`,
+              dossier_rel: safeDossierRel,
             });
           }
         }
@@ -6647,6 +7074,7 @@ export function computeCareerWorkflowQueue(root, {
       if (Array.isArray(norm.assessments)) {
         for (const asmt of norm.assessments) {
           if (isObj(asmt) && (asmt.status === 'assigned' || asmt.status === 'in_progress')) {
+            const safeBlueprintRel = resolveSafeQueueRelativePath(resolvedRoot, asmt.blueprint_rel, `${folderRel}/assessment-blueprint.md`, { home, allowThirdParty: false });
             activeAssessments.push({
               job_id: norm.job_id,
               company: norm.company,
@@ -6655,7 +7083,7 @@ export function computeCareerWorkflowQueue(root, {
               type: asmt.type,
               status: asmt.status,
               due_at: asmt.due_at ?? null,
-              blueprint_rel: asmt.blueprint_rel || `${folderRel}/assessment-blueprint.md`,
+              blueprint_rel: safeBlueprintRel,
             });
           }
         }
@@ -6665,6 +7093,7 @@ export function computeCareerWorkflowQueue(root, {
         const fuStatus = norm.follow_up?.status || null;
         const followUpDone = fuStatus === 'sent' || fuStatus === 'closed' || fuStatus === 'not_needed' || /followup_sent:/i.test(norm.notes || '');
         if (ageDays >= 7 && !followUpDone) {
+          const safeDraftRel = resolveSafeQueueRelativePath(resolvedRoot, norm.follow_up?.draft_rel, `${folderRel}/followup-draft.md`, { home, allowThirdParty: false });
           overdueFollowUps.push({
             job_id: norm.job_id,
             company: norm.company,
@@ -6672,7 +7101,7 @@ export function computeCareerWorkflowQueue(root, {
             applied_at: norm.applied_at,
             age_days: ageDays,
             follow_up_status: fuStatus || 'overdue',
-            followup_draft_rel: norm.follow_up?.draft_rel || `${folderRel}/followup-draft.md`,
+            followup_draft_rel: safeDraftRel,
           });
         }
         if (ageDays >= 14) {
@@ -6777,7 +7206,7 @@ export function computeCareerWorkflowQueue(root, {
   let focusedCvSelection = null;
   if (isUsableJobId(jobId)) {
     const tKey = normalizeJobIdKey(jobId);
-    const foundRec = records.find(r => isObj(r) && isUsableJobId(r.job_id) && normalizeJobIdKey(r.job_id) === tKey && r.provenance?.third_party_subject !== true);
+    const foundRec = records.find(r => isObj(r) && isUsableJobId(r.job_id) && normalizeJobIdKey(r.job_id) === tKey && checkRecordOwnershipSafe(r).isOwner);
     try {
       focusedCvSelection = selectBestOwnerCvVersion(resolvedRoot, {
         job_id: jobId,

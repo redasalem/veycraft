@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -24,6 +25,9 @@ const {
   writeAtomic,
   readJsonSafe,
   isBlockedSsrfUrl,
+  fetchUrlWithSafeRedirects,
+  DOCX_LIMITS,
+  extractDocxText,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'fs-safety.mjs')).href);
 
 const {
@@ -80,6 +84,11 @@ const {
   selectBestOwnerCvVersion,
   prepareApplicationPackage,
   computeCareerWorkflowQueue,
+  classifyCvRegistryEntryOwnership,
+  classifyApplicationOwnership,
+  isOwnerApplicationRecord,
+  validateSafeWorkspaceRelativePath,
+  isSafeWorkspaceRelativePath,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'career-intelligence.mjs')).href);
 
 function sha256File(filePath) {
@@ -2829,4 +2838,1002 @@ test('18. Stage 7 (T13): Regression tests for CV attribution parity, confirm-sub
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ===========================================================================
+// Test 19: SEC-02 — Third-Party CV & Application Data Leakage Prevention
+// ===========================================================================
+test('19. SEC-02: centralized third-party CV and application ownership isolation prevents leakage across analytics, summary, dashboard, next queue, status metrics, and Notion sync', () => {
+  const { dir, home, work } = makeTempWorkspace('veycraft-sec02-');
+
+  try {
+    fs.mkdirSync(path.join(work, 'config'), { recursive: true });
+    fs.mkdirSync(path.join(work, 'context'), { recursive: true });
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'guardrails.yaml'), path.join(work, 'config', 'guardrails.yaml'));
+    fs.copyFileSync(path.join(REPO_ROOT, 'config', 'invariants.txt'), path.join(work, 'config', 'invariants.txt'));
+    fs.writeFileSync(path.join(work, 'context', 'cv.md'), '# Synthetic Owner\nBuilt TypeScript and Node.js systems.\n');
+    const nowIso = '2026-07-10T10:00:00Z';
+
+    // Build CV versions registry covering:
+    // - cv-owner-base: legitimate owner master CV
+    // - cv-owner-tailored: legitimate owner tailored CV derived from cv-owner-base
+    // - cv-tp-direct: third-party CV (owner_scope: 'third_party')
+    // - cv-tp-child-masked: entry marked owner_scope: 'owner' but derived from cv-tp-direct (base_cv_version_id ancestry leak)
+    // - cv-tp-path-masked: entry marked owner_scope: 'owner' but pointing to logs/resumes/cv-friend/resume.html
+    // - cv-tp-reverse-link: third-party entry linking application_ids / target_job_id
+    const cvRegistry = {
+      schema_version: '1.0',
+      updated_at: nowIso,
+      versions: [
+        {
+          cv_version_id: 'cv-owner-base',
+          version_number: 1,
+          label: 'Owner Master CV',
+          kind: 'generic',
+          owner_scope: 'owner',
+          base_cv_version_id: null,
+          content_sha256: '1'.repeat(64),
+          persona_id: 'backend',
+          language: 'en',
+          local_ref_rel: 'context/cv.md',
+          tailoring_metadata: null,
+          ats_metrics: null,
+          application_ids: ['app-owner-1'],
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        {
+          cv_version_id: 'cv-owner-tailored',
+          version_number: 1,
+          label: 'Owner Tailored CV',
+          kind: 'tailored',
+          owner_scope: 'owner',
+          base_cv_version_id: 'cv-owner-base',
+          content_sha256: '2'.repeat(64),
+          persona_id: 'backend',
+          language: 'en',
+          local_ref_rel: 'logs/resumes/2026-07-10-acme-owner-1/resume.html',
+          tailoring_metadata: { target_job_id: 'gh:owner-2', target_role: 'Staff Backend Engineer 2', emphasized_skills: ['Node.js'], true_gaps_excluded: [] },
+          ats_metrics: null,
+          application_ids: ['app-owner-2'],
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        {
+          cv_version_id: 'cv-tp-direct',
+          version_number: 1,
+          label: 'Third Party Direct CV',
+          kind: 'tailored',
+          owner_scope: 'third_party',
+          base_cv_version_id: null,
+          content_sha256: '3'.repeat(64),
+          persona_id: null,
+          language: 'en',
+          local_ref_rel: 'logs/resumes/cv-alice-client/resume.html',
+          tailoring_metadata: { target_job_id: 'gh:tp-2', target_role: 'Third Party Beta Role', emphasized_skills: [], true_gaps_excluded: [] },
+          ats_metrics: null,
+          application_ids: [],
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        {
+          cv_version_id: 'cv-tp-child-masked',
+          version_number: 1,
+          label: 'Masked Child of Third Party Base',
+          kind: 'tailored',
+          owner_scope: 'owner',
+          base_cv_version_id: 'cv-tp-direct',
+          content_sha256: '4'.repeat(64),
+          persona_id: null,
+          language: 'en',
+          local_ref_rel: 'logs/resumes/2026-07-10-masked-child/resume.html',
+          tailoring_metadata: { target_job_id: null, target_role: 'Third Party Delta Role', emphasized_skills: [], true_gaps_excluded: [] },
+          ats_metrics: null,
+          application_ids: [],
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        {
+          cv_version_id: 'cv-tp-path-masked',
+          version_number: 1,
+          label: 'Masked Path Third Party CV',
+          kind: 'generic',
+          owner_scope: 'owner',
+          base_cv_version_id: null,
+          content_sha256: '5'.repeat(64),
+          persona_id: null,
+          language: 'en',
+          local_ref_rel: 'logs/resumes/cv-bob-client/resume.html',
+          tailoring_metadata: null,
+          ats_metrics: null,
+          application_ids: [],
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+      ],
+    };
+    const cvVal = validateCvVersionsRegistry(cvRegistry);
+    assert.equal(cvVal.valid, true, cvVal.errors.join('; '));
+    writeAtomic(path.join(work, 'logs', 'cv-versions.json'), `${JSON.stringify(cvRegistry, null, 2)}\n`, { boundary: work, home });
+
+    // Verify listOwnerCvVersions & selectBestOwnerCvVersion filter out third-party CVs AND masked descendants/paths
+    const ownerCvs = listOwnerCvVersions(work, { home });
+    assert.deepEqual(ownerCvs.versions.map(v => v.cv_version_id), ['cv-owner-base', 'cv-owner-tailored']);
+    assert.equal(ownerCvs.third_party_excluded, 3);
+
+    const makeOwnerApp = (idx, cvId, isTailored, baseCvId = null) => normalizeApplicationRecord({
+      job_id: `gh:owner-${idx}`,
+      applied_at: '2026-07-05T10:00:00Z',
+      updated_at: '2026-07-05T10:00:00Z',
+      company: `OwnerSecretCleanCo${idx}`,
+      title: `Staff Backend Engineer ${idx}`,
+      url: `https://boards.greenhouse.io/ownersecretcleanco${idx}/jobs/${100 + idx}`,
+      platform: 'greenhouse',
+      source_channel: 'direct_ats',
+      status: idx <= 2 ? 'interview' : 'applied',
+      match_score: 8.5,
+      cv_version_id: cvId,
+      cv_tailoring: {
+        is_tailored: isTailored,
+        base_cv_version_id: baseCvId,
+        tailored_folder_rel: isTailored ? `logs/resumes/2026-07-05-owner-${idx}` : null,
+        tailoring_notes_rel: isTailored ? `logs/resumes/2026-07-05-owner-${idx}/evidence-map.md` : null,
+        ats_keyword_before_pct: 60,
+        ats_keyword_after_pct: 85,
+      },
+      provenance: {
+        created_by: '04-fill-and-apply',
+        created_at: nowIso,
+        last_updated_by: null,
+        receipt_verified: true,
+        third_party_subject: false,
+      },
+    });
+
+    const ownerRecords = [
+      makeOwnerApp(1, 'cv-owner-base', false, null),
+      makeOwnerApp(2, 'cv-owner-tailored', true, 'cv-owner-base'),
+      makeOwnerApp(3, 'cv-owner-base', false, null),
+      makeOwnerApp(4, 'cv-owner-tailored', true, 'cv-owner-base'),
+      makeOwnerApp(5, 'cv-owner-base', false, null),
+    ];
+
+    // 1. Third-party record marked via provenance flag
+    const tp1Provenance = normalizeApplicationRecord({
+      job_id: 'gh:tp-1',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryAlphaCorp',
+      title: 'Third Party Alpha Role',
+      url: 'https://boards.greenhouse.io/leakcanaryalpha/jobs/1',
+      platform: 'workday',
+      status: 'offer',
+      match_score: 9.5,
+      cv_version_id: 'cv-owner-base',
+      provenance: { created_by: '27-universal-cv-builder', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: true },
+    });
+
+    // 2. Third-party record linked via cv_version_id in cv-versions.json WITHOUT provenance.third_party_subject = true
+    const tp2RegistryCv = normalizeApplicationRecord({
+      job_id: 'gh:tp-2',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryBetaCorp',
+      title: 'Third Party Beta Role',
+      url: 'https://boards.greenhouse.io/leakcanarybeta/jobs/2',
+      platform: 'workday',
+      status: 'interview',
+      match_score: 9.2,
+      cv_version_id: 'cv-tp-direct',
+      cv_tailoring: { is_tailored: true, base_cv_version_id: null, tailored_folder_rel: null, tailoring_notes_rel: null },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+
+    // 3a. Third-party record linked indirectly via cv_tailoring.base_cv_version_id
+    const tp3BaseCv = normalizeApplicationRecord({
+      job_id: 'gh:tp-3a',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryGammaCorp',
+      title: 'Third Party Gamma Role',
+      url: 'https://boards.greenhouse.io/leakcanarygamma/jobs/3',
+      platform: 'workday',
+      status: 'interview',
+      match_score: 9.1,
+      cv_version_id: null,
+      cv_tailoring: { is_tailored: true, base_cv_version_id: 'cv-tp-direct', tailored_folder_rel: null, tailoring_notes_rel: null },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+
+    // 3b. Third-party record linked via a registry CV whose ancestor base_cv_version_id is third-party
+    const tp3AncestryCv = normalizeApplicationRecord({
+      job_id: 'gh:tp-3b',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryDeltaCorp',
+      title: 'Third Party Delta Role',
+      url: 'https://boards.greenhouse.io/leakcanarydelta/jobs/4',
+      platform: 'workday',
+      status: 'interview',
+      match_score: 9.0,
+      cv_version_id: 'cv-tp-child-masked',
+      cv_tailoring: { is_tailored: true, base_cv_version_id: 'cv-tp-direct', tailored_folder_rel: null, tailoring_notes_rel: null },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+
+    // 4. Third-party record linked via cv_tailoring.tailored_folder_rel under logs/resumes/cv-<slug>/
+    const tp4FolderRel = normalizeApplicationRecord({
+      job_id: 'gh:tp-4',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryEpsilonCorp',
+      title: 'Third Party Epsilon Role',
+      url: 'https://boards.greenhouse.io/leakcanaryepsilon/jobs/5',
+      platform: 'workday',
+      status: 'applied',
+      match_score: 8.8,
+      cv_version_id: 'cv-owner-base',
+      cv_tailoring: { is_tailored: false, base_cv_version_id: null, tailored_folder_rel: 'logs/resumes/cv-external-friend', tailoring_notes_rel: null },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+
+    // 5. Third-party record linked via cv_tailoring.tailoring_notes_rel under logs/resumes/cv-<slug>/
+    const tp5NotesRel = normalizeApplicationRecord({
+      job_id: 'gh:tp-5',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryZetaCorp',
+      title: 'Third Party Zeta Role',
+      url: 'https://boards.greenhouse.io/leakcanaryzeta/jobs/6',
+      platform: 'workday',
+      status: 'applied',
+      match_score: 8.7,
+      cv_version_id: 'cv-owner-base',
+      cv_tailoring: { is_tailored: false, base_cv_version_id: null, tailored_folder_rel: null, tailoring_notes_rel: 'logs/resumes/cv-external-friend/evidence-map.md' },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+
+    // 6. Missing registry entry / ambiguous ownership -> excluded fail-closed
+    const tp6MissingCv = normalizeApplicationRecord({
+      job_id: 'gh:tp-6',
+      applied_at: '2026-07-05T10:00:00Z',
+      company: 'LeakCanaryEtaCorp',
+      title: 'Third Party Eta Role',
+      url: 'https://boards.greenhouse.io/leakcanaryeta/jobs/7',
+      platform: 'workday',
+      status: 'interview',
+      match_score: 8.9,
+      cv_version_id: 'cv-unknown-orphan-id',
+      cv_tailoring: { is_tailored: true, base_cv_version_id: null, tailored_folder_rel: null, tailoring_notes_rel: null },
+      provenance: { created_by: '04-fill-and-apply', created_at: nowIso, last_updated_by: null, receipt_verified: false, third_party_subject: false },
+    });
+
+    const allThirdPartyRecords = [
+      tp1Provenance,
+      tp2RegistryCv,
+      tp3BaseCv,
+      tp3AncestryCv,
+      tp4FolderRel,
+      tp5NotesRel,
+      tp6MissingCv,
+    ];
+
+    for (const tpRec of allThirdPartyRecords) {
+      const cls = classifyApplicationOwnership(tpRec, cvRegistry);
+      assert.equal(cls.isOwner, false, `Expected ${tpRec.application_id} to be excluded, got reason=${cls.reason}`);
+      assert.equal(isOwnerApplicationRecord(tpRec, cvRegistry), false);
+    }
+
+    for (const ownRec of ownerRecords) {
+      const cls = classifyApplicationOwnership(ownRec, cvRegistry);
+      assert.equal(cls.isOwner, true, `Expected ${ownRec.application_id} to be owner, got reason=${cls.reason}`);
+      assert.equal(isOwnerApplicationRecord(ownRec, cvRegistry), true);
+    }
+
+    // 7. Malformed registry data -> fails closed with validation error
+    assert.throws(
+      () => classifyApplicationOwnership(ownerRecords[0], { schema_version: '999', versions: 'corrupt' }),
+      /Invalid CV versions registry/i,
+    );
+    assert.throws(
+      () => computeCareerAnalytics(ownerRecords, { schema_version: '999', versions: 'corrupt' }, { period: 'all', now: new Date(nowIso) }),
+      /Invalid CV versions registry/i,
+    );
+
+    // 8 & 9. Owner-only dataset vs Mixed (owner + third-party) dataset must produce identical analytics counts & rates
+    const ownerOnlyAnalytics = computeCareerAnalytics(ownerRecords, cvRegistry, { period: 'all', now: new Date(nowIso) });
+    const mixedRecords = [...ownerRecords, ...allThirdPartyRecords];
+    const mixedAnalytics = computeCareerAnalytics(mixedRecords, cvRegistry, { period: 'all', now: new Date(nowIso) });
+
+    assert.equal(ownerOnlyAnalytics.funnel.total_tracked, 5);
+    assert.equal(ownerOnlyAnalytics.isolation.third_party_applications_excluded, 0);
+    assert.equal(mixedAnalytics.funnel.total_tracked, 5);
+    assert.equal(mixedAnalytics.isolation.third_party_applications_excluded, allThirdPartyRecords.length);
+    assert.deepEqual(mixedAnalytics.funnel, ownerOnlyAnalytics.funnel);
+    assert.deepEqual(mixedAnalytics.source_performance, ownerOnlyAnalytics.source_performance);
+    assert.deepEqual(mixedAnalytics.cv_performance, ownerOnlyAnalytics.cv_performance);
+
+    // 10. Persist mixed ledger & cv-versions.json to workspace and verify zero third-party identifiers leak into
+    // analytics artifact, summary, dashboard, status metrics, run counts, workflow queue (career next), or Notion sync inputs
+    // Note: Keep persisted ledger schema-valid while testing registry-linked third-party records (tp1Provenance, tp2RegistryCv, tp3BaseCv, tp3AncestryCv, tp6MissingCv)
+    const persistedMixedRecords = [
+      ...ownerRecords,
+      tp1Provenance,
+      tp2RegistryCv,
+      tp3BaseCv,
+      tp3AncestryCv,
+      tp6MissingCv,
+    ];
+    writeAtomic(path.join(work, 'logs', 'cv-versions.json'), `${JSON.stringify(cvRegistry, null, 2)}\n`, { boundary: work, home });
+    writeAtomic(path.join(work, 'logs', 'applications-log.json'), `${JSON.stringify(persistedMixedRecords, null, 2)}\n`, { boundary: work, home });
+
+    const wsAnalytics = runCareerAnalyticsForWorkspace(work, { period: 'all', nowIso, write: true, home });
+    const wsSummary = summarizeCareerWorkspace(work, { nowIso, home });
+    const wsMetrics = computeWorkspaceStatusMetrics(work, { home, nowIso });
+    const wsNext = computeCareerWorkflowQueue(work, { home, sourceRoot: REPO_ROOT, nowIso });
+    const wsSyncInputs = loadCareerSyncInputs(work, { home });
+    const rDashboard = runCli(['career', 'dashboard'], { cwd: work, home });
+    assert.equal(rDashboard.status, 0, rDashboard.stderr);
+
+    assert.equal(wsSummary.funnel.total_tracked, 5);
+    assert.equal(wsMetrics.pipeline.applied, 5);
+    assert.equal(wsMetrics.third_party_excluded, 5);
+
+    const combinedOutputs = JSON.stringify({
+      artifact: wsAnalytics.artifact,
+      summary: wsSummary,
+      metrics: wsMetrics,
+      next: wsNext,
+      dashboardHtml: fs.readFileSync(path.join(work, 'logs', 'exports', 'dashboard.html'), 'utf8'),
+    });
+
+    for (const forbidden of [
+      'LeakCanaryAlphaCorp',
+      'LeakCanaryBetaCorp',
+      'LeakCanaryGammaCorp',
+      'LeakCanaryDeltaCorp',
+      'LeakCanaryEpsilonCorp',
+      'LeakCanaryZetaCorp',
+      'LeakCanaryEtaCorp',
+      'cv-tp-direct',
+      'cv-tp-child-masked',
+      'cv-tp-path-masked',
+      'cv-unknown-orphan-id',
+      'gh:tp-1',
+      'gh:tp-2',
+      'gh:tp-3a',
+      'gh:tp-3b',
+      'gh:tp-6',
+    ]) {
+      assert.equal(
+        combinedOutputs.includes(forbidden),
+        false,
+        `Third-party identifier "${forbidden}" must never leak into analytics, summary, metrics, next queue, or dashboard`,
+      );
+    }
+    assert.ok(wsSyncInputs.applications.length === 10);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ===========================================================================
+// Test 20: SEC-04 — Path Traversal & Symlink Bypass Prevention
+// ===========================================================================
+test('20. SEC-04: relative path validation, workspace containment, third-party path isolation & CLI symlink refusal', () => {
+  const { dir, home, work } = makeTempWorkspace('veycraft-sec04-');
+  const outsideDir = path.join(dir, 'outside-secret');
+  fs.mkdirSync(outsideDir, { recursive: true });
+  fs.mkdirSync(path.join(work, 'config'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'context'), { recursive: true });
+  fs.copyFileSync(path.join(REPO_ROOT, 'config', 'guardrails.yaml'), path.join(work, 'config', 'guardrails.yaml'));
+  fs.copyFileSync(path.join(REPO_ROOT, 'config', 'invariants.txt'), path.join(work, 'config', 'invariants.txt'));
+  const nowIso = '2026-07-10T12:00:00Z';
+
+  try {
+    // 1. ../secret.txt traversal, 2. nested logs/resumes/../../../../etc/passwd, 3. absolute POSIX /etc/passwd,
+    // 4. Windows drive C:\Windows\System32\drivers\etc\hosts, 5. UNC \\server\share\file, 13. mixed separators / quotes
+    const unsafePaths = [
+      '../secret.txt',
+      'logs/resumes/../../../../etc/passwd',
+      '/etc/passwd',
+      'C:\\Windows\\System32\\drivers\\etc\\hosts',
+      '\\\\server\\share\\file',
+      '//server/share/file',
+      'logs/resumes/./bad',
+      'logs/resumes/bad"quote/file.md',
+      'logs/resumes/bad\x00null.md',
+    ];
+    for (const bad of unsafePaths) {
+      assert.equal(isSafeWorkspaceRelativePath(bad), false, `Expected unsafe path to be rejected: ${bad}`);
+    }
+
+    // 8. Third-party CV path in owner record (logs/resumes/cv-client/...) rejected when allowThirdParty=false
+    assert.equal(isSafeWorkspaceRelativePath('logs/resumes/cv-client/resume.html', { allowThirdParty: false }), false);
+    assert.equal(isSafeWorkspaceRelativePath('logs/resumes/cv-client/resume.html', { allowThirdParty: true }), true);
+
+    // 12. Legitimate relative paths inside workspace continue to work
+    assert.equal(isSafeWorkspaceRelativePath('logs/screenshots/gh-101.png', { allowThirdParty: false }), true);
+    assert.equal(isSafeWorkspaceRelativePath('logs\\resumes\\2026-07-10-acme-101\\interview-dossier.md', { allowThirdParty: false }), true);
+
+    // 9. Persisted ledger containing invalid relative paths in screenshot, cv_tailoring, interviews, assessments, follow_up
+    const validBaseRec = normalizeApplicationRecord({
+      job_id: 'gh:sec04-valid',
+      company: 'SafePathCo',
+      title: 'Backend Engineer',
+      platform: 'greenhouse',
+      status: 'applied',
+      applied_at: nowIso,
+      updated_at: nowIso,
+    });
+    for (const [label, mutator] of [
+      ['screenshot ../', r => ({ ...r, screenshot: '../secret.png' })],
+      ['screenshot third-party on owner', r => ({ ...r, screenshot: 'logs/resumes/cv-other/shot.png' })],
+      ['tailored_folder_rel traversal', r => ({ ...r, cv_tailoring: { is_tailored: true, base_cv_version_id: null, tailored_folder_rel: '../../etc', tailoring_notes_rel: null } })],
+      ['tailoring_notes_rel drive path', r => ({ ...r, cv_tailoring: { is_tailored: true, base_cv_version_id: null, tailored_folder_rel: null, tailoring_notes_rel: 'C:\\secret\\notes.md' } })],
+      ['tailored_folder_rel third-party on owner', r => ({ ...r, cv_tailoring: { is_tailored: true, base_cv_version_id: null, tailored_folder_rel: 'logs/resumes/cv-friend', tailoring_notes_rel: null } })],
+      ['interviews.dossier_rel UNC', r => ({ ...r, interviews: [{ interview_id: 'iv_1', round: 1, stage: 'technical_screen', status: 'scheduled', outcome: 'pending', scheduled_at: null, timezone: null, dossier_rel: '\\\\server\\share\\dossier.md', notes: '' }] })],
+      ['assessments.blueprint_rel absolute', r => ({ ...r, assessments: [{ assessment_id: 'asmt_1', type: 'take_home', status: 'assigned', outcome: 'pending', received_at: nowIso, due_at: null, submitted_at: null, blueprint_rel: '/etc/passwd', notes: '' }] })],
+      ['follow_up.draft_rel traversal', r => ({ ...r, follow_up: { follow_up_count: 0, status: 'drafted', next_due_at: null, last_followed_up_at: null, draft_rel: 'logs/resumes/../../../secret.md' } })],
+    ]) {
+      const badLedgerCheck = validateApplicationLedger([mutator(validBaseRec)]);
+      assert.equal(badLedgerCheck.valid, false, `Expected validateApplicationLedger to reject: ${label}`);
+    }
+
+    // Lifecycle write functions must reject unsafe relative paths before mutating ledger
+    for (const badPath of ['../secret.png', '/etc/passwd', 'C:\\Windows\\win.ini', '\\\\server\\share\\a.png', 'logs/resumes/cv-client/shot.png']) {
+      assert.throws(
+        () => recordApplication(work, { job_id: 'gh:sec04-1', company: 'Acme', title: 'Engineer', status: 'discovered', screenshot: badPath }, { home, nowIso, sourceRoot: REPO_ROOT }),
+        /relative path|traversal|third-party|outside workspace/i,
+      );
+    }
+
+    // Legitimate record + reserve + confirm + transition with safe relative paths succeeds
+    const recOk = recordApplication(work, {
+      job_id: 'gh:sec04-1',
+      company: 'AcmeSafe',
+      title: 'Staff Engineer',
+      platform: 'greenhouse',
+      status: 'prepared',
+      screenshot: 'logs/screenshots/gh-sec04-1.png',
+    }, { home, nowIso, sourceRoot: REPO_ROOT });
+    assert.equal(recOk.record.screenshot, 'logs/screenshots/gh-sec04-1.png');
+
+    reserveApplicationSubmission(work, { job_id: 'gh:sec04-1', company: 'AcmeSafe', title: 'Staff Engineer', platform: 'greenhouse' }, { home, nowIso, sourceRoot: REPO_ROOT });
+    assert.throws(
+      () => confirmApplicationSubmission(work, { job_id: 'gh:sec04-1', receipt: 'Application received', screenshot: '../escape.png' }, { home, nowIso }),
+      /relative path|traversal/i,
+    );
+    confirmApplicationSubmission(work, {
+      job_id: 'gh:sec04-1',
+      receipt: 'Application received',
+      screenshot: 'logs/screenshots/gh-sec04-1-confirmed.png',
+    }, { home, nowIso });
+
+    for (const badRel of ['../escape.md', '/etc/passwd', 'C:\\Windows\\System32\\drivers\\etc\\hosts', '\\\\server\\share\\file', 'logs/resumes/cv-client/doc.md']) {
+      assert.throws(
+        () => transitionApplicationStage(work, {
+          job_id: 'gh:sec04-1',
+          to_status: 'interview',
+          interview: { stage: 'technical_screen', status: 'scheduled', dossier_rel: badRel },
+        }, { home, nowIso }),
+        /relative path|traversal|third-party|outside workspace/i,
+      );
+      assert.throws(
+        () => transitionApplicationStage(work, {
+          job_id: 'gh:sec04-1',
+          to_status: 'assessment',
+          assessment: { type: 'take_home', status: 'assigned', blueprint_rel: badRel },
+        }, { home, nowIso }),
+        /relative path|traversal|third-party|outside workspace/i,
+      );
+      assert.throws(
+        () => transitionApplicationStage(work, {
+          job_id: 'gh:sec04-1',
+          to_status: 'applied',
+          follow_up: { status: 'drafted', draft_rel: badRel },
+        }, { home, nowIso }),
+        /relative path|traversal|third-party|outside workspace/i,
+      );
+    }
+
+    // 10 & 11. CLI reader commands (audit, verify, pre-submit --draft, verify --facts) reject outside-workspace paths and traversal
+    const outsideFile = path.join(outsideDir, 'outside-resume.md');
+    fs.writeFileSync(outsideFile, '# Secret Outside File\n- Built systems reducing latency by 40%.\n');
+
+    const rAuditOutside = runCli(['audit', outsideFile], { cwd: work, home });
+    assert.notEqual(rAuditOutside.status, 0, 'audit must reject file outside workspace');
+    assert.match(rAuditOutside.stderr, /outside workspace boundary/i);
+
+    const rAuditTraversal = runCli(['audit', '../outside-secret/outside-resume.md'], { cwd: work, home });
+    assert.notEqual(rAuditTraversal.status, 0, 'audit must reject ../ traversal');
+    assert.match(rAuditTraversal.stderr, /traversal|outside workspace/i);
+
+    const rVerifyOutside = runCli(['verify', outsideFile], { cwd: work, home });
+    assert.notEqual(rVerifyOutside.status, 0, 'verify must reject file outside workspace');
+    assert.match(rVerifyOutside.stderr, /outside workspace boundary/i);
+
+    const insideResume = path.join(work, 'logs', 'resumes', 'safe-pkg', 'resume.txt');
+    fs.mkdirSync(path.dirname(insideResume), { recursive: true });
+    fs.writeFileSync(insideResume, 'Alex Rivera\nSenior Engineer building Node.js services reducing latency by 38%.');
+
+    const rVerifyOutsideFacts = runCli(['verify', insideResume, '--facts', outsideFile], { cwd: work, home });
+    assert.notEqual(rVerifyOutsideFacts.status, 0, 'verify --facts must reject facts file outside workspace');
+    assert.match(rVerifyOutsideFacts.stderr, /outside workspace boundary/i);
+
+    const rPreSubmitOutside = runCli(['pre-submit', '--draft', outsideFile], { cwd: work, home });
+    assert.notEqual(rPreSubmitOutside.status, 0, 'pre-submit --draft must reject draft file outside workspace');
+    assert.match(rPreSubmitOutside.stderr, /outside workspace boundary/i);
+
+    const rPreSubmitUNC = runCli(['pre-submit', '--draft', '\\\\server\\share\\draft.md'], { cwd: work, home });
+    assert.notEqual(rPreSubmitUNC.status, 0, 'pre-submit --draft must reject UNC path');
+    assert.match(rPreSubmitUNC.stderr, /Refusing UNC/i);
+
+    // Legitimate in-workspace files succeed for audit, verify, and pre-submit --draft
+    const rVerifyInside = runCli(['verify', 'logs/resumes/safe-pkg/resume.txt'], { cwd: work, home });
+    assert.equal(rVerifyInside.status, 0, rVerifyInside.stderr);
+    const rPreSubmitInside = runCli(['pre-submit', '--draft', 'logs/resumes/safe-pkg/resume.txt'], { cwd: work, home });
+    assert.equal(rPreSubmitInside.status, 0, rPreSubmitInside.stderr);
+
+    // 6 & 7. Symlinked file inside workspace pointing outside & symlinked parent directory inside workspace
+    const symFile = path.join(work, 'logs', 'symlink-resume.md');
+    let symlinkCreated = false;
+    try {
+      fs.symlinkSync(outsideFile, symFile, 'file');
+      symlinkCreated = true;
+    } catch {
+      // Windows without Developer Mode / elevation may disallow file symlinks; test directory junction as fallback
+    }
+    if (symlinkCreated) {
+      const rAuditSym = runCli(['audit', symFile], { cwd: work, home });
+      assert.notEqual(rAuditSym.status, 0, 'audit must reject symlinked file');
+      assert.match(rAuditSym.stderr, /symbolic-link/i);
+
+      const rVerifySym = runCli(['verify', symFile], { cwd: work, home });
+      assert.notEqual(rVerifySym.status, 0, 'verify must reject symlinked file');
+      assert.match(rVerifySym.stderr, /symbolic-link/i);
+
+      const rPreSym = runCli(['pre-submit', '--draft', symFile], { cwd: work, home });
+      assert.notEqual(rPreSym.status, 0, 'pre-submit must reject symlinked draft');
+      assert.match(rPreSym.stderr, /symbolic-link/i);
+    }
+
+    const symDir = path.join(work, 'logs', 'symlink-dir');
+    let dirLinkCreated = false;
+    try {
+      fs.symlinkSync(outsideDir, symDir, process.platform === 'win32' ? 'junction' : 'dir');
+      dirLinkCreated = true;
+    } catch {
+      // ignore if OS blocks symlink/junction creation
+    }
+    if (dirLinkCreated) {
+      const rVerifySymDir = runCli(['verify', symDir], { cwd: work, home });
+      assert.notEqual(rVerifySymDir.status, 0, 'verify must reject symlinked/junction directory');
+      assert.match(rVerifySymDir.stderr, /symbolic-link/i);
+
+      const rAuditViaSymParent = runCli(['audit', path.join(symDir, 'outside-resume.md')], { cwd: work, home });
+      assert.notEqual(rAuditViaSymParent.status, 0, 'audit must reject file under symlinked parent directory');
+      assert.match(rAuditViaSymParent.stderr, /symbolic-link/i);
+
+      assert.throws(
+        () => recordApplication(work, {
+          job_id: 'gh:sec04-sym',
+          company: 'SymCo',
+          title: 'Engineer',
+          status: 'discovered',
+          screenshot: 'logs/symlink-dir/outside-resume.md',
+        }, { home, nowIso, sourceRoot: REPO_ROOT }),
+        /symbolic-link/i,
+      );
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ===========================================================================
+// Test 21: SEC-01 — SSRF Guard Bypass & Redirect Validation
+// ===========================================================================
+test('21. SEC-01: SSRF guard blocks IPv4/IPv6 private, loopback, link-local, CGNAT, IPv4-compatible/mapped/NAT64/6to4, and unsafe redirects', async () => {
+  // 1-9. Direct URL classification across IPv4, IPv6, and alternate encodings
+  const blockedUrls = [
+    // 1. IPv4 loopback
+    'http://127.0.0.1/admin',
+    'http://127.255.255.254:8080/internal',
+    // 2. IPv4 private RFC1918
+    'http://10.0.0.1/secret',
+    'http://172.16.0.1/secret',
+    'http://172.31.255.255/secret',
+    'http://192.168.1.1/secret',
+    // 3. IPv4 link-local / cloud metadata
+    'http://169.254.169.254/latest/meta-data/',
+    'http://169.254.0.1/status',
+    // 4. Carrier-grade NAT 100.64.0.0/10
+    'http://100.64.0.1/cgnat',
+    'http://100.100.100.200/latest/meta-data/',
+    'http://100.127.255.254/cgnat',
+    // 5. IPv4-mapped IPv6
+    'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:169.254.169.254]/latest/meta-data/',
+    'http://[::ffff:100.64.0.1]/',
+    'http://[0:0:0:0:0:ffff:10.0.0.1]/',
+    // 6. IPv4-compatible IPv6
+    'http://[::127.0.0.1]/',
+    'http://[::169.254.169.254]/latest/meta-data/',
+    'http://[::10.0.0.1]/',
+    'http://[::192.168.0.1]/',
+    'http://[::100.64.1.1]/',
+    // 7. IPv6 loopback (canonical & expanded)
+    'http://[::1]/',
+    'http://[0:0:0:0:0:0:0:1]/',
+    'http://[0000:0000:0000:0000:0000:0000:0000:0001]/',
+    // 8. IPv6 unspecified, unique-local, link-local, site-local, multicast, NAT64, 6to4
+    'http://[::]/',
+    'http://[0:0:0:0:0:0:0:0]/',
+    'http://[fc00::1]/',
+    'http://[fd12:3456:789a::1]/',
+    'http://[fe80::1]/',
+    'http://[fe80::1%25eth0]/',
+    'http://[fec0::1]/',
+    'http://[ff02::1]/',
+    'http://[64:ff9b::127.0.0.1]/',
+    'http://[64:ff9b::169.254.169.254]/',
+    'http://[2002:7f00:0001::1]/',
+    'http://[2002:a9fe:a9fe::1]/',
+    // 9. Alternate URL forms, decimal/octal/hex normalized by WHATWG URL, credentials, internal domains, non-HTTP
+    'http://2130706433/', // 127.0.0.1 decimal
+    'http://0x7f000001/', // 127.0.0.1 hex
+    'http://0177.0.0.1/', // 127.0.0.1 octal
+    'http://0.0.0.0/',
+    'http://localhost:3000/',
+    'http://api.localhost/',
+    'http://service.local/',
+    'http://metadata.google.internal/computeMetadata/v1/',
+    'http://user:pass@example.com/private',
+    'ftp://example.com/file',
+    'file:///etc/passwd',
+  ];
+
+  for (const raw of blockedUrls) {
+    const reason = isBlockedSsrfUrl(raw);
+    assert.ok(reason !== null, `Expected SSRF guard to block "${raw}", but got null`);
+  }
+
+  // 14. Safe public destinations remain permitted
+  const allowedUrls = [
+    'https://github.com/redasalem/veycraft',
+    'https://boards.greenhouse.io/acme/jobs/12345',
+    'https://jobs.lever.co/acme/11111111-2222-3333-4444-555555555555',
+    'https://93.184.216.34/jobs', // public IPv4
+    'https://100.63.255.254/public', // just below 100.64.0.0/10
+    'https://100.128.0.1/public', // just above 100.64.0.0/10
+    'https://[2606:4700:4700::1111]/', // public IPv6
+  ];
+  for (const raw of allowedUrls) {
+    assert.equal(isBlockedSsrfUrl(raw), null, `Expected safe public URL "${raw}" to be allowed`);
+  }
+
+  // Helper to build synthetic mock fetch responses without any network traffic
+  const makeResp = (status, location = null) => ({
+    status,
+    headers: {
+      get(name) {
+        return String(name).toLowerCase() === 'location' ? location : null;
+      },
+    },
+  });
+
+  // 10. Public URL redirecting (302) to private/loopback/metadata address -> blocked before redirect request is issued
+  const calls10 = [];
+  const mockFetch10 = async (url, opts) => {
+    calls10.push({ url, redirect: opts.redirect });
+    if (url === 'https://jobs.example.com/apply') {
+      return makeResp(302, 'http://169.254.169.254/latest/meta-data/iam/security-credentials/');
+    }
+    throw new Error(`Unexpected network call to ${url}`);
+  };
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://jobs.example.com/apply', { fetchImpl: mockFetch10 }),
+    /Redirect target blocked by SSRF guard/i,
+  );
+  assert.equal(calls10.length, 1, 'Must never issue fetch request to blocked redirect target');
+  assert.equal(calls10[0].redirect, 'manual');
+
+  // 11. Multi-hop redirect ending in blocked address ([::127.0.0.1] and 100.64.0.1)
+  const calls11 = [];
+  const mockFetch11 = async url => {
+    calls11.push(url);
+    if (url === 'https://short.example.com/1') return makeResp(301, 'https://careers.example.org/2');
+    if (url === 'https://careers.example.org/2') return makeResp(307, 'http://[::127.0.0.1]:8080/internal');
+    throw new Error(`Unexpected call to ${url}`);
+  };
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://short.example.com/1', { fetchImpl: mockFetch11 }),
+    /Redirect target blocked by SSRF guard/i,
+  );
+  assert.equal(calls11.length, 2);
+
+  // 12a. Redirect loop detection
+  const mockFetchLoop = async url => {
+    if (url === 'https://loop.example.com/a') return makeResp(302, 'https://loop.example.com/b');
+    if (url === 'https://loop.example.com/b') return makeResp(302, 'https://loop.example.com/a');
+    return makeResp(200);
+  };
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://loop.example.com/a', { fetchImpl: mockFetchLoop }),
+    /Redirect loop detected/i,
+  );
+
+  // 12b. Excessive redirect hops
+  const mockFetchExcessive = async url => {
+    const m = url.match(/\/hop-(\d+)$/);
+    const n = m ? Number(m[1]) : 0;
+    return makeResp(302, `https://hops.example.com/hop-${n + 1}`);
+  };
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://hops.example.com/hop-0', { fetchImpl: mockFetchExcessive, maxRedirects: 3 }),
+    /Maximum redirect limit \(3\) exceeded/i,
+  );
+
+  // 13. Missing or malformed redirect Location header
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://badloc.example.com/missing', {
+      fetchImpl: async () => makeResp(302, null),
+    }),
+    /missing Location header/i,
+  );
+  await assert.rejects(
+    () => fetchUrlWithSafeRedirects('https://badloc.example.com/bad', {
+      fetchImpl: async () => makeResp(302, 'http://[::invalid-ipv6'),
+    }),
+    /Malformed redirect Location/i,
+  );
+
+  // 14b. Safe multi-hop public redirect succeeds
+  const safeRes = await fetchUrlWithSafeRedirects('https://jobs.example.com/start', {
+    fetchImpl: async url => {
+      if (url === 'https://jobs.example.com/start') return makeResp(301, '/roles/backend');
+      if (url === 'https://jobs.example.com/roles/backend') return makeResp(200);
+      throw new Error(`Unexpected URL ${url}`);
+    },
+  });
+  assert.equal(safeRes.response.status, 200);
+  assert.equal(safeRes.finalUrl, 'https://jobs.example.com/roles/backend');
+  assert.equal(safeRes.redirects, 1);
+});
+
+// ===========================================================================
+// Test 22: SEC-03 — DOCX Zip Bomb & Decompression DoS Defense
+// ===========================================================================
+test('22. SEC-03: hardened extractDocxText enforces input size, entry count, compressed/uncompressed budgets, duplicate/overlapping offsets, and integrity checks', () => {
+  // Helper to construct synthetic ZIP/DOCX buffers with fine-grained control over headers & offsets
+  function buildCustomDocxZip(entries, { eocdEntryCountOverride = null } = {}) {
+    const locals = [];
+    const centrals = [];
+    const offsets = [];
+    let offset = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+      const f = entries[i];
+      const nameBuf = Buffer.from(f.name, 'utf8');
+      const method = f.method ?? 8;
+      const rawData = Buffer.isBuffer(f.rawData) ? f.rawData : Buffer.from(String(f.rawData || ''), 'utf8');
+      const compData = f.compressedData
+        ? f.compressedData
+        : (method === 8 ? zlib.deflateRawSync(rawData) : rawData);
+      const uncompSize = f.declaredUncompressedSize !== undefined ? f.declaredUncompressedSize : rawData.length;
+      const compSize = f.declaredCompressedSize !== undefined ? f.declaredCompressedSize : compData.length;
+
+      let localOffset = offset;
+      if (f.shareLocalOffsetWithIndex !== undefined) {
+        localOffset = offsets[f.shareLocalOffsetWithIndex];
+      } else {
+        const lh = Buffer.alloc(30 + nameBuf.length);
+        lh.writeUInt32LE(0x04034b50, 0);
+        lh.writeUInt16LE(20, 4);
+        lh.writeUInt16LE(f.flags ?? 0, 6);
+        lh.writeUInt16LE(method, 8);
+        lh.writeUInt32LE(0, 14);
+        lh.writeUInt32LE(compSize, 18);
+        lh.writeUInt32LE(uncompSize, 22);
+        lh.writeUInt16LE(nameBuf.length, 26);
+        nameBuf.copy(lh, 30);
+        locals.push(lh, compData);
+        offsets.push(offset);
+        offset += lh.length + compData.length;
+      }
+
+      if (f.customLocalOffset !== undefined) {
+        localOffset = f.customLocalOffset;
+      }
+
+      const cd = Buffer.alloc(46 + nameBuf.length);
+      cd.writeUInt32LE(0x02014b50, 0);
+      cd.writeUInt16LE(20, 4);
+      cd.writeUInt16LE(20, 6);
+      cd.writeUInt16LE(f.flags ?? 0, 8);
+      cd.writeUInt16LE(method, 10);
+      cd.writeUInt32LE(0, 16);
+      cd.writeUInt32LE(compSize, 20);
+      cd.writeUInt32LE(uncompSize, 24);
+      cd.writeUInt16LE(nameBuf.length, 28);
+      cd.writeUInt32LE(localOffset, 42);
+      nameBuf.copy(cd, 46);
+      centrals.push(cd);
+    }
+
+    const cdBuf = Buffer.concat(centrals);
+    const totalCount = eocdEntryCountOverride !== null ? eocdEntryCountOverride : entries.length;
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(totalCount, 8);
+    eocd.writeUInt16LE(totalCount, 10);
+    eocd.writeUInt32LE(cdBuf.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    return Buffer.concat([...locals, cdBuf, eocd]);
+  }
+
+  // 1 & 12. Normal valid DOCX + legitimate multi-header/footer DOCX succeed
+  const validMultiPartDocx = buildCustomDocxZip([
+    { name: '[Content_Types].xml', method: 0, rawData: '<Types/>' },
+    { name: 'word/header1.xml', method: 8, rawData: '<w:hdr><w:p><w:t>Alex Rivera Header</w:t></w:p></w:hdr>' },
+    { name: 'word/document.xml', method: 8, rawData: '<w:document><w:body><w:p><w:t>Senior Backend Engineer building Node.js systems (38% faster).</w:t></w:p></w:body></w:document>' },
+    { name: 'word/footer1.xml', method: 8, rawData: '<w:ftr><w:p><w:t>Page 1 Footer</w:t></w:p></w:ftr>' },
+  ]);
+  const extractedText = extractDocxText(validMultiPartDocx);
+  assert.match(extractedText, /Senior Backend Engineer building Node\.js systems/);
+  assert.match(extractedText, /Alex Rivera Header/);
+  assert.match(extractedText, /Page 1 Footer/);
+
+  // 2. Oversized DOCX input buffer rejected before parsing
+  const tinyValid = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: '<w:document><w:p><w:t>Valid Text</w:t></w:p></w:document>' },
+  ]);
+  assert.throws(
+    () => extractDocxText(tinyValid, { maxInputBytes: 50 }),
+    /Oversized \.docx file/i,
+  );
+
+  // 3a. Excessive total ZIP central directory entry count
+  const manyEntriesDocx = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: '<w:document><w:p><w:t>Hello</w:t></w:p></w:document>' },
+    { name: 'word/extra1.xml', method: 0, rawData: '<x/>' },
+    { name: 'word/extra2.xml', method: 0, rawData: '<x/>' },
+    { name: 'word/extra3.xml', method: 0, rawData: '<x/>' },
+  ]);
+  assert.throws(
+    () => extractDocxText(manyEntriesDocx, { maxTotalEntries: 3 }),
+    /Excessive \.docx ZIP entry count/i,
+  );
+
+  // 3b. Excessive accepted word/(document|header*|footer*).xml parts
+  const manyXmlPartsDocx = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: '<w:p><w:t>Body</w:t></w:p>' },
+    { name: 'word/header1.xml', method: 8, rawData: '<w:p><w:t>H1</w:t></w:p>' },
+    { name: 'word/header2.xml', method: 8, rawData: '<w:p><w:t>H2</w:t></w:p>' },
+    { name: 'word/footer1.xml', method: 8, rawData: '<w:p><w:t>F1</w:t></w:p>' },
+  ]);
+  assert.throws(
+    () => extractDocxText(manyXmlPartsDocx, { maxXmlEntries: 2 }),
+    /Excessive \.docx XML document\/header\/footer parts/i,
+  );
+
+  // 4. Oversized compressed entry
+  assert.throws(
+    () => extractDocxText(tinyValid, { maxCompressedEntryBytes: 10 }),
+    /Oversized compressed \.docx entry/i,
+  );
+
+  // 5. Small compressed entry expanding to excessive decompressed output (classic single-entry zip bomb)
+  // Also tests spoofed declaredUncompressedSize (declaring 100 bytes when actual payload inflates to 64 KB)
+  const bombPayload = Buffer.from('<w:document><w:p><w:t>' + 'A'.repeat(65536) + '</w:t></w:p></w:document>', 'utf8');
+  const spoofedBombDocx = buildCustomDocxZip([
+    {
+      name: 'word/document.xml',
+      method: 8,
+      rawData: bombPayload,
+      declaredUncompressedSize: 100, // spoofing a tiny header size
+    },
+  ]);
+  assert.throws(
+    () => extractDocxText(spoofedBombDocx, { maxEntryUncompressedBytes: 4096, maxTotalUncompressedBytes: 8192 }),
+    /Decompression limit exceeded/i,
+  );
+
+  // 5b. Honest declared uncompressed size exceeding per-entry cap rejected before inflate
+  const declaredHugeDocx = buildCustomDocxZip([
+    {
+      name: 'word/document.xml',
+      method: 8,
+      rawData: bombPayload,
+    },
+  ]);
+  assert.throws(
+    () => extractDocxText(declaredHugeDocx, { maxEntryUncompressedBytes: 4096 }),
+    /Oversized uncompressed \.docx entry/i,
+  );
+
+  // 6. Multiple entries whose cumulative uncompressed size exceeds total cap while each entry is individually under per-entry cap
+  const part20k = '<w:p><w:t>' + 'B'.repeat(20000) + '</w:t></w:p>';
+  const cumulativeOverflowDocx = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: part20k },
+    { name: 'word/header1.xml', method: 8, rawData: part20k },
+    { name: 'word/footer1.xml', method: 8, rawData: part20k },
+  ]);
+  assert.throws(
+    () => extractDocxText(cumulativeOverflowDocx, {
+      maxEntryUncompressedBytes: 30000,
+      maxTotalUncompressedBytes: 45000,
+    }),
+    /Cumulative \.docx uncompressed size exceeds/i,
+  );
+
+  // 7a. Duplicate entry names in central directory
+  const duplicateNameDocx = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: '<w:p><w:t>First</w:t></w:p>' },
+    { name: 'word/document.xml', method: 8, rawData: '<w:p><w:t>Second</w:t></w:p>' },
+  ]);
+  assert.throws(
+    () => extractDocxText(duplicateNameDocx),
+    /Duplicate \.docx ZIP entry/i,
+  );
+
+  // 7b & 8. Shared/overlapping local file header offsets (classic non-recursive zip bomb where N central directory headers point to the same compressed stream)
+  const sharedOffsetBombDocx = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: '<w:p><w:t>Shared Bomb Payload</w:t></w:p>' },
+    { name: 'word/header1.xml', method: 8, rawData: '<w:p><w:t>Shared Bomb Payload</w:t></w:p>', shareLocalOffsetWithIndex: 0 },
+  ]);
+  assert.throws(
+    () => extractDocxText(sharedOffsetBombDocx),
+    /overlapping or shared local file header\/data offsets/i,
+  );
+
+  // 9. Truncated ZIP / invalid central directory
+  const truncatedDocx = tinyValid.subarray(0, tinyValid.length - 10);
+  assert.throws(
+    () => extractDocxText(truncatedDocx),
+    /Corrupted \.docx/i,
+  );
+
+  // 10. Malformed compression stream
+  const corruptDeflateDocx = buildCustomDocxZip([
+    {
+      name: 'word/document.xml',
+      method: 8,
+      compressedData: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff]),
+      declaredUncompressedSize: 50,
+    },
+  ]);
+  assert.throws(
+    () => extractDocxText(corruptDeflateDocx),
+    /Corrupted deflate stream/i,
+  );
+
+  // 11. Boundary-size cases: exact limit succeeds, 1 byte over limit fails closed
+  const boundaryXml = '<w:document><w:p><w:t>ExactBoundaryCheck</w:t></w:p></w:document>';
+  const boundaryLen = Buffer.byteLength(boundaryXml, 'utf8');
+  const boundaryDocx = buildCustomDocxZip([
+    { name: 'word/document.xml', method: 8, rawData: boundaryXml },
+  ]);
+  assert.equal(
+    extractDocxText(boundaryDocx, {
+      maxInputBytes: boundaryDocx.length,
+      maxEntryUncompressedBytes: boundaryLen,
+      maxTotalUncompressedBytes: boundaryLen,
+    }),
+    'ExactBoundaryCheck',
+  );
+  assert.throws(
+    () => extractDocxText(boundaryDocx, {
+      maxInputBytes: boundaryDocx.length - 1,
+    }),
+    /Oversized \.docx file/i,
+  );
+  assert.throws(
+    () => extractDocxText(boundaryDocx, {
+      maxEntryUncompressedBytes: boundaryLen - 1,
+    }),
+    /Oversized uncompressed \.docx entry/i,
+  );
+  assert.throws(
+    () => extractDocxText(boundaryDocx, {
+      maxEntryUncompressedBytes: boundaryLen,
+      maxTotalUncompressedBytes: boundaryLen - 1,
+    }),
+    /Cumulative \.docx uncompressed size exceeds/i,
+  );
 });

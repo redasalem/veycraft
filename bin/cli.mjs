@@ -23,6 +23,7 @@ import {
   loadCareerSyncInputs,
   CAREER_WRITE_SUBCOMMANDS,
   BANNED_AI_CLICHES,
+  isOwnerApplicationRecord,
   evaluatePreSubmitGate,
   computeWorkspaceStatusMetrics,
   runCareerWriteCli,
@@ -42,6 +43,8 @@ import {
   writeAtomic as writeAtomicBase,
   readJsonSafe as readJsonSafeBase,
   isBlockedSsrfUrl,
+  fetchUrlWithSafeRedirects,
+  extractDocxText,
 } from './fs-safety.mjs';
 
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -298,6 +301,54 @@ const ROOT = resolveRoot();
 // ---------------- FS safety helpers (delegated to bin/fs-safety.mjs) ----------------
 function refuseSymlink(target, boundary = ROOT) {
   return refuseSymlinkBase(target, boundary, HOME);
+}
+
+function hasParentTraversalSegment(rawPath) {
+  if (typeof rawPath !== 'string') return true;
+  const slashNorm = rawPath.trim().replace(/\\/g, '/');
+  return slashNorm.split('/').some(seg => seg === '..');
+}
+
+function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory = false } = {}) {
+  if (typeof rawPath !== 'string' || !rawPath.trim()) {
+    throw new Error(`Invalid ${label}: path must be a non-empty string.`);
+  }
+  if (/[\x00-\x1f\x7f]/.test(rawPath)) {
+    throw new Error(`Refusing ${label} containing control characters.`);
+  }
+  const trimmed = rawPath.trim();
+  if (trimmed.startsWith('\\\\') || trimmed.startsWith('//')) {
+    throw new Error(`Refusing UNC or network ${label}: "${rawPath}"`);
+  }
+  if (hasParentTraversalSegment(trimmed)) {
+    throw new Error(`Refusing ${label} with ".." parent traversal segments: "${rawPath}"`);
+  }
+  const cwdResolved = path.resolve(process.cwd());
+  const rootResolved = path.resolve(ROOT);
+  const sourceResolved = path.resolve(SOURCE);
+  const resolved = path.resolve(cwdResolved, trimmed);
+
+  const allowedRoots = [rootResolved, cwdResolved, sourceResolved];
+  const matchedBoundary = allowedRoots.find(b => isWithinDir(resolved, b));
+  if (!matchedBoundary) {
+    throw new Error(`Refusing ${label} outside workspace boundary: "${rawPath}"`);
+  }
+
+  refuseSymlink(resolved, matchedBoundary);
+  if (!fs.existsSync(resolved)) {
+    return { resolved, boundary: matchedBoundary, exists: false, stat: null };
+  }
+  const lstat = fs.lstatSync(resolved);
+  if (lstat.isSymbolicLink()) {
+    throw new Error(`Refusing symbolic-link ${label}: ${resolved}`);
+  }
+  if (!allowDirectory && !lstat.isFile()) {
+    throw new Error(`Expected regular file for ${label}: ${resolved}`);
+  }
+  if (allowDirectory && !lstat.isFile() && !lstat.isDirectory()) {
+    throw new Error(`Expected regular file or directory for ${label}: ${resolved}`);
+  }
+  return { resolved, boundary: matchedBoundary, exists: true, stat: lstat };
 }
 
 function writeAtomic(file, content, { preserve = false, mode = 0o644 } = {}) {
@@ -1018,25 +1069,30 @@ async function verifyProfileLinks(root, isProfileReady) {
     if (isProfileReady && typeof fetch === 'function' && !process.env.CI) {
       checkedReachable++;
       try {
-        let res = await fetch(u, {
+        let { response: res } = await fetchUrlWithSafeRedirects(u, {
           method: 'HEAD',
-          redirect: 'follow',
-          signal: AbortSignal.timeout(3500),
+          maxRedirects: 5,
+          timeoutMs: 3500,
           headers: { 'User-Agent': 'veycraft-link-check/2.0' },
         });
         if (res.status === 405 || res.status === 403) {
-          res = await fetch(u, {
+          ({ response: res } = await fetchUrlWithSafeRedirects(u, {
             method: 'GET',
-            redirect: 'follow',
-            signal: AbortSignal.timeout(3500),
+            maxRedirects: 5,
+            timeoutMs: 3500,
             headers: { 'User-Agent': 'veycraft-link-check/2.0' },
-          });
+          }));
         }
         if (res.status === 404 || res.status === 410 || res.status >= 500) {
           deadUrls.push(`${u} (HTTP ${res.status})`);
         }
-      } catch {
-        deadUrls.push(`${u} (unreachable)`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/SSRF guard/i.test(msg)) {
+          deadUrls.push(`${u} (${msg})`);
+        } else {
+          deadUrls.push(`${u} (unreachable)`);
+        }
       }
     }
   }
@@ -1568,13 +1624,21 @@ function cmdDashboard() {
   const cvPath = path.join(ROOT, 'logs', 'cv-versions.json');
   if (fs.existsSync(cvPath)) {
     refuseSymlink(cvPath);
+    let parsedCv;
     try {
-      cvRegistry = JSON.parse(fs.readFileSync(cvPath, 'utf8'));
-    } catch { /* ignore invalid optional cv-versions.json in read-only dashboard view */ }
+      parsedCv = JSON.parse(fs.readFileSync(cvPath, 'utf8'));
+    } catch (err) {
+      throw new Error(`Invalid JSON in ${cvPath}: ${err.message}`);
+    }
+    const cvCheck = validateCvVersionsRegistry(parsedCv);
+    if (!cvCheck.valid) {
+      throw new Error(`Invalid logs/cv-versions.json: ${cvCheck.errors.join('; ')}`);
+    }
+    cvRegistry = parsedCv;
   }
   const analytics = computeCareerAnalytics(records, cvRegistry);
-  // M3: Never embed third-party application records into the generated owner dashboard HTML
-  const ownerRecords = records.filter(r => !(isObj(r) && r.provenance?.third_party_subject === true));
+  // M3 & SEC-02: Never embed third-party or unverified CV-attributed application records into the generated owner dashboard HTML
+  const ownerRecords = records.filter(r => isOwnerApplicationRecord(r, cvRegistry));
   const tpl = fs.readFileSync(tplPath, 'utf8');
   const escapeForScript = obj => JSON.stringify(obj).replace(
     /[<>&\u2028\u2029]/g,
@@ -2002,12 +2066,12 @@ function cmdPreSubmit() {
   let draftContent = null;
   let draftSource = null;
   if (preSubmitOpts.draft) {
-    const draftPath = path.resolve(process.cwd(), preSubmitOpts.draft);
-    if (!fs.existsSync(draftPath)) {
-      throw new Error(`Draft file not found: ${draftPath}`);
+    const draftInfo = assertSafeCliInputPath(preSubmitOpts.draft, { label: 'draft file' });
+    if (!draftInfo.exists) {
+      throw new Error(`Draft file not found: ${draftInfo.resolved}`);
     }
-    draftContent = fs.readFileSync(draftPath, 'utf8');
-    draftSource = draftPath;
+    draftContent = fs.readFileSync(draftInfo.resolved, 'utf8');
+    draftSource = draftInfo.resolved;
   } else if (preSubmitOpts.text !== null) {
     draftContent = preSubmitOpts.text;
     draftSource = '--text';
@@ -2138,84 +2202,6 @@ function extractHtmlText(html) {
     .join('\n');
 }
 
-function extractDocxText(rawBuf) {
-  if (!Buffer.isBuffer(rawBuf) || rawBuf.length < 22 || rawBuf.subarray(0, 4).toString('latin1') !== 'PK\x03\x04') {
-    throw new Error('Invalid .docx file (not a genuine OOXML ZIP archive). Do not rename HTML/text files to .docx.');
-  }
-  let eocdOffset = -1;
-  const minOffset = Math.max(0, rawBuf.length - 65557);
-  for (let i = rawBuf.length - 22; i >= minOffset; i--) {
-    if (rawBuf.readUInt32LE(i) === 0x06054b50) {
-      eocdOffset = i;
-      break;
-    }
-  }
-  if (eocdOffset < 0) throw new Error('Corrupted .docx archive (missing ZIP central directory).');
-
-  const entryCount = rawBuf.readUInt16LE(eocdOffset + 10);
-  let cdOffset = rawBuf.readUInt32LE(eocdOffset + 16);
-  const xmlParts = [];
-
-  for (let idx = 0; idx < entryCount; idx++) {
-    if (cdOffset + 46 > rawBuf.length || rawBuf.readUInt32LE(cdOffset) !== 0x02014b50) {
-      throw new Error('Corrupted .docx central directory entry.');
-    }
-    const flags = rawBuf.readUInt16LE(cdOffset + 8);
-    const method = rawBuf.readUInt16LE(cdOffset + 10);
-    const compSize = rawBuf.readUInt32LE(cdOffset + 20);
-    const nameLen = rawBuf.readUInt16LE(cdOffset + 28);
-    const extraLen = rawBuf.readUInt16LE(cdOffset + 30);
-    const commentLen = rawBuf.readUInt16LE(cdOffset + 32);
-    const localHeaderOffset = rawBuf.readUInt32LE(cdOffset + 42);
-    const fileName = rawBuf.subarray(cdOffset + 46, cdOffset + 46 + nameLen).toString('utf8');
-    cdOffset += 46 + nameLen + extraLen + commentLen;
-
-    if (!/^word\/(?:document|header\d*|footer\d*)\.xml$/i.test(fileName)) continue;
-    if (flags & 1) throw new Error('Encrypted .docx file is not supported; save an unencrypted .docx or export .md/.txt.');
-    if (localHeaderOffset + 30 > rawBuf.length || rawBuf.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
-      throw new Error('Corrupted .docx local file header.');
-    }
-    const lhNameLen = rawBuf.readUInt16LE(localHeaderOffset + 26);
-    const lhExtraLen = rawBuf.readUInt16LE(localHeaderOffset + 28);
-    const dataStart = localHeaderOffset + 30 + lhNameLen + lhExtraLen;
-    const dataEnd = dataStart + compSize;
-    if (dataEnd > rawBuf.length) throw new Error('Truncated .docx entry data.');
-    const compressed = rawBuf.subarray(dataStart, dataEnd);
-    let xmlBuf;
-    if (method === 0) xmlBuf = compressed;
-    else if (method === 8) xmlBuf = zlib.inflateRawSync(compressed);
-    else throw new Error(`Unsupported .docx compression method (${method}); export .md or .txt instead.`);
-    xmlParts.push({ name: fileName.toLowerCase(), xml: xmlBuf.toString('utf8') });
-  }
-
-  const hasMainDoc = xmlParts.some(p => p.name === 'word/document.xml');
-  if (!hasMainDoc) {
-    throw new Error('Invalid .docx package (missing word/document.xml). Do not rename HTML/text files to .docx.');
-  }
-  const combined = xmlParts
-    .sort((a, b) => (a.name === 'word/document.xml' ? -1 : b.name === 'word/document.xml' ? 1 : a.name.localeCompare(b.name)))
-    .map(p =>
-      decodeHtmlEntities(
-        p.xml
-          .replace(/<\/w:p>/gi, '\n')
-          .replace(/<\/w:tr>/gi, '\n')
-          .replace(/<w:br\b[^>]*\/>/gi, '\n')
-          .replace(/<w:tab\b[^>]*\/>/gi, ' ')
-          .replace(/<[^>]+>/g, ''),
-      ),
-    )
-    .join('\n')
-    .split(/\r?\n/)
-    .map(l => l.replace(/[ \t]+/g, ' ').trim())
-    .filter(Boolean)
-    .join('\n');
-
-  if (!combined.trim()) {
-    throw new Error('No readable text found inside .docx (possibly image-only content); paste your CV text or provide .md/.txt.');
-  }
-  return combined;
-}
-
 function readCvInputText(resolved) {
   const ext = path.extname(resolved).toLowerCase();
   const rawBuf = fs.readFileSync(resolved);
@@ -2246,10 +2232,11 @@ function cmdAudit() {
   if (!targetArg) {
     throw new Error('Usage: veycraft audit <path/to/resume.md|txt|docx|html|doc> [--share]');
   }
-  const resolved = path.resolve(process.cwd(), targetArg);
-  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
-    throw new Error(`Resume file not found: ${resolved}`);
+  const targetInfo = assertSafeCliInputPath(targetArg, { label: 'resume file' });
+  if (!targetInfo.exists) {
+    throw new Error(`Resume file not found: ${targetInfo.resolved}`);
   }
+  const resolved = targetInfo.resolved;
   const { text } = readCvInputText(resolved);
   const trimmed = text.trim();
   if (!trimmed) {
@@ -2794,8 +2781,9 @@ function verifyArtifactFile(filePath, factsConfig = null) {
 }
 
 function loadFactsConfig(factsPath) {
-  const resolved = path.resolve(process.cwd(), factsPath);
-  if (!fs.existsSync(resolved)) throw new Error(`Facts file not found: ${resolved}`);
+  const factsInfo = assertSafeCliInputPath(factsPath, { label: 'facts file' });
+  if (!factsInfo.exists) throw new Error(`Facts file not found: ${factsInfo.resolved}`);
+  const resolved = factsInfo.resolved;
   const text = fs.readFileSync(resolved, 'utf8');
   if (resolved.endsWith('.json')) {
     const parsed = JSON.parse(text);
@@ -2815,17 +2803,26 @@ function cmdVerify() {
   if (!targetArg) {
     throw new Error('Usage: veycraft verify <path/to/dir-or-file> [--facts <ground-truth.json|cv.md>]');
   }
-  const resolved = path.resolve(process.cwd(), targetArg);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`Target path not found: ${resolved}`);
+  const targetInfo = assertSafeCliInputPath(targetArg, { label: 'verify target', allowDirectory: true });
+  if (!targetInfo.exists) {
+    throw new Error(`Target path not found: ${targetInfo.resolved}`);
   }
+  const resolved = targetInfo.resolved;
   const factsConfig = opts.facts ? loadFactsConfig(opts.facts) : null;
-  const stat = fs.statSync(resolved);
+  const stat = targetInfo.stat;
   const files = stat.isDirectory()
     ? fs.readdirSync(resolved)
         .filter(f => /\.(html|doc|docx|txt|pdf|md)$/i.test(f))
         .sort()
-        .map(f => path.join(resolved, f))
+        .map(f => {
+          const childPath = path.join(resolved, f);
+          refuseSymlink(childPath, targetInfo.boundary);
+          const childStat = fs.lstatSync(childPath);
+          if (childStat.isSymbolicLink() || !childStat.isFile()) {
+            throw new Error(`Refusing symbolic-link or non-regular file in verify directory: ${childPath}`);
+          }
+          return childPath;
+        })
     : [resolved];
 
   if (files.length === 0) {

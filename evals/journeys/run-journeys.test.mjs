@@ -160,7 +160,7 @@ test('3. CV Import & Format Honesty: reads MD, TXT, HTML, Word-compatible .doc, 
         '- Maintained 99.95% checkout uptime across 3 seasonal sales events.',
       ].join('\n'),
     );
-    const mdAudit = runCli(['audit', mdPath]);
+    const mdAudit = runCli(['audit', mdPath], tmp);
     assert.equal(mdAudit.status, 0, mdAudit.stderr);
 
     const xmlDoc =
@@ -172,23 +172,23 @@ test('3. CV Import & Format Honesty: reads MD, TXT, HTML, Word-compatible .doc, 
       '</w:body></w:document>';
     const docxPath = path.join(tmp, 'cv.docx');
     fs.writeFileSync(docxPath, buildSyntheticDocx(xmlDoc));
-    const docxAudit = runCli(['audit', docxPath]);
+    const docxAudit = runCli(['audit', docxPath], tmp);
     assert.equal(docxAudit.status, 0, `Real .docx audit failed: ${docxAudit.stderr}`);
 
     // Scanned / binary PDF must fail cleanly with clear paste/text guidance (never claim readable)
     const pdfPath = path.join(tmp, 'scanned.pdf');
     fs.writeFileSync(pdfPath, Buffer.from('%PDF-1.4\n%binary-image-stream\n\x00\x01\x02', 'latin1'));
-    const pdfAudit = runCli(['audit', pdfPath]);
+    const pdfAudit = runCli(['audit', pdfPath], tmp);
     assert.notEqual(pdfAudit.status, 0);
     assert.match(pdfAudit.stderr, /Binary\/PDF file detected/i);
 
     // Fake .docx (HTML renamed to .docx) MUST be rejected by both audit and verify
     const fakeDocxPath = path.join(tmp, 'fake.docx');
     fs.writeFileSync(fakeDocxPath, '<html><body><h1>Alex Rivera</h1><p>Fake docx</p></body></html>');
-    const fakeAudit = runCli(['audit', fakeDocxPath]);
+    const fakeAudit = runCli(['audit', fakeDocxPath], tmp);
     assert.notEqual(fakeAudit.status, 0);
     assert.match(fakeAudit.stderr, /Do not rename HTML/i);
-    const fakeVerify = runCli(['verify', fakeDocxPath]);
+    const fakeVerify = runCli(['verify', fakeDocxPath], tmp);
     assert.notEqual(fakeVerify.status, 0);
     assert.match(fakeVerify.stderr, /Do not rename HTML/i);
   } finally {
@@ -239,7 +239,7 @@ test('4. CV Edit (Preserving Original), Quick-Tailor Artifact Generation, Fact-C
     fs.writeFileSync(path.join(outDir, 'tailoring-notes.md'), notesV1);
 
     const groundTruth = path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json');
-    const verifyPass = runCli(['verify', outDir, '--facts', groundTruth]);
+    const verifyPass = runCli(['verify', outDir, '--facts', groundTruth], tmp);
     assert.equal(verifyPass.status, 0, verifyPass.stdout + verifyPass.stderr);
 
     // Original file must remain byte-for-byte untouched after editing/tailoring
@@ -251,18 +251,18 @@ test('4. CV Edit (Preserving Original), Quick-Tailor Artifact Generation, Fact-C
     fs.mkdirSync(scratchDir, { recursive: true });
     fs.writeFileSync(path.join(scratchDir, 'resume.html'), htmlV1);
     fs.writeFileSync(path.join(scratchDir, 'resume.txt'), txtV1);
-    assert.equal(runCli(['verify', scratchDir, '--facts', groundTruth]).status, 0);
+    assert.equal(runCli(['verify', scratchDir, '--facts', groundTruth], tmp).status, 0);
 
     // Bilingual Arabic RTL adaptation preserves verified metrics/dates without placeholders
     const rtlHtml = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>السيرة الذاتية</title></head><body><h1>Alex Rivera</h1><p>مهندس برمجيات متكامل بخبرة 6 سنوات في Node.js و TypeScript و PostgreSQL، خفض زمن الاستجابة بنسبة 38%.</p></body></html>';
     const rtlPath = path.join(tmp, 'resume-ar.html');
     fs.writeFileSync(rtlPath, rtlHtml);
-    assert.equal(runCli(['verify', rtlPath, '--facts', groundTruth]).status, 0);
+    assert.equal(runCli(['verify', rtlPath, '--facts', groundTruth], tmp).status, 0);
 
     // Iterative revision ("change the summary") preserves verified facts & passes verify
     const htmlV2 = fillResumeHtml('Full-Stack Engineer with 5 years in TypeScript and 6 years in Node.js scaling payment webhooks and Playwright CI.');
     fs.writeFileSync(path.join(outDir, 'resume.html'), htmlV2);
-    const verifyV2 = runCli(['verify', outDir, '--facts', groundTruth]);
+    const verifyV2 = runCli(['verify', outDir, '--facts', groundTruth], tmp);
     assert.equal(verifyV2.status, 0, verifyV2.stdout + verifyV2.stderr);
 
     // Negative test: verify MUST catch hallucinated metric, forbidden skill (Kubernetes), AI slop, and leftover placeholders
@@ -271,7 +271,7 @@ test('4. CV Edit (Preserving Original), Quick-Tailor Artifact Generation, Fact-C
       badPath,
       '<html><body><h1>{{FULL_NAME}}</h1><p>Spearheaded Kubernetes clusters — boosting revenue by 99%.</p></body></html>',
     );
-    const verifyFail = runCli(['verify', badPath, '--facts', groundTruth]);
+    const verifyFail = runCli(['verify', badPath, '--facts', groundTruth], tmp);
     assert.notEqual(verifyFail.status, 0);
     assert.match(verifyFail.stdout + verifyFail.stderr, /placeholder|Kubernetes|99%|spearheaded|em-dash/i);
   } finally {
@@ -305,7 +305,7 @@ test('5. LinkedIn Profile Review & Improvement Prep, Multi-Source JD Analysis, A
         '- True Gaps (Excluded): Kubernetes',
       ].join('\n'),
     );
-    assert.equal(runCli(['verify', linkedinAuditOut, '--facts', path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json')]).status, 0);
+    assert.equal(runCli(['verify', linkedinAuditOut, '--facts', path.join(REPO_ROOT, 'evals', 'fixtures', 'ground-truth.json')], tmp).status, 0);
 
     // 5.2 Multi-source JD analysis & ranking against real fixture JDs (separating verified matches vs unknown requirements)
     const jd01 = fs.readFileSync(path.join(REPO_ROOT, 'evals', 'fixtures', 'jds', '01-strong-match.md'), 'utf8');
