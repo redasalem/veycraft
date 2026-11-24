@@ -89,7 +89,7 @@ and prepare it for this workspace. Do not modify personal data or perform live e
 actions without explicit approval.
 ```
 
-**Machine-readable agent discovery:** `veycraft --version --json`, `veycraft doctor --json`, `veycraft status --json`, and `veycraft route "<request>" --json` return structured JSON without modifying personal files or performing external actions.
+**Machine-readable agent discovery:** `veycraft --version --json`, `veycraft doctor --json`, `veycraft status --json`, and `veycraft route "<request>" --json` return structured JSON without modifying personal files or performing external actions. For MCP hosts, `npx -y veycraft mcp` starts the built-in zero-dependency `stdio` MCP server exposing 8 read-only offline tools and allowlisted `veycraft://` resources ([`mcp/README.md`](mcp/README.md)).
 
 <details>
 <summary>Target a Specific AI Tool (<code>--ide</code> Flags)</summary>
@@ -137,7 +137,8 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | Offline CV hygiene audit, fake-`.docx`/scanned-PDF/SSRF/token checks & PII-safe SVG/MD scorecard |
 | `veycraft verify <dir\|file> [--facts <json\|md>]` | Post-write verification for deliverables, ledgers, checkpoints, CV versions, Notion plans, and `Profile Update Plan` JSON |
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | Local Career Intelligence funnel, score-band analytics (`MIN_N = 5`), read-only HTML Kanban, and prioritized action queue |
-| `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `113/113` eval suites |
+| `veycraft mcp [--global]` | Native zero-dependency MCP `stdio` server (8 read-only offline tools + allowlisted `veycraft://` resources — [`mcp/README.md`](mcp/README.md)) |
+| `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `116/116` eval suites |
 
 <details>
 <summary>Advanced CLI Reference (Run State Machine, Atomic Ledger, Notion Sync &amp; Maintenance)</summary>
@@ -189,7 +190,7 @@ npm uninstall -g veycraft
 
 ```bash
 git clone https://github.com/redasalem/veycraft.git && cd veycraft
-npm test             # eval --baseline (20/20), live-agent-eval-run (20/20), and eval --journeys (113/113)
+npm test             # eval --baseline (20/20), live-agent-eval-run (20/20), and eval --journeys (116/116)
 npm run pack:check   # Verifies npm pack --dry-run tarball contents and zero PII leaks
 node bin/cli.mjs doctor
 ```

@@ -33,6 +33,20 @@ Every major AI IDE, CLI harness, desktop client, and LLM family works out of the
 | **Qwen Code / Mistral Vibe 3 / Kimi / DeepSeek / Grok Build** | Frontier Harnesses | `AGENTS.md` + [`.agents/skills/`](../.agents/skills/daily-run/SKILL.md) | [`adapters/apps/qwen-mistral-kimi-deepseek.md`](../adapters/apps/qwen-mistral-kimi-deepseek.md) |
 | **Hermes / Pi / Factory Droid / OpenClaw** | Loop & CLI Agents | `AGENTS.md` + [`.agents/skills/`](../.agents/skills/daily-run/SKILL.md) | [`adapters/apps/hermes-pi-factory-openclaw.md`](../adapters/apps/hermes-pi-factory-openclaw.md) |
 
+### Native MCP Server (`npx -y veycraft mcp`)
+
+In addition to reading `AGENTS.md` and `.agents/skills/`, any MCP client can attach Veycraft's built-in, zero-dependency `stdio` server (8 read-only offline tools + allowlisted `veycraft://` resources — full reference in [`mcp/README.md`](../mcp/README.md)):
+
+- **Claude Desktop / Cursor / Windsurf / Antigravity / Gemini CLI (`mcpServers` JSON):** Add `"veycraft": { "command": "npx", "args": ["-y", "veycraft", "mcp"] }` to `claude_desktop_config.json`, `.cursor/mcp.json`, `mcp_config.json`, or `~/.gemini/settings.json` (on Windows, use `"command": "cmd", "args": ["/c", "npx", "-y", "veycraft", "mcp"]` if required by the host).
+- **Claude Code CLI:** `claude mcp add veycraft -- npx -y veycraft mcp`
+- **VS Code / GitHub Copilot (`.vscode/mcp.json`):** Add `"veycraft": { "type": "stdio", "command": "npx", "args": ["-y", "veycraft", "mcp"] }` under `"servers"`.
+- **OpenAI Codex CLI (`~/.codex/config.toml` or `.codex/config.toml`):**
+  ```toml
+  [mcp_servers.veycraft]
+  command = "npx"
+  args = ["-y", "veycraft", "mcp"]
+  ```
+
 ---
 
 ## 2. Model-Specific Execution Tuning Guides (`adapters/models/`)

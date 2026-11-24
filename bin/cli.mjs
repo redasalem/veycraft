@@ -8,13 +8,31 @@ import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { spawnSync, spawn } from 'node:child_process';
-import { validateProfileUpdatePlan, validateProfileVault } from './profile-intelligence.mjs';
 import {
-  validateApplicationLedger,
+  PINNED_SIGNING_PRINCIPAL as CORE_PINNED_SIGNING_PRINCIPAL,
+  PLACEHOLDER_RE,
+  resolveGlobalRoot as resolveGlobalRootBase,
+  hasInstallMarker,
+  isGlobalRoot as isGlobalRootBase,
+  resolveCodexHome as resolveCodexHomeBase,
+  mcpTargetFiles as mcpTargetFilesBase,
+  codexConfigTomlPath as codexConfigTomlPathBase,
+  readPackageMeta as readPackageMetaBase,
+  escapeRegex,
+  buildSkillRegex,
+  assertSafeCliInputPath as assertSafeCliInputPathBase,
+  installGitPreCommitHook as installGitPreCommitHookBase,
+  evaluateGates,
+  evaluateDoctorSnapshot,
+  extractHtmlText,
+  auditCvFile,
+  matchNaturalLanguageRoute,
+  verifyArtifactTarget,
+  evaluatePreSubmitWithDraft,
+} from './core-ops.mjs';
+import { startMcpServer } from './mcp-server.mjs';
+import {
   validateCvVersionsRegistry,
-  validateCareerInsights,
-  validateDailyRun,
-  validateSessionCheckpoint,
   migrateApplicationsLedger,
   listOwnerCvVersions,
   computeCareerAnalytics,
@@ -22,15 +40,11 @@ import {
   summarizeCareerWorkspace,
   loadCareerSyncInputs,
   CAREER_WRITE_SUBCOMMANDS,
-  BANNED_AI_CLICHES,
   isOwnerApplicationRecord,
-  evaluatePreSubmitGate,
   computeWorkspaceStatusMetrics,
   runCareerWriteCli,
 } from './career-intelligence.mjs';
 import {
-  validateNotionSyncPlan,
-  verifySyncStateIntegrity,
   runNotionSyncCli,
 } from './notion-sync.mjs';
 import {
@@ -38,15 +52,9 @@ import {
   isSamePath,
   isObj,
   sleepSync,
-  isWithinDir,
   refuseSymlink as refuseSymlinkBase,
   writeAtomic as writeAtomicBase,
   readJsonSafe as readJsonSafeBase,
-  isBlockedSsrfUrl,
-  fetchUrlWithSafeRedirects,
-  DOCX_LIMITS,
-  readFileBoundedSync,
-  extractDocxText,
 } from './fs-safety.mjs';
 
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -62,7 +70,7 @@ const fail = msg => console.error(paint('31', `[✗] ${msg}`));
 
 // ---------------- CLI args ----------------
 const ATTRIBUTION_BANNER = 'Veycraft — Created by Reda Salem (@redasalem) | https://github.com/redasalem/veycraft';
-const PINNED_SIGNING_PRINCIPAL = '192090175+redasalem@users.noreply.github.com';
+const PINNED_SIGNING_PRINCIPAL = CORE_PINNED_SIGNING_PRINCIPAL;
 const PINNED_SIGNING_PUBKEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7t6GfNExgWOy+djcVZlb62BD9DKRrz81Xk++LTZTSo';
 const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys', '--dry-run', '--apply', '--write']);
 const positional = [];
@@ -264,29 +272,13 @@ if (command === 'pre-submit' && !argErr) {
 }
 
 const PRIMARY_GLOBAL_ROOT = path.join(HOME, '.veycraft');
-const LEGACY_GLOBAL_ROOT = path.join(HOME, '.job-hunter-os');
 
 function resolveGlobalRoot() {
-  const customHome = process.env.VEYCRAFT_HOME && process.env.VEYCRAFT_HOME.trim();
-  if (customHome) return path.resolve(customHome);
-  if (fs.existsSync(PRIMARY_GLOBAL_ROOT)) return PRIMARY_GLOBAL_ROOT;
-  if (fs.existsSync(LEGACY_GLOBAL_ROOT)) return LEGACY_GLOBAL_ROOT;
-  if (process.platform === 'linux' && process.env.XDG_DATA_HOME && path.isAbsolute(process.env.XDG_DATA_HOME.trim())) {
-    return path.join(process.env.XDG_DATA_HOME.trim(), 'veycraft');
-  }
-  return PRIMARY_GLOBAL_ROOT;
-}
-
-function hasInstallMarker(dir) {
-  return (
-    fs.existsSync(path.join(dir, '.veycraft-install.json')) ||
-    fs.existsSync(path.join(dir, '.job-hunter-install.json'))
-  );
+  return resolveGlobalRootBase(HOME);
 }
 
 function isGlobalRoot(root = ROOT) {
-  const candidates = [PRIMARY_GLOBAL_ROOT, LEGACY_GLOBAL_ROOT, resolveGlobalRoot()];
-  return candidates.some(c => isSamePath(root, c));
+  return isGlobalRootBase(root, HOME);
 }
 
 function resolveRoot() {
@@ -300,122 +292,20 @@ function resolveRoot() {
 
 const ROOT = resolveRoot();
 
-// ---------------- FS safety helpers (delegated to bin/fs-safety.mjs) ----------------
+// ---------------- FS safety helpers (delegated to bin/fs-safety.mjs & bin/core-ops.mjs) ----------------
 function refuseSymlink(target, boundary = ROOT) {
   return refuseSymlinkBase(target, boundary, HOME);
 }
 
-function hasParentTraversalSegment(rawPath) {
-  if (typeof rawPath !== 'string') return true;
-  const slashNorm = rawPath.trim().replace(/\\/g, '/');
-  return slashNorm.split('/').some(seg => seg === '..');
-}
-
 function assertSafeCliInputPath(rawPath, { label = 'file path', allowDirectory = false } = {}) {
-  if (typeof rawPath !== 'string' || !rawPath.trim()) {
-    throw new Error(`Invalid ${label}: path must be a non-empty string.`);
-  }
-  if (/[\x00-\x1f\x7f]/.test(rawPath)) {
-    throw new Error(`Refusing ${label} containing control characters.`);
-  }
-  const trimmed = rawPath.trim();
-  if (trimmed.startsWith('\\\\') || trimmed.startsWith('//')) {
-    throw new Error(`Refusing UNC or network ${label}: "${rawPath}"`);
-  }
-  const afterDrive = /^[A-Za-z]:/.test(trimmed) ? trimmed.slice(2) : trimmed;
-  if (afterDrive.includes(':')) {
-    throw new Error(`Refusing ${label} containing unsafe alternate data stream or colon syntax: "${rawPath}"`);
-  }
-  if (hasParentTraversalSegment(trimmed)) {
-    throw new Error(`Refusing ${label} with ".." parent traversal segments: "${rawPath}"`);
-  }
-  const cwdResolved = path.resolve(process.cwd());
-  const rootResolved = path.resolve(ROOT);
-  const sourceResolved = path.resolve(SOURCE);
-  const resolved = path.resolve(cwdResolved, trimmed);
-
-  const allowedRoots = [rootResolved, cwdResolved, sourceResolved];
-  // On macOS (/var and /tmp -> /private/var and /private/tmp) and Windows (8.3 short paths such as RUNNER~1 in Git Bash),
-  // include both realpathSync(b) and realpathSync.native(b) for existing boundary roots.
-  for (const b of [rootResolved, cwdResolved, sourceResolved]) {
-    for (const fn of [fs.realpathSync, fs.realpathSync?.native].filter(Boolean)) {
-      try {
-        const rp = fn(b);
-        if (rp && !allowedRoots.some(x => isSamePath(x, rp))) {
-          allowedRoots.push(rp);
-        }
-        if (process.platform === 'darwin' && rp.startsWith('/private/')) {
-          const alias = rp.slice('/private'.length);
-          if (alias && !allowedRoots.some(x => isSamePath(x, alias))) {
-            allowedRoots.push(alias);
-          }
-        }
-      } catch { /* ignore */ }
-    }
-  }
-
-  let matchedBoundary = allowedRoots.find(b => isWithinDir(resolved, b));
-  // On Windows (e.g., RUNNER~1 short 8.3 paths in Git Bash mktemp) or macOS (/var -> /private/var),
-  // if lexical match didn't trigger, check whether the existing parent directory's realpath.native is within an allowed root
-  // while walking the entire lexical ancestor chain with lstatSync to block any actual symlinks or junctions.
-  if (!matchedBoundary) {
-    let probe = resolved;
-    while (probe && !fs.existsSync(probe)) {
-      const parent = path.dirname(probe);
-      if (parent === probe) break;
-      probe = parent;
-    }
-    if (probe && fs.existsSync(probe)) {
-      let hasSymlinkInChain = false;
-      let cursor = probe;
-      while (cursor) {
-        try {
-          if (fs.lstatSync(cursor).isSymbolicLink()) {
-            hasSymlinkInChain = true;
-            break;
-          }
-        } catch {
-          break;
-        }
-        const parent = path.dirname(cursor);
-        if (parent === cursor) break;
-        cursor = parent;
-      }
-      if (!hasSymlinkInChain) {
-        for (const fn of [fs.realpathSync?.native, fs.realpathSync].filter(Boolean)) {
-          try {
-            const realProbe = fn(probe);
-            const relTail = path.relative(probe, resolved);
-            const canonicalCandidate = relTail ? path.resolve(realProbe, relTail) : realProbe;
-            const realMatched = allowedRoots.find(b => isWithinDir(canonicalCandidate, b));
-            if (realMatched) {
-              matchedBoundary = probe;
-              break;
-            }
-          } catch { /* ignore */ }
-        }
-      }
-    }
-  }
-  if (!matchedBoundary) {
-    throw new Error(`Refusing ${label} outside workspace boundary: "${rawPath}"`);
-  }
-
-  refuseSymlink(resolved, matchedBoundary);
-  if (!fs.existsSync(resolved)) {
-    return { resolved, boundary: matchedBoundary, exists: false, stat: null };
-  }
-  const lstat = fs.lstatSync(resolved);
-  if (lstat.isSymbolicLink()) {
-    throw new Error(`Refusing symbolic-link ${label}: ${resolved}`);
-  }
-  if (!allowDirectory && !lstat.isFile()) {
-    throw new Error(`Expected regular file for ${label}: ${resolved}`);
-  }
-  if (allowDirectory && !lstat.isFile() && !lstat.isDirectory()) {
-    throw new Error(`Expected regular file or directory for ${label}: ${resolved}`);
-  }
-  return { resolved, boundary: matchedBoundary, exists: true, stat: lstat };
+  return assertSafeCliInputPathBase(rawPath, {
+    label,
+    allowDirectory,
+    root: ROOT,
+    source: SOURCE,
+    home: HOME,
+    cwd: process.cwd(),
+  });
 }
 
 function writeAtomic(file, content, { preserve = false, mode = 0o644 } = {}) {
@@ -479,8 +369,7 @@ const SUPPORTED_IDES = new Set([
 ]);
 
 function resolveCodexHome() {
-  const custom = process.env.CODEX_HOME && process.env.CODEX_HOME.trim();
-  return custom ? path.resolve(custom) : path.join(HOME, '.codex');
+  return resolveCodexHomeBase(HOME);
 }
 
 function upsertManagedBlock(file, blockBody, { preserve = false } = {}) {
@@ -680,25 +569,11 @@ function readJsonSafe(file) {
 }
 
 function mcpTargetFiles(root, isGlobal) {
-  if (isGlobal) {
-    return [
-      path.join(HOME, '.claude.json'),
-      path.join(HOME, '.cursor', 'mcp.json'),
-      path.join(HOME, '.gemini', 'antigravity', 'mcp_config.json'),
-      path.join(HOME, '.gemini', 'settings.json'),
-      path.join(HOME, '.codeium', 'windsurf', 'mcp_config.json'),
-      path.join(HOME, '.copilot', 'mcp-config.json'),
-    ];
-  }
-  return [
-    path.join(root, '.mcp.json'),
-    path.join(root, '.cursor', 'mcp.json'),
-    path.join(root, '.gemini', 'settings.json'),
-  ];
+  return mcpTargetFilesBase(root, isGlobal, HOME);
 }
 
 function codexConfigTomlPath(root, isGlobal) {
-  return isGlobal ? path.join(resolveCodexHome(), 'config.toml') : path.join(root, '.codex', 'config.toml');
+  return codexConfigTomlPathBase(root, isGlobal, HOME);
 }
 
 function formatTomlMcpSection(name, cfg) {
@@ -921,60 +796,11 @@ function scaffoldFrom(srcRoot, targetRoot, { isUpdate = false } = {}) {
 }
 
 function installGitPreCommitHook(root) {
-  const gitDir = path.join(root, '.git');
-  try {
-    if (!fs.existsSync(gitDir) || !fs.lstatSync(gitDir).isDirectory()) return false;
-  } catch {
-    return false;
-  }
-  const hookFile = path.join(gitDir, 'hooks', 'pre-commit');
-  const marker = '# veycraft pre-commit pii shield';
-  const legacyMarker = '# job-hunter-os pre-commit pii shield';
-  if (fs.existsSync(hookFile)) {
-    try {
-      const existing = fs.readFileSync(hookFile, 'utf8');
-      if (!existing.includes(marker) && !existing.includes(legacyMarker)) return true; // preserve custom user hook
-    } catch {
-      return false;
-    }
-  }
-  const script = [
-    '#!/usr/bin/env sh',
-    marker,
-    'set -e',
-    'STAGED=$(git diff --cached --name-only --diff-filter=ACM || true)',
-    'if [ -z "$STAGED" ]; then exit 0; fi',
-    'for f in $STAGED; do',
-    '  case "$f" in',
-    '    context/*.example|context/DROP_YOUR_FILES_HERE.md) ;;',
-    '    context/*|logs/*|browser-profile/*|*.pdf|.env|.env.*|.mcp.json|.cursor/mcp.json|.codex/config.toml|.gemini/settings.json|.vscode/mcp.json)',
-    '      echo "[veycraft PII Shield] BLOCKED commit of private file: $f" >&2',
-    '      exit 1',
-    '      ;;',
-    '  esac',
-    'done',
-    'if git diff --cached -U0 | grep -E "^\\+.*(ntn_[A-Za-z0-9]{12,}|sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})" >/dev/null 2>&1; then',
-    '  echo "[veycraft PII Shield] BLOCKED commit containing an API token signature (ntn_ / sk- / ghp_)." >&2',
-    '  exit 1',
-    'fi',
-    'exit 0',
-    '',
-  ].join('\n');
-  writeAtomic(hookFile, script, { preserve: false, mode: 0o755 });
-  return true;
+  return installGitPreCommitHookBase(root, HOME);
 }
 
 function readPackageMeta() {
-  const pkgPath = [path.join(ROOT, 'package.json'), path.join(SOURCE, 'package.json')].find(f => fs.existsSync(f));
-  let pkg = {};
-  if (pkgPath) {
-    try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { /* ignore */ }
-  }
-  return {
-    version: pkg.version || '1.4.1',
-    runtimeDeps: Object.keys(pkg.dependencies || {}).length,
-    devDeps: Object.keys(pkg.devDependencies || {}).length,
-  };
+  return readPackageMetaBase(ROOT, SOURCE);
 }
 
 function escapeXml(str) {
@@ -1078,409 +904,40 @@ function cmdUpdate() {
 }
 
 // ---------------- doctor ----------------
-const PLACEHOLDER_RE = /\b(?:Jane Doe|John Doe|YOUR_NAME|YOUR_EMAIL|your-handle|your-site|replace-with|Acme Fintech|Nile Commerce)\b|(?:example\.com|example\.invalid|reda@example\.com)/i;
-
-function isPopulated(root, relPath) {
-  const file = path.join(root, relPath);
-  if (!fs.existsSync(file)) return { exists: false, ready: false };
-  const text = fs.readFileSync(file, 'utf8');
-  const ex = path.join(root, `${relPath}.example`);
-  const sameAsEx = fs.existsSync(ex) && text === fs.readFileSync(ex, 'utf8');
-  const ready = text.trim().length > 20 && !sameAsEx && !PLACEHOLDER_RE.test(text);
-  return { exists: true, ready };
-}
-
-function extractProfileUrls(root) {
-  const urls = new Set();
-  for (const rel of ['context/profile.md', 'context/resume-data.json']) {
-    const f = path.join(root, rel);
-    if (!fs.existsSync(f)) continue;
-    const text = fs.readFileSync(f, 'utf8');
-    const matches = text.match(/https?:\/\/[^\s)"'>\],]+/gi) || [];
-    for (const raw of matches) {
-      const cleaned = raw.replace(/[.;:]+$/, '');
-      if (cleaned) urls.add(cleaned);
-    }
-  }
-  return [...urls];
-}
-
-async function verifyProfileLinks(root, isProfileReady) {
-  const urls = extractProfileUrls(root);
-  if (!urls.length) {
-    return { validSyntax: 0, placeholderCount: 0, deadUrls: [], checkedReachable: 0 };
-  }
-  let validSyntax = 0;
-  let placeholderCount = 0;
-  let checkedReachable = 0;
-  const deadUrls = [];
-
-  for (const u of urls) {
-    let parsed;
-    try {
-      parsed = new URL(u);
-      validSyntax++;
-    } catch {
-      deadUrls.push(`${u} (malformed URL)`);
-      continue;
-    }
-    const ssrfReason = isBlockedSsrfUrl(parsed);
-    if (ssrfReason) {
-      deadUrls.push(`${u} (blocked by SSRF guard: ${ssrfReason})`);
-      continue;
-    }
-    if (PLACEHOLDER_RE.test(u) || /example\.|your-handle|your-site/i.test(parsed.hostname)) {
-      placeholderCount++;
-      continue;
-    }
-    if (isProfileReady && typeof fetch === 'function' && !process.env.CI) {
-      checkedReachable++;
-      try {
-        let { response: res } = await fetchUrlWithSafeRedirects(u, {
-          method: 'HEAD',
-          maxRedirects: 5,
-          timeoutMs: 3500,
-          headers: { 'User-Agent': 'veycraft-link-check/2.0' },
-        });
-        if (res.status === 405 || res.status === 403) {
-          ({ response: res } = await fetchUrlWithSafeRedirects(u, {
-            method: 'GET',
-            maxRedirects: 5,
-            timeoutMs: 3500,
-            headers: { 'User-Agent': 'veycraft-link-check/2.0' },
-          }));
-        }
-        if (res.status === 404 || res.status === 410 || res.status >= 500) {
-          deadUrls.push(`${u} (HTTP ${res.status})`);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/SSRF guard/i.test(msg)) {
-          deadUrls.push(`${u} (${msg})`);
-        } else {
-          deadUrls.push(`${u} (unreachable)`);
-        }
-      }
-    }
-  }
-  return { validSyntax, placeholderCount, deadUrls, checkedReachable, total: urls.length };
-}
-
-function evaluateGates(root) {
-  const prof = isPopulated(root, 'context/profile.md');
-  const cv = isPopulated(root, 'context/cv.md');
-  const hasPdf = ['assets/resume.pdf', 'context/resume.pdf'].some(rel => {
-    const f = path.join(root, rel);
-    try { return fs.existsSync(f) && fs.readFileSync(f).subarray(0, 5).toString() === '%PDF-'; } catch { return false; }
-  });
-  const g1 = prof.ready && cv.ready && hasPdf;
-  const g2 = isPopulated(root, 'context/preferences.yaml').ready;
-  const ansFile = path.join(root, 'context', 'form-answers.yaml');
-  const ans = isPopulated(root, 'context/form-answers.yaml');
-  const ownerVerified = fs.existsSync(ansFile) && /^\s*owner_verified:\s*true\b(?:\s*#.*)?$/im.test(fs.readFileSync(ansFile, 'utf8'));
-  const g3 = ans.ready && ownerVerified;
-  const targetsFile = path.join(root, 'context', 'targets.yaml');
-  const g5 = fs.existsSync(targetsFile) && /^\s*enabled:\s*true\b(?:\s*#.*)?$/im.test(fs.readFileSync(targetsFile, 'utf8'));
-  const gates = [g1, g2, g3, g5];
-  const passed = gates.filter(Boolean).length;
-  return { g1, g2, g3, g5, passed, total: gates.length, profReady: prof.ready };
-}
-
 async function cmdDoctor() {
-  let criticalFailures = 0;
-  let readinessPending = 0;
   const isGlobal = opts.global || isGlobalRoot(ROOT);
   const jsonMode = Boolean(opts.json);
-  const { version, runtimeDeps, devDeps } = readPackageMeta();
-  const logOk = msg => { if (!jsonMode) ok(msg); };
-  const logWarn = msg => { if (!jsonMode) warn(msg); };
-  const logInfo = msg => { if (!jsonMode) info(msg); };
-  const logFail = msg => { if (!jsonMode) fail(msg); };
-
-  if (!jsonMode) {
-    console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
-    console.log(paint('36', `Veycraft Doctor — ${ROOT}\n`));
-  }
-
-  const nodeMajor = Number(process.versions.node.split('.')[0]);
-  const nodeOk = nodeMajor >= 18;
-  if (nodeOk) logOk(`OS & Runtime: ${process.platform} (${os.arch()}) · Node ${process.versions.node}`);
-  else { logFail(`Node.js >= 18 required (found ${process.versions.node}). Upgrade from https://nodejs.org/.`); criticalFailures++; }
-
-  const installed = hasInstallMarker(ROOT) || fs.existsSync(path.join(ROOT, 'AGENTS.md'));
-  if (installed) {
-    logOk(`Agent Home: ${ROOT} (${isGlobal ? 'global' : 'local'})`);
-  } else {
-    logWarn(`Agent Home: not yet initialized at ${ROOT} — run \`veycraft init --global\` (recommended) or \`veycraft init\``);
-    readinessPending++;
-  }
-
-  const registryRoot = fs.existsSync(path.join(ROOT, 'skills', 'REGISTRY.md'))
-    ? ROOT
-    : (fs.existsSync(path.join(SOURCE, 'skills', 'REGISTRY.md')) ? SOURCE : null);
-  let manifestCount = null;
-  if (registryRoot) {
-    try {
-      const mPath = [path.join(registryRoot, 'skills', 'skills-manifest.json'), path.join(SOURCE, 'skills', 'skills-manifest.json')].find(f => fs.existsSync(f));
-      if (mPath) {
-        const parsed = JSON.parse(fs.readFileSync(mPath, 'utf8'));
-        if (Array.isArray(parsed?.skills)) manifestCount = parsed.skills.length;
-      }
-    } catch { /* ignore */ }
-    const suffix = registryRoot === ROOT ? '' : ' (bundled in CLI package)';
-    logOk(`Skill Registry: skills/REGISTRY.md present${manifestCount !== null ? ` (${manifestCount} skills in manifest)` : ''}${suffix}`);
-  } else {
-    logFail('Missing skills/REGISTRY.md');
-    criticalFailures++;
-  }
-
-  // Provenance & Attribution Guard (strict canonical field validation; checks installed ROOT or bundled SOURCE before init)
-  const provenanceRoot = installed ? ROOT : SOURCE;
-  const missingOrTampered = [];
-  for (const rel of ['NOTICE', 'AUTHORS.md', 'PROVENANCE.json']) {
-    const f = path.join(provenanceRoot, rel);
-    if (!fs.existsSync(f)) {
-      missingOrTampered.push(`${rel} (missing)`);
-      continue;
-    }
-    try {
-      const txt = fs.readFileSync(f, 'utf8');
-      if (rel === 'PROVENANCE.json') {
-        const prov = JSON.parse(txt);
-        if (prov?.github_handle !== 'redasalem') {
-          missingOrTampered.push('PROVENANCE.json (github_handle mismatch)');
-        }
-        if (prov?.original_author !== 'Reda Salem') {
-          missingOrTampered.push('PROVENANCE.json (original_author mismatch)');
-        }
-        if (prov?.canonical_repository !== 'https://github.com/redasalem/veycraft') {
-          missingOrTampered.push('PROVENANCE.json (canonical_repository mismatch)');
-        }
-        if (prov?.verified_noreply_email !== PINNED_SIGNING_PRINCIPAL) {
-          missingOrTampered.push('PROVENANCE.json (verified_noreply_email mismatch)');
-        }
-      } else if (rel === 'NOTICE') {
-        if (!txt.includes('Copyright (c) 2026 Reda Salem (@redasalem)') || !txt.includes('https://github.com/redasalem/veycraft')) {
-          missingOrTampered.push('NOTICE (canonical copyright or repository URL missing/tampered)');
-        }
-      } else if (rel === 'AUTHORS.md') {
-        if (!txt.includes('Reda Salem') || !txt.includes('https://github.com/redasalem')) {
-          missingOrTampered.push('AUTHORS.md (canonical author attribution missing/tampered)');
-        }
-      }
-    } catch {
-      missingOrTampered.push(`${rel} (unreadable/invalid)`);
-    }
-  }
-  const provenanceVerified = missingOrTampered.length === 0;
-  if (!provenanceVerified) {
-    logFail(`Provenance verification FAILED (tampered or uncredited clone): ${missingOrTampered.join(', ')}`);
-    criticalFailures++;
-  } else {
-    logOk(`Provenance & Attribution: NOTICE, AUTHORS.md & PROVENANCE.json canonical fields verified (@redasalem)${installed ? '' : ' [package]'}`);
-  }
-
-  // Platform Playbook Freshness Check (warn when last_verified > 60 days old)
-  const platDir = [path.join(ROOT, 'skills', 'platforms'), path.join(SOURCE, 'skills', 'platforms')].find(d => fs.existsSync(d));
-  let verifiedPlaybooks = 0;
-  const stalePlaybooks = [];
-  if (platDir) {
-    for (const entry of fs.readdirSync(platDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('_') || entry.name === 'README.md') continue;
-      const text = fs.readFileSync(path.join(platDir, entry.name), 'utf8');
-      const m = text.match(/^last_verified:\s*"?(\d{4}-\d{2}-\d{2})"?/m);
-      if (!m) {
-        stalePlaybooks.push(`${entry.name} (missing last_verified)`);
-        continue;
-      }
-      const ageDays = (Date.now() - Date.parse(`${m[1]}T00:00:00Z`)) / 86400000;
-      if (Number.isNaN(ageDays) || ageDays > 60) {
-        stalePlaybooks.push(`${entry.name} (${Math.floor(ageDays)}d old)`);
-      } else {
-        verifiedPlaybooks++;
-      }
-    }
-    if (stalePlaybooks.length > 0) {
-      logWarn(`Platform Playbook Freshness (>60d stale): ${stalePlaybooks.join(', ')}`);
-    } else if (verifiedPlaybooks > 0) {
-      logOk(`Platform Playbook Freshness: ${verifiedPlaybooks} playbook(s) verified within 60 days`);
-    }
-  }
-
-  // Readiness gates (warning unless --strict)
-  const checkGate = (label, cond, hint) => {
-    if (cond) logOk(label);
-    else { logWarn(`${label} — ${hint}`); readinessPending++; }
-  };
-
-  const gates = evaluateGates(ROOT);
-  checkGate('Gate 1 · CV & Profile', gates.g1, 'run /setup in your IDE to confirm CV & add resume.pdf');
-  checkGate('Gate 2 · Target Preferences', gates.g2, 'confirm target roles, regions & work modes in /setup');
-  checkGate('Gate 3/4 · Legal, Comp & Skills', gates.g3, 'confirm salary, visa, and skill years in /setup');
-  checkGate('Gate 5 · Enabled Targets', gates.g5, 'enable at least one board in context/targets.yaml via /setup');
-
-  // Profile & Resume Live Link Verifier
-  const linkAudit = await verifyProfileLinks(ROOT, gates.profReady);
-  if (linkAudit.deadUrls.length > 0) {
-    logWarn(`Profile & Resume Links: ${linkAudit.deadUrls.length} broken/dead URL(s): ${linkAudit.deadUrls.join(', ')}`);
-    readinessPending++;
-  } else if (linkAudit.placeholderCount > 0) {
-    logInfo(`Profile & Resume Links: ${linkAudit.placeholderCount} placeholder URL(s) in context/ (replace via /setup)`);
-  } else if (linkAudit.validSyntax > 0) {
-    logOk(`Profile & Resume Links: ${linkAudit.validSyntax} well-formed URL(s) verified`);
-  }
-
-  const profileExists = fs.existsSync(path.join(ROOT, 'browser-profile'));
-  checkGate('Browser Profile Directory', profileExists, 'run `login` to initialize browser-profile/');
-
-  const preCommitActive = installGitPreCommitHook(ROOT);
-  if (preCommitActive) {
-    logOk('Git Pre-Commit PII Shield: .git/hooks/pre-commit active');
-  }
-
-  // MCP configs
-  const mcpStatus = [];
-  for (const file of mcpTargetFiles(ROOT, isGlobal)) {
-    if (!fs.existsSync(file)) {
-      logInfo(`MCP Config: ${file} (not created yet — run sync-mcp if using this IDE)`);
-      mcpStatus.push({ file, status: 'not_created' });
-      continue;
-    }
-    try {
-      const cfg = readJsonSafe(file);
-      const args = cfg?.mcpServers?.playwright?.args || [];
-      const hasDir = Array.isArray(args) && args.some(a => typeof a === 'string' && a.startsWith('--user-data-dir='));
-      if (hasDir) {
-        logOk(`MCP Config: ${file}`);
-        mcpStatus.push({ file, status: 'ok' });
-      } else {
-        logWarn(`MCP Config: ${file} missing playwright --user-data-dir`);
-        mcpStatus.push({ file, status: 'missing_user_data_dir' });
-        readinessPending++;
-      }
-    } catch {
-      logFail(`MCP Config invalid JSON: ${file}`);
-      mcpStatus.push({ file, status: 'invalid_json' });
-      criticalFailures++;
-    }
-  }
-  if (!isGlobal) {
-    const vsFile = path.join(ROOT, '.vscode', 'mcp.json');
-    if (fs.existsSync(vsFile)) {
-      try {
-        const cfg = readJsonSafe(vsFile);
-        const args = cfg?.servers?.playwright?.args || [];
-        if (Array.isArray(args) && args.some(a => typeof a === 'string' && a.startsWith('--user-data-dir='))) {
-          logOk(`VS Code MCP Config: ${vsFile}`);
-          mcpStatus.push({ file: vsFile, status: 'ok' });
-        } else {
-          logWarn(`VS Code MCP Config: ${vsFile} missing playwright --user-data-dir`);
-          mcpStatus.push({ file: vsFile, status: 'missing_user_data_dir' });
-        }
-      } catch {
-        logFail(`VS Code MCP Config invalid JSON: ${vsFile}`);
-        mcpStatus.push({ file: vsFile, status: 'invalid_json' });
-        criticalFailures++;
-      }
-    } else {
-      logInfo(`VS Code MCP Config: ${vsFile} (not created yet — run sync-mcp if using VS Code/Copilot)`);
-      mcpStatus.push({ file: vsFile, status: 'not_created' });
-    }
-  }
-  const codexToml = codexConfigTomlPath(ROOT, isGlobal);
-  if (fs.existsSync(codexToml)) {
-    const toml = fs.readFileSync(codexToml, 'utf8');
-    if (/^\s*\[mcp_servers\.playwright\]/m.test(toml) && toml.includes('--user-data-dir=')) {
-      logOk(`Codex MCP Config: ${codexToml}`);
-      mcpStatus.push({ file: codexToml, status: 'ok' });
-    } else {
-      logWarn(`Codex MCP Config: ${codexToml} missing [mcp_servers.playwright] --user-data-dir`);
-      mcpStatus.push({ file: codexToml, status: 'missing_user_data_dir' });
-    }
-  } else {
-    logInfo(`Codex MCP Config: ${codexToml} (not created yet — run sync-mcp if using OpenAI Codex CLI)`);
-    mcpStatus.push({ file: codexToml, status: 'not_created' });
-  }
-
-  // Global IDE discovery folders (informational)
-  const globalIdePaths = [];
-  if (isGlobal) {
-    for (const [label, p] of [
-      ['~/.agents/skills', path.join(HOME, '.agents', 'skills')],
-      ['~/.codex/AGENTS.md', path.join(resolveCodexHome(), 'AGENTS.md')],
-      ['~/.gemini/GEMINI.md', path.join(HOME, '.gemini', 'GEMINI.md')],
-      ['~/.gemini/skills', path.join(HOME, '.gemini', 'skills')],
-      ['~/.copilot/copilot-instructions.md', path.join(HOME, '.copilot', 'copilot-instructions.md')],
-      ['~/.claude/skills', path.join(HOME, '.claude', 'skills')],
-      ['~/.cursor/rules/job-hunter.mdc', path.join(HOME, '.cursor', 'rules', 'job-hunter.mdc')],
-      ['~/.gemini/antigravity/global_workflows', path.join(HOME, '.gemini', 'antigravity', 'global_workflows')],
-    ]) {
-      const exists = fs.existsSync(p);
-      globalIdePaths.push({ label, path: p, present: exists });
-      if (exists) logOk(`Global IDE Path: ${label}`);
-      else logWarn(`Global IDE Path missing: ${label} (run init --global)`);
-    }
-  }
-
-  logInfo(`Optional NOTION_TOKEN: ${process.env.NOTION_TOKEN ? 'present (value hidden)' : 'not set (local JSON mode active)'}`);
-  const nextSteps = [];
-  if (!installed) {
-    nextSteps.push('Run `veycraft init --global` (recommended) or `veycraft init` in your workspace to scaffold skills and IDE configs.');
-  }
-  nextSteps.push('Start safely in your AI IDE with `/demo` (zero personal data) or `/quick-tailor` (1 CV + 1 JD, no browser login).');
-  if (gates.passed < gates.total) {
-    nextSteps.push('For full browser-assisted workflows later, run `veycraft login` and `/setup` in your AI IDE.');
-  }
+  const snap = await evaluateDoctorSnapshot({
+    root: ROOT,
+    source: SOURCE,
+    home: HOME,
+    isGlobal,
+    strict: opts.strict,
+    offline: false,
+    readOnly: false,
+  });
 
   if (jsonMode) {
-    const payload = {
-      product: 'veycraft',
-      version,
-      node: process.versions.node,
-      node_ok: nodeOk,
-      platform: process.platform,
-      arch: os.arch(),
-      scope: isGlobal ? 'global' : 'local',
-      root: ROOT,
-      global_root: resolveGlobalRoot(),
-      package_source: SOURCE,
-      initialized: installed,
-      skills_count: manifestCount,
-      provenance_verified: provenanceVerified,
-      provenance_source: provenanceRoot,
-      provenance_issues: missingOrTampered,
-      playbooks_verified: verifiedPlaybooks,
-      stale_playbooks: stalePlaybooks,
-      gates: {
-        cv_and_profile: gates.g1,
-        target_preferences: gates.g2,
-        legal_comp_skills: gates.g3,
-        enabled_targets: gates.g5,
-        passed: gates.passed,
-        total: gates.total,
-      },
-      browser_profile_present: profileExists,
-      git_pre_commit_shield: preCommitActive,
-      notion_token_set: Boolean(process.env.NOTION_TOKEN),
-      mcp_configs: mcpStatus,
-      global_ide_paths: globalIdePaths,
-      zero_dependencies: { runtime: runtimeDeps, dev: devDeps },
-      safe_defaults: { dry_run_default: true, explicit_approve_required: true },
-      readiness_pending: readinessPending,
-      critical_failures: criticalFailures,
-      ok: criticalFailures === 0 && (!opts.strict || readinessPending === 0),
-      next_steps: nextSteps,
-    };
-    console.log(JSON.stringify(payload, null, 2));
-  } else if (readinessPending > 0) {
-    console.log('');
-    if (!installed) {
-      info('Not initialized yet. Run `veycraft init --global` (recommended) or `veycraft init` inside a workspace.');
-    } else {
-      info(`${readinessPending} setup item(s) pending. Open ${ROOT} in your AI IDE and type /setup (or start immediately with /demo or /quick-tailor).`);
+    console.log(JSON.stringify(snap.payload, null, 2));
+  } else {
+    console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+    console.log(paint('36', `Veycraft Doctor — ${ROOT}\n`));
+    for (const ev of snap.events) {
+      if (ev.level === 'ok') ok(ev.message);
+      else if (ev.level === 'warn') warn(ev.message);
+      else if (ev.level === 'fail') fail(ev.message);
+      else info(ev.message);
+    }
+    if (snap.readinessPending > 0) {
+      console.log('');
+      if (!snap.installed) {
+        info('Not initialized yet. Run `veycraft init --global` (recommended) or `veycraft init` inside a workspace.');
+      } else {
+        info(`${snap.readinessPending} setup item(s) pending. Open ${ROOT} in your AI IDE and type /setup (or start immediately with /demo or /quick-tailor).`);
+      }
     }
   }
-  if (criticalFailures > 0 || (opts.strict && readinessPending > 0)) process.exitCode = 1;
+  if (snap.exitCode !== 0) process.exitCode = 1;
 }
 
 // ---------------- login ----------------
@@ -1835,17 +1292,6 @@ function cmdBackup() {
   ok(`Verified JSON integrity (${verifiedCount} log file(s)) & backed up ${copied} file(s) -> ${destDir}`);
 }
 
-function escapeRegex(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function buildSkillRegex(skill) {
-  const escaped = escapeRegex(skill);
-  const left = /^[A-Za-z0-9_]/.test(skill) ? '(?<![A-Za-z0-9_])' : '(?<!\\.)';
-  const right = /[A-Za-z0-9_]$/.test(skill) ? '(?![A-Za-z0-9_])' : '(?![A-Za-z0-9_+])';
-  return new RegExp(`${left}${escaped}${right}`, 'i');
-}
-
 function evaluateEvalSuite(evalRoot, resultsFile) {
   const profileFile = path.join(evalRoot, 'fixtures', 'candidate-profile.md');
   const groundTruthFile = path.join(evalRoot, 'fixtures', 'ground-truth.json');
@@ -2122,75 +1568,21 @@ function cmdProof() {
 }
 
 function cmdPreSubmit() {
-  const gate = evaluatePreSubmitGate(ROOT, {
-    platform: preSubmitOpts.platform,
-    company: preSubmitOpts.company,
-    title: preSubmitOpts.title,
-    url: preSubmitOpts.url,
-    job_id: preSubmitOpts.jobId,
-  }, { home: HOME, sourceRoot: SOURCE });
+  const preSubmitRes = evaluatePreSubmitWithDraft(ROOT, preSubmitOpts, {
+    home: HOME,
+    source: SOURCE,
+    cwd: process.cwd(),
+  });
+  const { allowed, violations, warnings, checks } = preSubmitRes;
 
-  const violations = [...gate.violations];
-  const warnings = [];
-  let draftReport = null;
-
-  // 2. Outreach / draft word-count check (--draft <file> or --text "<msg>")
-  let draftContent = null;
-  let draftSource = null;
-  if (preSubmitOpts.draft) {
-    const draftInfo = assertSafeCliInputPath(preSubmitOpts.draft, { label: 'draft file' });
-    if (!draftInfo.exists) {
-      throw new Error(`Draft file not found: ${draftInfo.resolved}`);
-    }
-    draftContent = fs.readFileSync(draftInfo.resolved, 'utf8');
-    draftSource = draftInfo.resolved;
-  } else if (preSubmitOpts.text !== null) {
-    draftContent = preSubmitOpts.text;
-    draftSource = '--text';
-  }
-
-  if (draftContent !== null) {
-    const words = draftContent.trim().split(/\s+/).filter(Boolean);
-    const wordCount = words.length;
-    const maxWords = preSubmitOpts.maxWords;
-    const hasEmDash = draftContent.includes('—');
-    const bannedCliches = BANNED_AI_CLICHES.filter(cl => buildSkillRegex(cl).test(draftContent));
-    draftReport = {
-      source: draftSource,
-      word_count: wordCount,
-      max_words: maxWords,
-      ok: wordCount > 0 && wordCount <= maxWords && bannedCliches.length === 0 && !hasEmDash,
-      has_em_dash: hasEmDash,
-      banned_cliches: bannedCliches,
-    };
-    if (wordCount === 0) {
-      violations.push({ code: 'draft_empty', message: `Draft (${draftSource}) is empty (0 words).` });
-    } else if (wordCount > maxWords) {
-      violations.push({ code: 'draft_word_cap_exceeded', message: `Draft Word Cap EXCEEDED: ${wordCount}/${maxWords} words (${draftSource}). Trim before sending.` });
-    }
-    if (bannedCliches.length > 0) {
-      violations.push({
-        code: 'draft_banned_cliches',
-        message: `Draft contains banned AI cliché(s) in ${draftSource}: ${bannedCliches.join(', ')}. Rewrite with plain, grounded language.`,
-      });
-    }
-    if (hasEmDash) {
-      violations.push({
-        code: 'draft_prose_em_dash',
-        message: `Draft contains prose em-dash (—) in ${draftSource}; replace with periods or commas before sending.`,
-      });
-    }
-  }
-
-  const allowed = violations.length === 0;
   if (preSubmitOpts.json || opts.json) {
     console.log(JSON.stringify({
-      root: ROOT,
-      allowed,
-      dry_run: gate.dry_run,
-      violations,
-      warnings,
-      checks: { ...gate.checks, draft: draftReport },
+      root: preSubmitRes.root,
+      allowed: preSubmitRes.allowed,
+      dry_run: preSubmitRes.dry_run,
+      violations: preSubmitRes.violations,
+      warnings: preSubmitRes.warnings,
+      checks: preSubmitRes.checks,
     }, null, 2));
     if (!allowed) process.exitCode = 1;
     return;
@@ -2199,23 +1591,24 @@ function cmdPreSubmit() {
   console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
   console.log(paint('36', `Veycraft Pre-Submit Deterministic Gate — ${ROOT}\n`));
 
-  const dc = gate.checks.daily_cap;
+  const dc = checks.daily_cap;
   if (dc.ok) {
     ok(`Daily Cap OK: ${dc.today_counted}/${dc.effective_cap} (${dc.warmup_active ? 'Warm-up Days 1-3 cap: 5/day' : `Standard cap: ${dc.max_per_day}/day`}, uncertain: ${dc.today_submission_uncertain}, dry_run: ${dc.dry_run ? 'ON' : 'OFF'})`);
   }
-  if (gate.checks.platform_cap?.ok) {
-    const pc = gate.checks.platform_cap;
+  if (checks.platform_cap?.ok) {
+    const pc = checks.platform_cap;
     ok(`Platform Cap OK (${pc.platform}): ${pc.today_counted}/${pc.cap ?? 'unlimited'}`);
   }
-  if (gate.checks.circuit_breaker?.ok) {
-    ok(`Circuit Breaker OK (${gate.checks.circuit_breaker.platform}): no active cooldown`);
+  if (checks.circuit_breaker?.ok) {
+    ok(`Circuit Breaker OK (${checks.circuit_breaker.platform}): no active cooldown`);
   }
-  if (gate.checks.blacklist?.ok) {
+  if (checks.blacklist?.ok) {
     ok('Blacklist Check OK: company/domain not blacklisted');
   }
-  if (gate.checks.deduplication?.ok) {
+  if (checks.deduplication?.ok) {
     ok('Deduplication OK: no duplicate job_id, canonical URL, or 60-day fingerprint');
   }
+  const draftReport = checks.draft;
   if (draftReport) {
     if (draftReport.ok) {
       ok(`Draft Word Cap OK: ${draftReport.word_count}/${draftReport.max_words} words (${draftReport.source})`);
@@ -2227,11 +1620,9 @@ function cmdPreSubmit() {
   for (const w of warnings) warn(w);
 
   // 3. Re-surface compact pre-submit invariants (<500 bytes)
-  const invFile = [path.join(ROOT, 'config', 'invariants.txt'), path.join(SOURCE, 'config', 'invariants.txt')].find(f => fs.existsSync(f));
-  if (invFile) {
-    const invText = fs.readFileSync(invFile, 'utf8').trim();
+  if (preSubmitRes.invariants_text) {
     console.log('');
-    console.log(invText);
+    console.log(preSubmitRes.invariants_text);
   } else {
     warn('config/invariants.txt not found (run init or update to restore).');
   }
@@ -2245,157 +1636,40 @@ function cmdPreSubmit() {
   }
 }
 
-function decodeHtmlEntities(str) {
-  return String(str || '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_, n) => {
-      const code = Number(n);
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
-      const code = parseInt(hex, 16);
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
-    });
-}
-
-function extractHtmlText(html) {
-  return decodeHtmlEntities(
-    String(html || '')
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<\/?(?:p|div|li|tr|h[1-6]|br|section|header|main|article)\b[^>]*>/gi, '\n')
-      .replace(/<[^>]+>/g, ' '),
-  )
-    .split(/\r?\n/)
-    .map(l => l.replace(/[ \t]+/g, ' ').trim())
-    .filter(Boolean)
-    .join('\n');
-}
-
-function readCvInputText(resolved) {
-  const ext = path.extname(resolved).toLowerCase();
-  if (ext === '.docx') {
-    const rawBuf = readFileBoundedSync(resolved, DOCX_LIMITS.MAX_INPUT_BYTES, '.docx file');
-    return { text: extractDocxText(rawBuf), format: 'docx' };
-  }
-  const rawBuf = fs.readFileSync(resolved);
-  if (rawBuf.subarray(0, 5).toString('utf8') === '%PDF-' || ext === '.pdf') {
-    throw new Error('Binary/PDF file detected. Read natively if your AI IDE supports PDFs, open via Playwright MCP file:///..., or paste/export as .md/.txt/.docx for instant CLI audit.');
-  }
-  if (ext === '.doc' && rawBuf.length >= 4 && rawBuf[0] === 0xd0 && rawBuf[1] === 0xcf && rawBuf[2] === 0x11 && rawBuf[3] === 0xe0) {
-    throw new Error('Legacy binary .doc (OLE2) detected. Save as .docx/.txt/.md or paste your CV text in chat.');
-  }
-  if (rawBuf.includes(0)) {
-    throw new Error('Binary file detected. Pass a readable .md, .txt, .docx, .html, or Word-compatible .doc CV file.');
-  }
-  const rawText = rawBuf.toString('utf8');
-  if (ext === '.html' || ext === '.htm' || (ext === '.doc' && /<html|<body|<p|<div/i.test(rawText))) {
-    return { text: extractHtmlText(rawText), format: ext === '.doc' ? 'word-html-doc' : 'html' };
-  }
-  if (ext && ext !== '.md' && ext !== '.txt' && ext !== '.markdown' && ext !== '.doc') {
-    throw new Error(`Unsupported file extension "${ext}". Pass .md, .txt, .docx, .html, or Word-compatible .doc.`);
-  }
-  return { text: rawText, format: ext.replace(/^\./, '') || 'txt' };
-}
-
 function cmdAudit() {
   const targetArg = positional[1];
   if (!targetArg) {
     throw new Error('Usage: veycraft audit <path/to/resume.md|txt|docx|html|doc> [--share]');
   }
-  const targetInfo = assertSafeCliInputPath(targetArg, { label: 'resume file' });
-  if (!targetInfo.exists) {
-    throw new Error(`Resume file not found: ${targetInfo.resolved}`);
-  }
-  const resolved = targetInfo.resolved;
-  const { text } = readCvInputText(resolved);
-  const trimmed = text.trim();
-  if (!trimmed) {
-    throw new Error(`CV file is empty: ${resolved}`);
-  }
-
-  // 1. AI-Slop Clichés & Prose Em-Dashes (25 pts)
-  const clichésFound = BANNED_AI_CLICHES.filter(cl => buildSkillRegex(cl).test(trimmed));
-  const emDashCount = (trimmed.match(/—/g) || []).length;
-  const tonePenalty = Math.min(25, clichésFound.length * 6 + Math.min(10, emDashCount * 2));
-  const toneScore = 25 - tonePenalty;
-
-  // 2. Detected Numeric Metrics Density (30 pts)
-  const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const bullets = lines.filter(l => /^[-*•]\s+/.test(l));
-  const metricPattern = '(?<![A-Za-z0-9_])(?:\\$?\\d[\\d,]*(?:\\.\\d+)?(?:\\s*(?:%|k|m|b|x|ms|sec|seconds|min|minutes|hrs|hours|days|weeks|months|years)\\b|%|[KMBX]\\b|\\+))';
-  const metricGlobalRe = new RegExp(metricPattern, 'gi');
-  const metricSingleRe = new RegExp(metricPattern, 'i');
-  const totalMetrics = (trimmed.match(metricGlobalRe) || []).length;
-  const quantifiedBullets = bullets.filter(b => metricSingleRe.test(b)).length;
-  let impactScore = 0;
-  if (bullets.length > 0) {
-    const ratio = quantifiedBullets / bullets.length;
-    impactScore = Math.min(30, Math.round(ratio * 24) + Math.min(6, totalMetrics));
-  } else {
-    impactScore = Math.min(30, totalMetrics * 5);
-  }
-
-  // 3. 1-Page A4 Length & Scannability (25 pts)
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  const wordCount = words.length;
-  const lineCount = lines.length;
-  let lengthStatus = '1-Page A4 Fit';
-  let lengthCategory = '1-Page A4 Fit';
-  let lengthScore = 25;
-  if (wordCount < 120) {
-    lengthStatus = 'Too Short (<120 words)';
-    lengthCategory = 'Too Short';
-    lengthScore = 12;
-  } else if (wordCount > 750 || lineCount > 55) {
-    lengthStatus = `Overflow Risk (${wordCount} words / ${lineCount} lines)`;
-    lengthCategory = 'Overflow Risk';
-    lengthScore = 15;
-  } else if (wordCount > 620 || lineCount > 45) {
-    lengthStatus = `Tight 1-Page (${wordCount} words / ${lineCount} lines)`;
-    lengthCategory = 'Tight 1-Page';
-    lengthScore = 21;
-  }
-
-  // 4. Data Hygiene & Link Safety (20 pts)
-  const hasPlaceholder = PLACEHOLDER_RE.test(trimmed);
-  const secretLeakRe = /(ntn_[A-Za-z0-9]{12,}|sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/;
-  const hasSecretLeak = secretLeakRe.test(trimmed);
-  const rawUrls = trimmed.match(/https?:\/\/[^\s)"'>\],]+/gi) || [];
-  let badUrls = 0;
-  for (const raw of rawUrls) {
-    const cleaned = raw.replace(/[.;:]+$/, '');
-    try {
-      const parsed = new URL(cleaned);
-      if (isBlockedSsrfUrl(parsed)) badUrls++;
-    } catch {
-      badUrls++;
-    }
-  }
-  let hygieneScore = 20;
-  if (hasPlaceholder) hygieneScore -= 8;
-  if (hasSecretLeak) hygieneScore -= 12;
-  if (badUrls > 0) hygieneScore -= Math.min(8, badUrls * 4);
-  hygieneScore = Math.max(0, hygieneScore);
-
-  const totalScore = toneScore + impactScore + lengthScore + hygieneScore;
-  const { version } = readPackageMeta();
-
-  const hygieneLabel = hasSecretLeak
-    ? 'token flagged'
-    : (hasPlaceholder ? 'placeholders' : 'clean');
+  const audit = auditCvFile(targetArg, { root: ROOT, source: SOURCE, home: HOME, cwd: process.cwd() });
+  const {
+    version,
+    total_score: totalScore,
+    tone_score: toneScore,
+    impact_score: impactScore,
+    length_score: lengthScore,
+    hygiene_score: hygieneScore,
+    cliches_found: clichésFound,
+    em_dash_count: emDashCount,
+    total_metrics: totalMetrics,
+    quantified_bullets: quantifiedBullets,
+    bullet_count: bulletCount,
+    word_count: wordCount,
+    line_count: lineCount,
+    length_status: lengthStatus,
+    length_category: lengthCategory,
+    has_placeholder: hasPlaceholder,
+    has_secret_leak: hasSecretLeak,
+    bad_urls: badUrls,
+    hygiene_label: hygieneLabel,
+  } = audit;
 
   console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
   console.log(paint('36', 'Veycraft — Instant Local CV Hygiene Audit (Zero-Dependency, Offline)\n'));
   console.log('+--------------------------------------------------------------+');
   console.log(`| CV Hygiene Score:      ${String(`${totalScore}/100 (heuristic)`).padEnd(38)}|`);
   console.log(`| Human Tone (0 slop):   ${String(`${toneScore}/25 (${clichésFound.length} clichés, ${emDashCount} em-dashes)`).padEnd(38)}|`);
-  console.log(`| Detected Metrics:      ${String(`${impactScore}/30 (${totalMetrics} detected, ${quantifiedBullets}/${bullets.length} bullets)`).padEnd(38)}|`);
+  console.log(`| Detected Metrics:      ${String(`${impactScore}/30 (${totalMetrics} detected, ${quantifiedBullets}/${bulletCount} bullets)`).padEnd(38)}|`);
   console.log(`| 1-Page A4 Fit:         ${String(`${lengthScore}/25 (${lengthStatus})`).padEnd(38)}|`);
   console.log(`| Data & Link Hygiene:   ${String(`${hygieneScore}/20 (${badUrls} bad URLs, ${hygieneLabel})`).padEnd(38)}|`);
   console.log('+--------------------------------------------------------------+');
@@ -2409,7 +1683,7 @@ function cmdAudit() {
 
   if (opts.share) {
     const scoreColor = totalScore >= 80 ? '#34d399' : totalScore >= 60 ? '#fbbf24' : '#f87171';
-    const hygieneLabel = hasSecretLeak
+    const shareHygieneLabel = hasSecretLeak
       ? 'Token pattern flagged'
       : (hasPlaceholder || badUrls > 0 ? 'Warnings found' : 'Clean');
 
@@ -2441,7 +1715,7 @@ function cmdAudit() {
       '    <rect x="230" y="128" width="182" height="118" rx="12" fill="#0f172a" stroke="#1e293b"/>',
       `    <text x="248" y="176" fill="#38bdf8" font-size="30" font-weight="800">${totalMetrics}</text>`,
       '    <text x="248" y="202" fill="#e2e8f0" font-size="13" font-weight="700">Detected Metrics</text>',
-      `    <text x="248" y="222" fill="#94a3b8" font-size="11">${quantifiedBullets}/${bullets.length} bullets w/ numbers</text>`,
+      `    <text x="248" y="222" fill="#94a3b8" font-size="11">${quantifiedBullets}/${bulletCount} bullets w/ numbers</text>`,
       '    <rect x="428" y="128" width="182" height="118" rx="12" fill="#0f172a" stroke="#1e293b"/>',
       `    <text x="446" y="176" fill="#f8fafc" font-size="22" font-weight="800">${escapeXml(lengthCategory)}</text>`,
       '    <text x="446" y="202" fill="#e2e8f0" font-size="13" font-weight="700">Page-Fit Category</text>',
@@ -2449,7 +1723,7 @@ function cmdAudit() {
       '    <rect x="626" y="128" width="182" height="118" rx="12" fill="#0f172a" stroke="#1e293b"/>',
       `    <text x="644" y="176" fill="#fbbf24" font-size="30" font-weight="800">${hygieneScore}/20</text>`,
       '    <text x="644" y="202" fill="#e2e8f0" font-size="13" font-weight="700">Data &amp; Link Hygiene</text>',
-      `    <text x="644" y="222" fill="#94a3b8" font-size="11">${escapeXml(hygieneLabel)}</text>`,
+      `    <text x="644" y="222" fill="#94a3b8" font-size="11">${escapeXml(shareHygieneLabel)}</text>`,
       '  </g>',
       '  <rect x="32" y="264" width="776" height="44" rx="10" fill="#064e3b" fill-opacity="0.35" stroke="#34d399" stroke-opacity="0.35"/>',
       '  <text x="48" y="291" fill="#a7f3d0" font-family="Consolas,ui-monospace,monospace" font-size="12">Raw CV text, names, emails, phones &amp; URLs excluded · Saved locally only (never uploaded)</text>',
@@ -2467,9 +1741,9 @@ function cmdAudit() {
       '|---|---|',
       `| **CV Hygiene Score (Heuristic)** | **${totalScore}/100** |`,
       `| **Human Tone Indicators** | ${toneScore}/25 (${clichésFound.length} AI-slop clichés, ${emDashCount} prose em-dashes) |`,
-      `| **Detected Numeric Metrics** | ${totalMetrics} detected (${quantifiedBullets}/${bullets.length} quantified bullets) |`,
+      `| **Detected Numeric Metrics** | ${totalMetrics} detected (${quantifiedBullets}/${bulletCount} quantified bullets) |`,
       `| **Page-Fit Category** | ${lengthCategory} (${lengthScore}/25 · ${wordCount} words / ${lineCount} lines) |`,
-      `| **Data & Link Hygiene** | ${hygieneScore}/20 (${hygieneLabel}) |`,
+      `| **Data & Link Hygiene** | ${hygieneScore}/20 (${shareHygieneLabel}) |`,
       `| **Tool Version** | \`veycraft v${version}\` (https://github.com/redasalem/veycraft) |`,
       '',
       '### Reproduce Locally',
@@ -2489,9 +1763,9 @@ function cmdAudit() {
     console.log(`veycraft v${version} · Local CV Hygiene Audit (Zero-Dependency)`);
     console.log(`Hygiene Score:            ${totalScore}/100 (heuristic — not an ATS acceptance prediction)`);
     console.log(`Human Tone:               ${toneScore}/25 (${clichésFound.length} clichés, ${emDashCount} em-dashes)`);
-    console.log(`Detected Numeric Metrics: ${totalMetrics} detected (${quantifiedBullets}/${bullets.length} bullets)`);
+    console.log(`Detected Numeric Metrics: ${totalMetrics} detected (${quantifiedBullets}/${bulletCount} bullets)`);
     console.log(`Page-Fit Category:        ${lengthStatus}`);
-    console.log(`Data & Link Hygiene:      ${hygieneScore}/20 (${hygieneLabel}; raw CV text excluded)`);
+    console.log(`Data & Link Hygiene:      ${hygieneScore}/20 (${shareHygieneLabel}; raw CV text excluded)`);
     console.log('Reproduce locally:        npx github:redasalem/veycraft audit ./resume.md --share');
     console.log('```');
     ok('Saved privacy-safe local scorecard artifacts (raw CV text & personal details excluded):');
@@ -2501,262 +1775,6 @@ function cmdAudit() {
 
   console.log('');
   info('Next: Open your AI IDE and run `/quick-tailor` with this CV + 1 job description (zero browser login required).');
-}
-
-const ROUTE_RULES = [
-  {
-    intent: 'sandbox-demo',
-    match: q => /(^|\s)\/demo\b|\bsandbox demo\b/i.test(q),
-    skills: ['02-discover-and-triage', '03-tailor-resume-and-verify', '13-company-due-diligence', '14-privacy-pii-shield', '21-ats-keyword-heatmap'],
-    workflow: '.agent/workflows/demo.md',
-    readiness: 'none (zero personal data or browser login required)',
-    required_inputs: [],
-    optional_tools: [],
-    fallback: 'Works offline from examples/sandbox-demo/',
-    outputs: ['Mission Control table', 'Synthetic Job #1 tailored preview'],
-  },
-  {
-    intent: 'setup-full-career-os',
-    match: q => /(^|\s)\/setup\b|\bcheck my folder\b|\b5 readiness gates\b/i.test(q),
-    skills: ['00-interrogate-and-onboard', '01-resume-ingestion', '11-portfolio-and-github-auditor'],
-    workflow: '.agent/workflows/setup.md',
-    readiness: 'full-5-gate-onboarding',
-    required_inputs: ['CV file or pasted CV', 'target roles/regions', 'comp/legal/skills_years', 'enabled platforms'],
-    optional_tools: ['playwright (for live login & PDF)'],
-    fallback: 'Gates 1-4 complete locally without Playwright; standalone tasks never require /setup',
-    outputs: ['context/profile.md', 'context/cv.md', 'context/resume-data.json', 'context/preferences.yaml', 'context/form-answers.yaml', 'context/targets.yaml'],
-  },
-  {
-    intent: 'daily-run',
-    match: q => /(^|\s)\/daily-run\b|\brun today'?s job run\b|\bstart applying\b/i.test(q),
-    skills: ['00-daily-run', '00-interrogate-and-onboard', '02-discover-and-triage', '03-tailor-resume-and-verify', '04-fill-and-apply', '05-outreach-and-interview-prep', '06-log-and-insights'],
-    workflow: '.agent/workflows/daily-run.md',
-    readiness: 'full-5-gate-readiness + launch consent + browser auth',
-    required_inputs: ['5 passed readiness gates', 'fresh launch confirmation'],
-    optional_tools: ['playwright (required for live board automation)', 'notion'],
-    fallback: 'If Playwright is absent, offer /quick-tailor or URL/pasted-JD manual prep',
-    outputs: ['Mission Control table', 'logs/resumes/<job>/', 'logs/applications-log.json', 'logs/runs/YYYY-MM-DD.json'],
-  },
-  {
-    intent: 'linkedin-profile',
-    match: q =>
-      /(^|\s)\/linkedin-growth\b/i.test(q) ||
-      (
-        /\blinkedin\b/i.test(q) &&
-        /\b(profile|headline|about|consistent|optimize|audit|review|improve|post|posts|outreach|algorithm|reach|impressions|dwell time|carousel|pdf document|comment[- ]first|comment strategy|comments?|content strategy|content pillars?|topical authority|growth|grow|engagement|funnel)\b/i.test(q) &&
-        !/\b(job|apply|jobs)\b/i.test(q)
-      ) ||
-      /\b(profile consistent with my cv|optimize my profile|grow my linkedin)\b/i.test(q),
-    skills: ['linkedin-growth', 'profile-intelligence-engine', '03-tailor-resume-and-verify', '05-outreach-and-interview-prep', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
-    workflow: '.agent/workflows/linkedin-growth.md',
-    readiness: 'task-specific (profile text/PDF/screenshot or signed-in Playwright + CV facts; no /setup required)',
-    required_inputs: ['LinkedIn profile (pasted, PDF, screenshot, or signed-in Playwright)', 'verified CV facts'],
-    optional_tools: ['playwright (for read-only profile read or APPROVE-gated live edit)'],
-    fallback: 'Works 100% offline from pasted profile text, Save-to-PDF, or screenshots as DRAFT_ONLY',
-    outputs: ['0-100 Recruiter-SEO scorecard, 3-stage funnel & CV consistency gaps', 'Dual-Engine Feed/Comment-First/Carousel drafts & DRAFT_ONLY Before/After copy in logs/insights/linkedin-seo-audit-YYYY-MM-DD.md'],
-  },
-  {
-    intent: 'profile-intelligence',
-    match: q =>
-      /(^|\s)\/profile-update\b/i.test(q) ||
-      /(?:بروفايل|ملفي المهني|الملف المهني)/i.test(q) ||
-      (
-        /\b(optimize|improve|update|sync|tailor|review|fill|audit)\b/i.test(q) &&
-        /\b(professional profile|career profile|job profile|job board profiles?|linkedin profile|github profile|portfolio profile|my profile|profile fields?|profiles? across|headline and about)\b/i.test(q) &&
-        !/\bfind\b.*\bjobs?\b/i.test(q)
-      ),
-    skills: ['profile-intelligence-engine', '01-resume-ingestion', '03-tailor-resume-and-verify', '11-portfolio-and-github-auditor', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
-    workflow: '.agent/workflows/profile-update.md',
-    readiness: 'task-specific (verified CV/profile facts + target role/goal; no /setup required)',
-    required_inputs: ['verified CV/profile facts', 'target role, JD, or positioning goal'],
-    optional_tools: ['playwright (optional for live platform read, batch-fill, and read-back verification)', 'gh CLI (optional for GitHub repo audits, marketing edits, and safe cleanup)'],
-    fallback: 'Works 100% offline as a DRAFT_ONLY Profile Update Plan (schemas/profile-update-plan.schema.json) from pasted/exported profile data',
-    outputs: ['logs/insights/profile-update-plan-<platform>-YYYY-MM-DD.json', 'Consolidated field-level diff & truthful verification summary'],
-  },
-  {
-    intent: 'portfolio-design-qa',
-    match: q =>
-      /(^|\s)\/portfolio-design\b/i.test(q) ||
-      (
-        /\bportfolio\b/i.test(q) &&
-        /\b(design system|color palettes?|palettes?|colors?|typography|design tokens?|tokens?|wcag|contrast|unit tests?|component tests?|visual qa|responsive qa|overflow|console errors?|self-heal|wireframe|blueprint)\b/i.test(q) &&
-        !/\b(deploy|host|publish|launch|vercel|wrangler|cloudflare|netlify|github pages|firebase|surge|audit|check\s+(?:my\s+)?portfolio\s+links?)\b/i.test(q)
-      ),
-    skills: ['30-portfolio-design-system-and-qa', '29-portfolio-builder-and-deployer', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
-    workflow: '.agent/workflows/portfolio-design.md',
-    readiness: 'task-specific (verified candidate facts + isolated logs/portfolio/<site-slug>/; no /setup or Playwright required)',
-    required_inputs: ['verified candidate facts / Domain Archetype', 'isolated portfolio workspace path'],
-    optional_tools: ['playwright (optional for live 375px/768px/1440px viewport, overflow, and console QA)'],
-    fallback: 'Works 100% offline with node --test / isolated Vitest unit suites and an automated local Node DOM/CSS verification script writing qa-report.md',
-    outputs: ['DESIGN_PLAN.md & separated portfolio-data', 'WCAG-validated design-tokens.json + tokens.css', '3-layer qa-report.md within <= 3 self-healing cycles'],
-  },
-  {
-    intent: 'build-portfolio',
-    match: q =>
-      /(^|\s)\/build-portfolio\b/i.test(q) ||
-      (/\bportfolio\b/i.test(q) && /\b(build|create|generate|design|scaffold|make|deploy|host|publish|launch|vercel|wrangler|cloudflare|netlify|firebase|surge)\b/i.test(q) && !/\b(audit|check)\b/i.test(q)) ||
-      (/\b(update|edit|customize|redesign)\b/i.test(q) && /\bportfolio\s+(?:site|website|page|theme|layout)\b/i.test(q)),
-    skills: ['29-portfolio-builder-and-deployer', '30-portfolio-design-system-and-qa', '01-resume-ingestion', '03-tailor-resume-and-verify', '11-portfolio-and-github-auditor', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
-    workflow: '.agent/workflows/build-portfolio.md',
-    readiness: 'task-specific (verified CV/project facts + batched style/stack/hosting choices; no /setup or Playwright required)',
-    required_inputs: ['verified CV/profile facts', 'style/stack/public-contact/hosting choices'],
-    optional_tools: ['hosting CLI (vercel, wrangler, netlify, gh, firebase, surge)', 'playwright (optional for local/live visual preview)'],
-    fallback: 'Builds locally inside isolated logs/portfolio/<site-slug>/ (LOCAL_PREVIEW_ONLY default) and exports ready-to-upload static dist/ + DNS/HTTPS instructions when no hosting CLI is used',
-    outputs: ['Isolated portfolio project in logs/portfolio/<site-slug>/', 'Pre-publish PII/secret scan + local preview', 'Optional APPROVE-gated live HTTPS deployment + HTTP 200 verification'],
-  },
-  {
-    intent: 'github-portfolio-audit',
-    match: q =>
-      /(^|\s)\/github-audit\b/i.test(q) ||
-      /\b(github audit|portfolio audit|audit (?:my )?(?:github|portfolio)|check (?:my )?portfolio links?|clean\s?up (?:my )?github|delete (?:junk|old|unused) repos?|archive (?:old|unused) repos?|extract (?:real )?projects from github|github readme|profile readme)\b/i.test(q) ||
-      (/\bgithub\b/i.test(q) && /\b(repos?|repositories|readme|topics?|pinned|archive|private|delete|clean\s?up|extract|audit|optimize|polish)\b/i.test(q)),
-    skills: ['11-portfolio-and-github-auditor', '01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
-    workflow: '.agent/workflows/github-audit.md',
-    readiness: 'task-specific (gh CLI auth or GitHub/portfolio URLs + target role/goal; no /setup or Playwright required)',
-    required_inputs: ['authenticated gh CLI session or GitHub/portfolio URLs', 'target role or positioning goal'],
-    optional_tools: ['gh CLI (for full repo inventory, codebase inspection, and APPROVE-gated edits/cleanup)', 'playwright (optional for live portfolio visual/link verification)'],
-    fallback: 'Works read-only from Playwright or pasted repo URLs/READMEs if gh CLI is unavailable; all mutations default to DRAFT_ONLY with APPROVE (and per-repo typed DELETE <owner>/<repo> for deletions)',
-    outputs: ['5-tier GitHub Inventory Scorecard', 'context/github-projects.md verified CV project dossier', 'DRAFT_ONLY Before/After marketing diff & tiered cleanup matrix'],
-  },
-  {
-    intent: 'interview-prep',
-    match: q => /\b(interview|take-home|coding challenge|system design)\b/i.test(q) && !/\b(rejected|rejection|rate|offer|history)\b/i.test(q),
-    skills: ['05-outreach-and-interview-prep', '22-technical-assessment-architect'],
-    workflow: null,
-    readiness: 'task-specific (target JD/prompt + CV facts; no prior application submission required)',
-    required_inputs: ['target job description / company / prompt', 'verified CV facts'],
-    optional_tools: ['playwright'],
-    fallback: 'Works 100% locally from pasted JD/prompt and CV facts',
-    outputs: ['logs/resumes/<folder>/interview-dossier.md or assessment-blueprint.md', 'targeted technical & behavioral prep Q&As'],
-  },
-  {
-    intent: 'offer-and-contract',
-    match: q => /\b(job offer|negotiate|salary expectation|rate check|contract|nda|msa|sow|agreement)\b/i.test(q),
-    skills: ['09-offer-negotiator', '23-contract-and-nda-auditor'],
-    workflow: null,
-    readiness: 'task-specific (offer/contract text + verified compensation/notice floor; no /setup required)',
-    required_inputs: ['offer/rate message or contract/NDA text', 'verified comp/work terms'],
-    optional_tools: [],
-    fallback: 'Works 100% locally as DRAFT_ONLY comparison and redline proposals',
-    outputs: ['Grounded offer comparison or 6-category contract red-flag audit', 'DRAFT_ONLY reply/counter-clauses'],
-  },
-  {
-    intent: 'application-prep-and-fill',
-    match: q => /(^|\s)\/apply-url\b|\b(prepare (?:my |an )?application|upload (?:my |the tailored )?resume to|answer (?:this |these )?application question|ats form|easy apply)\b/i.test(q),
-    skills: ['03-tailor-resume-and-verify', '04-fill-and-apply', '05-outreach-and-interview-prep', '06-log-and-insights', 'meta-self-verification'],
-    workflow: '.agent/workflows/apply-url.md',
-    readiness: 'task-specific for prep (CV + JD + relevant answers); full gate + DOM Read-Back + explicit APPROVE for live ATS Submit',
-    required_inputs: ['target job URL or JD', 'verified CV facts', 'application question answers'],
-    optional_tools: ['playwright (required for live ATS upload/submit; manual prep fallback if unavailable)'],
-    fallback: 'Generates complete manual package (resume.html/.doc/.txt, cover letter, answers, dossier, local tracking) via skills/fallback-no-mcp.md',
-    outputs: ['logs/resumes/<folder>/ artifacts', 'Live DOM Read-Back Table + APPROVE gate (or manual upload guide)', 'logs/applications-log.json entry'],
-  },
-  {
-    intent: 'tracking-and-insights',
-    match: q => /(^|\s)\/weekly-report\b|\b(track (?:my )?applications|application history|analy[sz]e (?:my )?rejections|why am i getting rejected|ghosted|export (?:my )?application report|update (?:an )?existing application|follow-?up|calibrate|recruiter (?:email|message|replied))\b/i.test(q),
-    skills: ['06-log-and-insights', '08-follow-up-radar', '12-recruiter-inbox-triage', '16-rejection-pattern-analyzer', '17-score-calibration'],
-    workflow: '.agent/workflows/weekly-report.md',
-    readiness: 'task-specific (logs/applications-log.json; no Playwright or Notion required)',
-    required_inputs: ['local logs/applications-log.json (and update/message if provided)'],
-    optional_tools: ['notion'],
-    fallback: 'Local JSON is primary truth; exports Markdown/CSV/JSON/HTML dashboard without Notion',
-    outputs: ['Updated logs/applications-log.json', 'logs/insights/ or logs/exports/ report'],
-  },
-  {
-    intent: 'job-discovery-and-triage',
-    match: q => /\b(find .*jobs?|jobs? in |remote .*jobs?|analy[sz]e this .*job|should i apply|compare these jobs|rank them|discover jobs)\b/i.test(q),
-    skills: ['02-discover-and-triage', '25-prompt-injection-defense', '26-deduplication-and-blacklist-guard', '28-recruiter-brand-and-domain-intelligence', 'platforms/linkedin'],
-    workflow: null,
-    readiness: 'task-specific (verified CV facts + query or URLs/JDs/screenshots; no /setup wall for read-only analysis)',
-    required_inputs: ['verified CV facts', 'search query or job URLs/pasted JDs/screenshots'],
-    optional_tools: ['playwright (for live multi-board search; URL/JD/screenshot fallback if absent or unauthenticated)'],
-    fallback: 'Searches legitimate accessible boards when authorized; otherwise scores/ranks user-supplied URLs, JDs, or screenshots without fabricating live listings',
-    outputs: ['Evidence-backed shortlist/ranking with source URL + verification date', 'Verified matches vs. unknown requirements'],
-  },
-  {
-    intent: 'tailor-cv',
-    match: q => /(^|\s)\/(?:quick-tailor|tailor-cv)\b|\b(tailor (?:my )?cv|compare (?:my )?cv against)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '21-ats-keyword-heatmap', '28-recruiter-brand-and-domain-intelligence'],
-    workflow: '.agent/workflows/quick-tailor.md',
-    readiness: 'task-specific (CV + 1 JD; zero browser login or /setup required)',
-    required_inputs: ['candidate CV', 'target job description (or URL)'],
-    optional_tools: ['playwright (optional for PDF print or URL read)'],
-    fallback: 'Ask for pasted JD if URL blocked; deliver HTML + Word-compatible .doc + TXT + Print-to-PDF guidance',
-    outputs: ['resume.html', 'resume.doc (Word-compatible HTML)', 'resume.txt', 'tailoring-notes.md (Evidence Map, ATS Heatmap, True Gaps)', 'optional resume.pdf'],
-  },
-  {
-    intent: 'cv-translate',
-    match: q => /\b(arabic|english|german|french|spanish|rtl|translate)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '15-multilingual-adaptation'],
-    workflow: null,
-    readiness: 'task-specific (source CV + target language; preserves original file)',
-    required_inputs: ['source CV', 'target language'],
-    optional_tools: ['playwright (optional for PDF export)'],
-    fallback: 'Outputs translated HTML/Word-compatible .doc/TXT locally without browser',
-    outputs: ['Preserved original CV', 'Translated resume.html / resume.doc / resume.txt in logs/resumes/<slug>-<lang>/'],
-  },
-  {
-    intent: 'cv-convert',
-    match: q => /\b(convert|export|make|create)\b/i.test(q) && /\b(pdf|word|word-compatible|docx|doc|html|txt)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify'],
-    workflow: null,
-    readiness: 'task-specific (source CV; no /setup required)',
-    required_inputs: ['source CV'],
-    optional_tools: ['playwright (for PDF export)'],
-    fallback: 'If PDF/native DOCX unavailable, outputs HTML + Word-compatible .doc + TXT + Print-to-PDF instructions (never renames HTML to .docx)',
-    outputs: ['resume.html', 'resume.doc (Word-compatible HTML)', 'resume.txt', 'resume.pdf (when PDF export exists)'],
-  },
-  {
-    intent: 'cv-create',
-    match: q => /\b(create|build|write|make)\b/i.test(q) && /\b(new cv|cv from scratch|resume from scratch|from scratch)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence'],
-    workflow: null,
-    readiness: 'task-specific (guided interview; zero /setup or browser login required)',
-    required_inputs: ['guided interview answers (contact, roles/dates, projects, skills, education)'],
-    optional_tools: ['playwright (optional for PDF export)'],
-    fallback: 'Writes confirmed profile + ATS HTML/Word-compatible .doc/TXT locally',
-    outputs: ['Confirmed Fact Table', 'context/profile.md + cv.md (when saving)', 'ATS resume.html / resume.doc / resume.txt'],
-  },
-  {
-    intent: 'cv-edit',
-    match: q => /\b(improve|edit|update|rewrite|strengthen|shorten|reorder|remove|add .*project|change .*summary|summary|bullet)\b/i.test(q) && /\b(cv|resume|summary|project|skills|bullets|section|page)\b/i.test(q),
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
-    workflow: null,
-    readiness: 'task-specific (existing CV or session CV + requested edit; preserves original)',
-    required_inputs: ['existing CV (if not already loaded)', 'requested section change'],
-    optional_tools: ['playwright (optional for PDF export)'],
-    fallback: 'Modifies only requested sections locally, preserves original, re-reads outputs to verify',
-    outputs: ['Preserved original CV', 'Verified revised resume.html / resume.doc / resume.txt + diff summary'],
-  },
-  {
-    intent: 'cv-review-import',
-    match: q => /\b(upload|import|review|audit|check|read|parse)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
-    skills: ['01-resume-ingestion', '14-privacy-pii-shield'],
-    workflow: null,
-    readiness: 'task-specific (CV file or pasted text; no /setup or browser login required)',
-    required_inputs: ['CV file (.md/.txt/.docx/.html/readable .pdf) or pasted text'],
-    optional_tools: ['playwright (optional only for PDF reading when native PDF reader unavailable)'],
-    fallback: 'Built-in CLI/text extraction; warns if PDF is scanned/unreadable and requests pasted text',
-    outputs: ['Extracted Fact Table for confirmation', 'Actionable CV hygiene & structure review'],
-  },
-];
-
-function matchNaturalLanguageRoute(query) {
-  const q = String(query || '').trim();
-  if (!q) {
-    throw new Error('Usage: veycraft route "<natural-language request>" [--json]');
-  }
-  const hit = ROUTE_RULES.find(r => r.match(q)) || {
-    intent: 'general-career-assistant',
-    skills: ['01-resume-ingestion', '03-tailor-resume-and-verify'],
-    workflow: null,
-    readiness: 'task-specific (ask one clarifying question for missing goal/file)',
-    required_inputs: ['clarify desired career outcome or share CV/JD'],
-    optional_tools: ['playwright', 'notion'],
-    fallback: 'Inspect context/ first and ask 1 targeted question',
-    outputs: ['Focused next step without forcing /setup'],
-  };
-  return { query: q, ...hit };
 }
 
 function cmdRoute() {
@@ -2777,219 +1795,36 @@ function cmdRoute() {
   info(`Outputs:        ${res.outputs.join(', ')}`);
 }
 
-function verifyArtifactFile(filePath, factsConfig = null) {
-  const errors = [];
-  const warnings = [];
-  const ext = path.extname(filePath).toLowerCase();
-  const name = path.basename(filePath);
-  if (ext === '.docx') {
-    let rawBuf;
-    try {
-      rawBuf = readFileBoundedSync(filePath, DOCX_LIMITS.MAX_INPUT_BYTES, '.docx file');
-    } catch (e) {
-      errors.push(`${name}: ${e.message}`);
-      return { name, errors, warnings };
-    }
-    if (rawBuf.length === 0) {
-      errors.push(`${name}: file is empty (0 bytes)`);
-      return { name, errors, warnings };
-    }
-    try {
-      extractDocxText(rawBuf);
-    } catch (e) {
-      errors.push(`${name}: ${e.message}`);
-    }
-    return { name, errors, warnings };
-  }
-  const rawBuf = fs.readFileSync(filePath);
-
-  if (rawBuf.length === 0) {
-    errors.push(`${name}: file is empty (0 bytes)`);
-    return { name, errors, warnings };
-  }
-  if (ext === '.pdf') {
-    if (rawBuf.subarray(0, 5).toString('utf8') !== '%PDF-') {
-      errors.push(`${name}: invalid PDF header (does not start with %PDF-)`);
-    } else if (rawBuf.length > 200 * 1024) {
-      warnings.push(`${name}: PDF size is ${Math.round(rawBuf.length / 1024)} KB (target <= 200 KB)`);
-    }
-    return { name, errors, warnings };
-  }
-  if (ext === '.json') {
-    let parsed;
-    try {
-      parsed = JSON.parse(rawBuf.toString('utf8'));
-    } catch (e) {
-      errors.push(`${name}: invalid JSON (${e.message})`);
-      return { name, errors, warnings };
-    }
-    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'schema_version') && Object.prototype.hasOwnProperty.call(parsed, 'changes')) {
-      const res = validateProfileUpdatePlan(parsed, { factsConfig });
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'fact_provenance')) {
-      const res = validateProfileVault(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    const isSkippedJobsArray = Array.isArray(parsed) && (
-      /^skipped-jobs\.json$/i.test(name) ||
-      (parsed.length > 0 && parsed.every(item => isObj(item) && (Object.prototype.hasOwnProperty.call(item, 'skip_reason') || Object.prototype.hasOwnProperty.call(item, 'skipped_at')) && !Object.prototype.hasOwnProperty.call(item, 'status')))
-    );
-    const isApplicationLedgerArray = Array.isArray(parsed) && !isSkippedJobsArray && (
-      /^applications-log\.json$/i.test(name) ||
-      (parsed.length > 0 && parsed.some(item => isObj(item) && (Object.prototype.hasOwnProperty.call(item, 'application_id') || (Object.prototype.hasOwnProperty.call(item, 'job_id') && Object.prototype.hasOwnProperty.call(item, 'status')))))
-    );
-    if (isApplicationLedgerArray) {
-      const res = validateApplicationLedger(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'schema_version') && Array.isArray(parsed.versions)) {
-      const res = validateCvVersionsRegistry(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'run_id') && Object.prototype.hasOwnProperty.call(parsed, 'counts')) {
-      const res = validateDailyRun(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && parsed.kind === 'session_checkpoint') {
-      const res = validateSessionCheckpoint(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'type') && Object.prototype.hasOwnProperty.call(parsed, 'period') && Object.prototype.hasOwnProperty.call(parsed, 'generated_at')) {
-      const res = validateCareerInsights(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && parsed.eligibility_policy === 'submitted_only' && Array.isArray(parsed.operations)) {
-      const res = validateNotionSyncPlan(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    if (isObj(parsed) && parsed.schema_version === '1.0' && isObj(parsed.records) && Object.prototype.hasOwnProperty.call(parsed, 'updated_at')) {
-      const res = verifySyncStateIntegrity(parsed);
-      return { name, errors: res.errors.map(err => `${name}: ${err}`), warnings: res.warnings };
-    }
-    return { name, errors, warnings };
-  }
-
-  const rawText = rawBuf.toString('utf8');
-  if (/\{\{[A-Za-z0-9_]+\}\}/.test(rawText)) {
-    const matches = rawText.match(/\{\{[A-Za-z0-9_]+\}\}/g) || [];
-    errors.push(`${name}: unresolved template placeholder(s): ${[...new Set(matches)].join(', ')}`);
-  }
-
-  let prose = rawText;
-  const isNotesDoc = /^(?:tailoring-notes|interview-dossier)\b/i.test(name);
-  const isLinkedinAudit = /^linkedin-seo-audit\b/i.test(name);
-  if (ext === '.html' || ext === '.htm' || (ext === '.doc' && /<html|<body/i.test(rawText))) {
-    // Exclude structural h1/h2/h3 headings and title when scanning prose em-dashes; still scan entire body for clichés
-    const bodyWithoutTitle = rawText.replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, ' ');
-    const proseMatches = [...bodyWithoutTitle.matchAll(/<(?:p|li)\b[^>]*>([\s\S]*?)<\/(?:p|li)>/gi)];
-    prose = proseMatches.map(m => extractHtmlText(m[1])).join('\n') || extractHtmlText(bodyWithoutTitle);
-    const fullPlain = extractHtmlText(bodyWithoutTitle);
-    const cliches = BANNED_AI_CLICHES.filter(cl => buildSkillRegex(cl).test(fullPlain));
-    if (cliches.length > 0) errors.push(`${name}: banned AI cliché(s) found: ${cliches.join(', ')}`);
-  } else if (!isNotesDoc) {
-    const nonHeadingLines = rawText
-      .split(/\r?\n/)
-      .filter(l => !/^\s*(?:#{1,6}\s|\*\*[^*]+—[^*]+\*\*)/.test(l));
-    prose = nonHeadingLines.join('\n');
-    const cliches = BANNED_AI_CLICHES.filter(cl => buildSkillRegex(cl).test(rawText));
-    if (cliches.length > 0) errors.push(`${name}: banned AI cliché(s) found: ${cliches.join(', ')}`);
-  }
-
-  if (!isNotesDoc && prose.includes('—')) {
-    errors.push(`${name}: prose em-dash (—) detected inside paragraph/bullet text`);
-  }
-
-  if (factsConfig && (ext === '.html' || ext === '.doc' || ext === '.txt' || ext === '.md') && !isNotesDoc) {
-    let plain = (ext === '.html' || ext === '.doc') ? extractHtmlText(rawText) : rawText;
-    if (isLinkedinAudit) {
-      plain = plain.split(/\r?\n/).filter(l => !/True Gaps/i.test(l)).join('\n');
-    }
-    const metricTokenRe = /(?<![A-Za-z0-9_])\$?\d[\d,]*(?:\.\d+)?(?:\s*(?:%|k|m|b|x|ms|sec|seconds|min|minutes|hrs|hours|days|weeks|months|years)\b|%|[KMBX]\b|\+)/gi;
-    const foundMetrics = plain.match(metricTokenRe) || [];
-    const unverified = foundMetrics.filter(tok => !factsConfig.allowedMetrics.has(tok.trim().toLowerCase()));
-    if (unverified.length > 0) {
-      errors.push(`${name}: unverified metric token(s) not in source facts: ${[...new Set(unverified)].join(', ')}`);
-    }
-    const forbidden = factsConfig.forbiddenSkills.filter(sk => buildSkillRegex(sk).test(plain));
-    if (forbidden.length > 0) {
-      errors.push(`${name}: forbidden/unclaimed skill(s) found: ${forbidden.join(', ')}`);
-    }
-  }
-  return { name, errors, warnings };
-}
-
-function loadFactsConfig(factsPath) {
-  const factsInfo = assertSafeCliInputPath(factsPath, { label: 'facts file' });
-  if (!factsInfo.exists) throw new Error(`Facts file not found: ${factsInfo.resolved}`);
-  const resolved = factsInfo.resolved;
-  const text = fs.readFileSync(resolved, 'utf8');
-  if (resolved.endsWith('.json')) {
-    const parsed = JSON.parse(text);
-    const allowedMetrics = new Set(
-      (Array.isArray(parsed.ground_truth_metrics) ? parsed.ground_truth_metrics : []).map(m => String(m).trim().toLowerCase()),
-    );
-    const forbiddenSkills = Array.isArray(parsed.forbidden_skills) ? parsed.forbidden_skills : [];
-    return { allowedMetrics, forbiddenSkills };
-  }
-  const metricTokenRe = /(?<![A-Za-z0-9_])\$?\d[\d,]*(?:\.\d+)?(?:\s*(?:%|k|m|b|x|ms|sec|seconds|min|minutes|hrs|hours|days|weeks|months|years)\b|%|[KMBX]\b|\+)/gi;
-  const allowedMetrics = new Set((text.match(metricTokenRe) || []).map(m => m.trim().toLowerCase()));
-  return { allowedMetrics, forbiddenSkills: [] };
-}
-
 function cmdVerify() {
   const targetArg = positional[1];
   if (!targetArg) {
     throw new Error('Usage: veycraft verify <path/to/dir-or-file> [--facts <ground-truth.json|cv.md>]');
   }
-  const targetInfo = assertSafeCliInputPath(targetArg, { label: 'verify target', allowDirectory: true });
-  if (!targetInfo.exists) {
-    throw new Error(`Target path not found: ${targetInfo.resolved}`);
-  }
-  const resolved = targetInfo.resolved;
-  const factsConfig = opts.facts ? loadFactsConfig(opts.facts) : null;
-  const stat = targetInfo.stat;
-  const files = stat.isDirectory()
-    ? fs.readdirSync(resolved)
-        .filter(f => /\.(html|doc|docx|txt|pdf|md)$/i.test(f))
-        .sort()
-        .map(f => {
-          const childPath = path.join(resolved, f);
-          refuseSymlink(childPath, targetInfo.boundary);
-          const childStat = fs.lstatSync(childPath);
-          if (childStat.isSymbolicLink() || !childStat.isFile()) {
-            throw new Error(`Refusing symbolic-link or non-regular file in verify directory: ${childPath}`);
-          }
-          return childPath;
-        })
-    : [resolved];
-
-  if (files.length === 0) {
-    throw new Error(`No resume/deliverable files found in ${resolved}`);
-  }
+  const verifyRes = verifyArtifactTarget(targetArg, {
+    factsPath: opts.facts,
+    root: ROOT,
+    source: SOURCE,
+    home: HOME,
+    cwd: process.cwd(),
+  });
 
   console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
-  console.log(paint('36', `Veycraft Deliverable Verification — ${resolved}\n`));
+  console.log(paint('36', `Veycraft Deliverable Verification — ${verifyRes.resolved}\n`));
 
-  let errorCount = 0;
-  for (const f of files) {
-    const res = verifyArtifactFile(f, factsConfig);
+  for (const res of verifyRes.results) {
     if (res.errors.length === 0) {
       ok(`${res.name} verified`);
     } else {
-      for (const e of res.errors) {
-        fail(e);
-        errorCount++;
-      }
+      for (const e of res.errors) fail(e);
     }
     for (const w of res.warnings) warn(w);
   }
   console.log('');
-  if (errorCount > 0) {
-    fail(`Verification FAILED (${errorCount} issue(s)).`);
+  if (verifyRes.error_count > 0) {
+    fail(`Verification FAILED (${verifyRes.error_count} issue(s)).`);
     process.exitCode = 1;
   } else {
-    ok(`All ${files.length} deliverable file(s) passed post-write verification.`);
+    ok(`All ${verifyRes.file_count} deliverable file(s) passed post-write verification.`);
   }
 }
 
@@ -3170,6 +2005,7 @@ Core & Verification Commands:
   veycraft status [--global | -g] [--json]         Print readiness gates, warm-up cap & pipeline funnel summary
 
 Workspace & Maintenance Commands:
+  veycraft mcp [--global | -g]                    Start native read-only offline MCP server over stdio
   veycraft sync-mcp [--global | -g]                Safely merge Playwright & optional Notion MCP configs
   veycraft login [--global | -g]                   Open Chrome/Chromium with persistent browser-profile/
   veycraft bundle [--global | -g]                  Export single-file web-chat prompt bundle
@@ -3216,6 +2052,7 @@ try {
   else if (command === 'unlock') cmdUnlock();
   else if (command === 'backup') cmdBackup();
   else if (command === 'login') cmdLogin();
+  else if (command === 'mcp') await startMcpServer({ root: ROOT, source: SOURCE, home: HOME });
   else if (command === 'sync-mcp') syncMcp();
   else throw new Error(`Unknown command "${command}". Run with --help for usage.`);
 } catch (err) {

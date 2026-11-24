@@ -107,7 +107,7 @@ actions without explicit approval.
 
 </div>
 
-**اكتشاف برمجي منظم للوكلاء (`JSON`):** الأوامر `veycraft --version --json` و`veycraft doctor --json` و`veycraft status --json` و`veycraft route "<request>" --json` تعيد JSON منظمًا دون تعديل ملفات شخصية أو تنفيذ أي إجراءات خارجية.
+**اكتشاف برمجي منظم للوكلاء (`JSON`):** الأوامر `veycraft --version --json` و`veycraft doctor --json` و`veycraft status --json` و`veycraft route "<request>" --json` تعيد JSON منظمًا دون تعديل ملفات شخصية أو تنفيذ أي إجراءات خارجية. كما يوفّر `npx -y veycraft mcp` خادم MCP محليًا أصيلًا عبر `stdio` بصفر تبعيات يضم 8 أدوات قراءة فقط بلا شبكة وموارد `veycraft://` المسموحة ([`mcp/README.md`](mcp/README.md)).
 
 <details>
 <summary>ربط أداة ذكاء اصطناعي محددة فقط (خيارات <code>--ide</code>)</summary>
@@ -159,7 +159,8 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |
 | `veycraft verify <dir\|file> [--facts <json\|md>]` | التحقق بعد الكتابة من المخرجات وسجلات التقديم ونقاط حفظ الجلسة وإصدارات الـ CV وخطط Notion و`Profile Update Plan` |
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | ملخص التقديمات، تحليلات حتمية (`MIN_N = 5`)، لوحة Kanban HTML محلية للقراءة فقط، وقائمة الأولويات |
-| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`113/113` |
+| `veycraft mcp [--global]` | خادم MCP محلي أصيل عبر `stdio` بصفر تبعيات (8 أدوات قراءة فقط بلا شبكة + موارد `veycraft://` — [`mcp/README.md`](mcp/README.md)) |
+| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`116/116` |
 
 <details>
 <summary>مرجع CLI المتقدم (محرك الجلسات، السجل الذرّي المحمي بقفل، مزامنة Notion، والصيانة)</summary>
@@ -217,7 +218,7 @@ npm uninstall -g veycraft
 
 ```bash
 git clone https://github.com/redasalem/veycraft.git && cd veycraft
-npm test             # eval --baseline (20/20) و live-agent-eval-run (20/20) و eval --journeys (113/113)
+npm test             # eval --baseline (20/20) و live-agent-eval-run (20/20) و eval --journeys (116/116)
 npm run pack:check   # التحقق من محتويات حزمة npm وخلوها من أي ملفات خاصة
 node bin/cli.mjs doctor
 ```

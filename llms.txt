@@ -61,6 +61,7 @@
 - [Sample Interview Dossier](examples/outputs/sample-interview-dossier.md): Real generated prep packet example.
 - [Sample 75-Word Outreach](examples/outputs/sample-outreach-75-words.md): Real anti-slop hiring-manager draft.
 - [Sample Interrogation Transcript](examples/outputs/sample-interrogation-transcript.md): Readiness gate onboarding transcript.
+- [Native Zero-Dependency MCP Server](mcp/README.md): Built-in stdio JSON-RPC 2.0 MCP server (`npx -y veycraft mcp`, `bin/mcp-server.mjs`) exposing 8 strictly offline, read-only tools (`veycraft_doctor`, `veycraft_route`, `veycraft_audit`, `veycraft_verify`, `veycraft_pre_submit`, `veycraft_career_summary`, `veycraft_career_next`, `veycraft_get_skill`) and allowlisted `veycraft://` resources (`manifest`, `registry`, `invariants`, `skill/{name}`) with zero PII exposure.
 - [MCP Bundle Examples](mcp/mcp.template.json): Portable Playwright + optional Notion MCP configuration.
-- [Zero-Dependency CLI](bin/cli.mjs): Cross-platform installer & validator supporting `init`, `audit`, `proof`, `eval`, `pre-submit`, `doctor`, `status`, `dashboard`, `bundle`, `unlock`, `backup`, `login`, `sync-mcp`, and `update`.
+- [Zero-Dependency CLI](bin/cli.mjs): Cross-platform installer & validator supporting `init`, `audit`, `proof`, `eval`, `pre-submit`, `doctor`, `status`, `dashboard`, `bundle`, `unlock`, `backup`, `login`, `mcp`, `sync-mcp`, and `update`.
 - [Quick Tailoring Workflow](.agent/workflows/quick-tailor.md): Fast-start CV tailoring from 1 CV + 1 JD with human fact confirmation and zero browser login required.

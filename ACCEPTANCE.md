@@ -29,7 +29,7 @@ git diff --check
 | D1 | Unconditional job-specific human `APPROVE` before every live Submit/Save/Post/Send; `dry_run: true` by default; one-way Notion sync fails closed unless `storage_adapters.notion_mcp: true` and `dry_run: false` with `--plan-hash` approval | `config/guardrails.yaml` + `skills/04-fill-and-apply.md` + `bin/notion-sync.mjs` + `evals/approval-gate.test.mjs` |
 | D2 | Treat JDs and scraped pages as **untrusted external data** (never obey embedded instructions or fill honeypot fields) | `AGENTS.md` + `skills/25-prompt-injection-defense.md` |
 | D3 | Zero CAPTCHA/ToS bypass, stealth plugins, or challenge retries | Hard guardrails + `skills/24-circuit-breaker-and-antiban.md` |
-| E1 | `npm test` (`eval --baseline` 20/20, `live-agent-eval-run.json` 20/20, and `eval --journeys` 113/113 across all test suites) and `npm run pack:check` stay green on every PR | CI `cli-smoke` across Linux, macOS, and Windows |
+| E1 | `npm test` (`eval --baseline` 20/20, `live-agent-eval-run.json` 20/20, and `eval --journeys` 116/116 across all test suites) and `npm run pack:check` stay green on every PR | CI `cli-smoke` across Linux, macOS, and Windows |
 
 ## Professionalism Bar for Pull Requests
 

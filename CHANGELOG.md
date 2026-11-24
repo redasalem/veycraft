@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Zero-Dependency Native MCP Server & Shared Core-Ops Layer (`bin/core-ops.mjs`, `bin/mcp-server.mjs`, `bin/cli.mjs`, `evals/mcp-server.test.mjs`, `mcp/README.md`, `mcp/claude_desktop_config.example.json`, `docs/COMPATIBILITY.md`):** Extracted pure zero-stdout operations into `bin/core-ops.mjs` and added a built-in newline-delimited JSON-RPC 2.0 `stdio` MCP server (`veycraft mcp` / `npx -y veycraft mcp`) with `0/0` npm dependencies, protocol version negotiation (`2025-06-18` / `2025-03-26` / `2024-11-05`), 8 strictly offline read-only tools (`veycraft_doctor`, `veycraft_route`, `veycraft_audit`, `veycraft_verify`, `veycraft_pre_submit`, `veycraft_career_summary`, `veycraft_career_next`, `veycraft_get_skill`), allowlisted zero-PII `veycraft://` resources (`manifest`, `registry`, `invariants`, `skill/{name}`), end-to-end `stdio` tests (`113 -> 116` journey tests), CI `stdio` smoke checks, and multi-client MCP onboarding guides while preserving `sync-mcp` backwards compatibility.
 - **Pure CSS-Animated Terminal Demo (`assets/demo.svg`, `README.md`, `README.ar.md`):** Added a 10.5-second, zero-script, `prefers-reduced-motion`-safe animated SVG terminal demo showcasing authentic `v2.2.0` CLI output (`doctor`, `route`, and `pre-submit` safety gate) in both English and Arabic READMEs while preserving `0/0` npm dependencies.
 
 ## [2.2.0] - 2026-11-24 — Portfolio Design System Studio, Dual-Engine LinkedIn Growth & Streamlined Onboarding
