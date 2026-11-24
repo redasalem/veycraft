@@ -2539,14 +2539,21 @@ const ROUTE_RULES = [
   },
   {
     intent: 'linkedin-profile',
-    match: q => /(^|\s)\/linkedin-growth\b/i.test(q) || (/\blinkedin\b/i.test(q) && /\b(profile|headline|about|consistent|optimize|audit|review|improve|post|outreach)\b/i.test(q) && !/\b(job|apply|jobs)\b/i.test(q)) || /\b(profile consistent with my cv|optimize my profile)\b/i.test(q),
+    match: q =>
+      /(^|\s)\/linkedin-growth\b/i.test(q) ||
+      (
+        /\blinkedin\b/i.test(q) &&
+        /\b(profile|headline|about|consistent|optimize|audit|review|improve|post|posts|outreach|algorithm|reach|impressions|dwell time|carousel|pdf document|comment[- ]first|comment strategy|comments?|content strategy|content pillars?|topical authority|growth|grow|engagement|funnel)\b/i.test(q) &&
+        !/\b(job|apply|jobs)\b/i.test(q)
+      ) ||
+      /\b(profile consistent with my cv|optimize my profile|grow my linkedin)\b/i.test(q),
     skills: ['linkedin-growth', 'profile-intelligence-engine', '03-tailor-resume-and-verify', '05-outreach-and-interview-prep', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: '.agent/workflows/linkedin-growth.md',
     readiness: 'task-specific (profile text/PDF/screenshot or signed-in Playwright + CV facts; no /setup required)',
     required_inputs: ['LinkedIn profile (pasted, PDF, screenshot, or signed-in Playwright)', 'verified CV facts'],
     optional_tools: ['playwright (for read-only profile read or APPROVE-gated live edit)'],
     fallback: 'Works 100% offline from pasted profile text, Save-to-PDF, or screenshots as DRAFT_ONLY',
-    outputs: ['0-100 scorecard & CV consistency gaps', 'DRAFT_ONLY Before/After copy in logs/insights/linkedin-seo-audit-YYYY-MM-DD.md'],
+    outputs: ['0-100 Recruiter-SEO scorecard, 3-stage funnel & CV consistency gaps', 'Dual-Engine Feed/Comment-First/Carousel drafts & DRAFT_ONLY Before/After copy in logs/insights/linkedin-seo-audit-YYYY-MM-DD.md'],
   },
   {
     intent: 'profile-intelligence',

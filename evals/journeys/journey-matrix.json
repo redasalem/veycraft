@@ -176,6 +176,20 @@
       "requires_full_setup": false
     },
     {
+      "id": "LI05",
+      "prompt": "Optimize my LinkedIn for the LinkedIn algorithm, dwell time, and topical authority.",
+      "expected_intent": "linkedin-profile",
+      "required_skills": ["linkedin-growth", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "LI06",
+      "prompt": "Build a LinkedIn comment-first strategy and draft a native PDF carousel post.",
+      "expected_intent": "linkedin-profile",
+      "required_skills": ["linkedin-growth", "03-tailor-resume-and-verify", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
       "id": "JP01",
       "prompt": "Find suitable remote React jobs.",
       "expected_intent": "job-discovery-and-triage",

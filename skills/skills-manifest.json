@@ -1516,9 +1516,9 @@
     },
     {
       "name": "linkedin-growth",
-      "version": "2.1.0",
+      "version": "3.0.0",
       "category": "core",
-      "description": "Load when the owner runs /linkedin-growth or asks to review/optimize their LinkedIn profile, diagnose ranking & SEO errors, improve headline/About/experience/projects/skills, align LinkedIn with their CV, craft personal-brand marketing copy, or draft/publish LinkedIn posts & <=75-word outreach; defaults to DRAFT_ONLY and permits live updates/publishing only with legitimate browser auth plus explicit APPROVE and post-save snapshot verification.",
+      "description": "Load when the owner runs /linkedin-growth or asks to audit or optimize a LinkedIn profile for Recruiter search ranking, align LinkedIn with a CV, diagnose funnel or analytics bottlenecks, build a LinkedIn content/carousel/comment-first strategy, improve dwell time or topical authority, or draft posts and <=75-word outreach; defaults to DRAFT_ONLY and permits live updates or publishing only with verified signed-in Playwright auth, explicit APPROVE, and post-action snapshot verification.",
       "triggers": [
         "/linkedin-growth",
         "review or audit my LinkedIn profile",
@@ -1526,6 +1526,8 @@
         "make my LinkedIn profile consistent with my CV",
         "optimize my LinkedIn profile for target roles",
         "check my LinkedIn rank, analytics, or profile errors",
+        "LinkedIn algorithm, reach, dwell time, or topical authority strategy",
+        "LinkedIn comment-first strategy, content pillars, or native PDF carousel",
         "write or publish a LinkedIn post or personal-brand marketing copy",
         "add open-source projects or optimize LinkedIn skills and Featured section"
       ],
@@ -1538,18 +1540,20 @@
       "preconditions": [
         "verified candidate facts available (context/profile.md + context/cv.md OR session-confirmed CV)",
         "accessible LinkedIn profile data (pasted text, LinkedIn Save-to-PDF, screenshot, or read-only signed-in Playwright inspection) and optional target role(s)/JDs",
-        "DRAFT_ONLY by default; explicit owner APPROVE required before any live LinkedIn Save, Post, or Send"
+        "DRAFT_ONLY by default; explicit owner APPROVE required before any live LinkedIn Save, Post, Comment, or Send"
       ],
       "requires_skills": [
         "tailor-resume-and-verify",
         "outreach-and-interview-prep",
         "recruiter-brand-and-domain-intelligence",
+        "circuit-breaker-and-antiban",
         "meta-self-verification"
       ],
       "verification": [
-        "0-100 Recruiter-SEO scorecard (or CV-consistency gap table) grounded solely in inspected profile sections and verified CV facts",
-        "every metric, skill, title, and date in proposed rewrites matches verified candidate facts (zero hallucinations, zero AI-slop clichés, zero prose em-dashes)",
-        "audit and proposed copy saved as DRAFT_ONLY to logs/insights/linkedin-seo-audit-YYYY-MM-DD.md; any user-approved live edit occurred only after explicit APPROVE and passed post-save browser_snapshot verification"
+        "Confirmed Platform Mechanics are separated explicitly from Observed Distribution Heuristics with 0 fabricated algorithm multipliers or fake reach percentages",
+        "0-100 Recruiter-SEO scorecard and CV-consistency gap table trace strictly to inspected profile sections and verified candidate facts (0 hallucinations, 0 of the 19 canonical banned AI cliches, 0 prose em-dashes)",
+        "Anti-Pod and Anti-Automation ToS guardrails enforced; <=75-word outreach verified via node ./bin/cli.mjs pre-submit; full audit and drafts saved as DRAFT_ONLY to logs/insights/linkedin-seo-audit-YYYY-MM-DD.md",
+        "any user-approved live LinkedIn Save, Post, Comment, or Send occurred only with verified signed-in auth, explicit APPROVE on exact copy, 3-9s pacing, and fresh post-action browser_snapshot verification"
       ],
       "path": "skills/linkedin-growth.md"
     },

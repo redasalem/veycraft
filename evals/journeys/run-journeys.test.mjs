@@ -936,3 +936,92 @@ test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Heali
     assert.ok(s30Text.includes(clause), `skills/30 missing required clause: ${clause}`);
   }
 });
+
+test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strategist (linkedin-growth v3.0.0, 53 Skills)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  assert.equal(manifest.skills.length, 53, `Expected 53 skills in manifest, got ${manifest.skills.length}`);
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  // 1. Manifest parity & zero 5-gate /setup coupling
+  const li = byName.get('linkedin-growth');
+  assert.ok(li, 'linkedin-growth missing from skills-manifest.json');
+  assert.equal(li.version, '3.0.0');
+  assert.equal(li.path, 'skills/linkedin-growth.md');
+  assert.deepEqual(li.requires_mcp, ['none']);
+  assert.deepEqual(li.optional_mcp, ['playwright']);
+  assert.ok(!li.requires_skills.includes('interrogate-and-onboard'), 'linkedin-growth must not force 5-gate interrogate-and-onboard');
+  for (const dep of [
+    'tailor-resume-and-verify',
+    'outreach-and-interview-prep',
+    'recruiter-brand-and-domain-intelligence',
+    'circuit-breaker-and-antiban',
+    'meta-self-verification',
+  ]) {
+    assert.ok(li.requires_skills.includes(dep), `linkedin-growth manifest missing requires_skills dep: ${dep}`);
+  }
+
+  // 2. Acyclic DAG BFS check from linkedin-growth
+  const seen = new Set();
+  const queue = [...(li.requires_skills || [])];
+  while (queue.length) {
+    const cur = queue.shift();
+    assert.notEqual(cur, 'linkedin-growth', 'Circular requires_skills dependency detected involving linkedin-growth');
+    if (!seen.has(cur)) {
+      seen.add(cur);
+      for (const nxt of byName.get(cur)?.requires_skills || []) queue.push(nxt);
+    }
+  }
+
+  // 3. Collision-free routing & 6/7 skill cap checks
+  const liPrompts = [
+    '/linkedin-growth',
+    'optimize my LinkedIn for the LinkedIn algorithm and dwell time',
+    'build a LinkedIn comment-first strategy and content pillars',
+    'draft a LinkedIn native PDF carousel to grow my reach and impressions',
+    'improve my LinkedIn topical authority and profile funnel',
+    'how to grow my LinkedIn organically without engagement pods',
+  ];
+  for (const prompt of liPrompts) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, 'linkedin-profile', `Intent mismatch for "${prompt}"`);
+    assert.equal(parsed.skills.length, 6, `Expected 6/7 skills for linkedin-profile on "${prompt}", got ${parsed.skills.length}`);
+    assert.ok(parsed.skills.includes('linkedin-growth'), `Missing linkedin-growth on "${prompt}"`);
+  }
+
+  for (const [prompt, expectedIntent] of [
+    ['/profile-update', 'profile-intelligence'],
+    ['optimize my professional profile across platforms', 'profile-intelligence'],
+    ['find remote LinkedIn jobs for Product Manager', 'job-discovery-and-triage'],
+  ]) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    assert.equal(JSON.parse(res.stdout).intent, expectedIntent, `Boundary collision on "${prompt}"`);
+  }
+
+  // 4. Dual-Engine (Recruiter Search + Feed Algorithm), Anti-Myth, Anti-Pod & 0 em-dash hygiene in skills/linkedin-growth.md
+  const liText = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'linkedin-growth.md'), 'utf8');
+  assert.ok(!liText.includes('\u2014'), 'skills/linkedin-growth.md must contain 0 prose em-dashes (U+2014)');
+  assert.doesNotMatch(liText, /4 Proven Engineering Post Templates/);
+  for (const clause of [
+    'Confirmed Platform Mechanics',
+    'Observed Distribution Heuristics',
+    'Hard Anti-Myth Rule',
+    'Years of Experience per Skill',
+    'Likely to Respond',
+    '~140-210',
+    'Search Appearances -> Profile Views -> Inbound Replies',
+    'Topical Authority',
+    'Comment-First Strategy',
+    'Native Format Tradeoffs Matrix',
+    'Native PDF Document / Carousel',
+    'Engagement pods',
+    'canonical 19-item banned AI-cliche list',
+    'logs/insights/linkedin-seo-audit-YYYY-MM-DD.md',
+    'pre-submit',
+    'skills/24-circuit-breaker-and-antiban.md',
+  ]) {
+    assert.ok(liText.includes(clause), `skills/linkedin-growth.md missing required clause: ${clause}`);
+  }
+});
