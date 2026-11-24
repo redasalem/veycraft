@@ -1,6 +1,6 @@
 ---
 name: portfolio-builder-and-deployer
-version: "1.0.0"
+version: "1.1.0"
 description: Load when the user asks to design, build, customize, preview, update, or deploy a personal or third-party portfolio website (/build-portfolio) using static HTML/CSS/JS or modern frontend frameworks and hosting CLIs or manual hosting providers.
 triggers:
   - /build-portfolio
@@ -20,6 +20,7 @@ requires_skills:
   - resume-ingestion
   - tailor-resume-and-verify
   - portfolio-and-github-auditor
+  - portfolio-design-system-and-qa
   - privacy-pii-shield
   - recruiter-brand-and-domain-intelligence
   - meta-self-verification
@@ -27,7 +28,7 @@ verification:
   - portfolio files and dependencies stay strictly isolated inside logs/portfolio/<site-slug>/ (or logs/portfolio/third-party-<slug>/ or external folder) with root package.json at 0/0 dependencies and Veycraft git remote untouched
   - every project, metric, title, and credential on the site maps to verified candidate data with 0 banned AI cliches, 0 prose em-dashes, and 0 unconfirmed metrics
   - pre-publish privacy and secret audit confirmed 0 private phone/address/salary/NDA leaks and 0 exposed API tokens or client-bundle secrets
-  - local production build and preview passed before deployment, Deploy Confirmation Table received explicit APPROVE, and live HTTPS URL returned 200 with intact assets before reporting deployed
+  - DESIGN_PLAN.md, tokens.css, and 3-layer QA (qa-report.md within <= 3 self-healing cycles) passed before localhost preview, Deploy Confirmation Table received explicit APPROVE, and live HTTPS URL returned 200 with intact assets before reporting deployed
 ---
 # Personalized Portfolio Builder, Privacy Gate & Multi-Host Deployer
 
@@ -39,7 +40,7 @@ Builds a domain-adaptive, recruiter-ready or client-converting portfolio website
 - **Preconditions (stop if any is false):**
   - verified candidate facts exist in `context/` or are confirmed in the active chat session (never force full 5-gate `/setup`)
   - isolated output directory under `logs/portfolio/<site-slug>/` (or user-chosen external directory) is writable
-- **Requires skills:** `resume-ingestion`, `tailor-resume-and-verify`, `portfolio-and-github-auditor`, `privacy-pii-shield`, `recruiter-brand-and-domain-intelligence`, `meta-self-verification`. **MCP:** none (`playwright` optional for local/live visual preview and link checks).
+- **Requires skills:** `resume-ingestion`, `tailor-resume-and-verify`, `portfolio-and-github-auditor`, `portfolio-design-system-and-qa`, `privacy-pii-shield`, `recruiter-brand-and-domain-intelligence`, `meta-self-verification`. **MCP:** none (`playwright` optional for local/live visual preview and link checks).
 
 ## Deterministic Step-by-Step Execution
 
@@ -57,12 +58,14 @@ Builds a domain-adaptive, recruiter-ready or client-converting portfolio website
 Ask only what is missing after Phase 1 inspection:
 - **Batch 1 - Positioning, Visual Direction & Domain Modules:**
   1. **Primary Goal & Audience (`skills/28`):** Recruiter-first (6-10s hiring scan), Freelance/Client Conversion, or Executive/Thought-Leadership Brand.
-  2. **Visual Preset, Palette & Locale:** Style (`Minimalist Editorial`, `Dark Bento Tech`, `Clean Executive`, `Creative Showcase`), color palette (custom brand hex or 3 curated WCAG-AA palettes + Light/Dark toggle), and locale (`LTR English`, `RTL Arabic` via `skills/15-multilingual-adaptation.md`, or bilingual switcher).
+  2. **Visual Preset, Palette & Locale:** Style (`Minimalist Editorial`, `Dark Bento Tech`, `Clean Executive`, `Creative Showcase`), color palette (7 curated WCAG-AA agency palettes or `Custom` brand hex + Light/Dark toggle via `skills/30-portfolio-design-system-and-qa.md`), and locale (`LTR English`, `RTL Arabic` via `skills/15-multilingual-adaptation.md`, or bilingual switcher).
   3. **Modular Sections:** Core (`Hero + Buyer Pain Point Hook`, `About`, `Featured Work / Case Studies`, `Experience Timeline`, `CV Download`, `Contact/CTA`) plus optional domain modules (`Services & Process`, `Testimonials`, `Licenses & Certifications`, `Publications/Writing`, `Open-Source Highlights`).
 - **Batch 2 - Tech Stack, Hosting Target & Public Privacy Filter:**
   1. **Tech Stack Selection:** Present the 4-tier stack matrix in Phase 3 (plus custom stack support).
   2. **Hosting Platform & Custom Domain:** Present the CLI-Native matrix + Smart Fallback in Phase 5.
   3. **Public Privacy Filter (`skills/14-privacy-pii-shield.md`):** Because a live website is indexed publicly by search engines, ask explicitly which contact channels to publish (`public email`, `LinkedIn`, `GitHub`, `Calendly`/booking link, or static contact form) and exclude private phone numbers, home street addresses, DOB, salary floors, and unapproved private/NDA client repositories by default.
+- **Pre-Code Hand-Off - Blueprint, Separated Data & Token Lock (`skills/30-portfolio-design-system-and-qa.md` Phases 1-2):**
+  - Before scaffolding any UI components or stylesheets in Phase 3, execute `skills/30-portfolio-design-system-and-qa.md` Phases 1-2 inside `<portfolio-dir>` to author `DESIGN_PLAN.md`, extract verified copy into separated `portfolio-data.json` (or `src/data/portfolio-data.ts`), validate WCAG 2.1 AA contrast + RTL/LTR font pairings, and lock `design-tokens.json` + `tokens.css` with owner confirmation.
 
 ### 3. Phase 3 - Curated Tech Stack Matrix & Isolated Local Build (`LOCAL_PREVIEW_ONLY`)
 - **Select Stack Tier (or User-Requested Custom Stack such as Vue/Nuxt, SvelteKit, or Hugo under identical isolation):**
@@ -86,20 +89,22 @@ Ask only what is missing after Phase 1 inspection:
 
 - **Scaffold & Author Strictly Inside `<portfolio-dir>`:**
   - Execute every `npm`/`npx` command with working directory locked to `<portfolio-dir>`.
-  - Enforce semantic HTML5 landmarks, mobile-first responsive grids (`320px` to `1440px+`), `WCAG AA` color contrast, keyboard focus rings, `prefers-reduced-motion` support, clean `dir="rtl"`/`dir="ltr"` typography, OpenGraph/Twitter social cards, JSON-LD `Person` structured data, `robots.txt`, `sitemap.xml`, and SVG favicon.
+  - Consume locked `<portfolio-dir>/tokens.css` (`0` hardcoded hex colors) and separated `portfolio-data` (`0` hardcoded resume prose) while enforcing semantic HTML5 landmarks, mobile-first responsive grids (`320px` to `1440px+`), `WCAG AA` contrast, keyboard focus rings, `prefers-reduced-motion`, clean `dir="rtl"`/`dir="ltr"` logical CSS, OpenGraph/Twitter social cards, JSON-LD `Person` structured data, `robots.txt`, `sitemap.xml`, and SVG favicon.
   - **Fact & Anti-Slop Enforcement (`skills/03-tailor-resume-and-verify.md`, `skills/28-recruiter-brand-and-domain-intelligence.md`):** Order projects and achievements by the **Proof Density Hierarchy** (`Quantified Business Outcome > Verified Operational Scope > Shipped Artifact/Deliverable > Credential/Tool`). Exclude `requires_user_confirmation` metrics from `context/github-projects.md` until owner-confirmed. Enforce **0 banned AI cliches** (19-item list) and **0 prose em-dashes**.
   - If the owner opts into a downloadable CV button, copy only an owner-approved public CV version into `<portfolio-dir>/public/` after confirming public PII preferences.
 
-### 4. Phase 4 - Pre-Publish Privacy, Quality & Local Preview Gate
+### 4. Phase 4 - Pre-Publish Privacy, Automated QA & Local Preview Gate
 1. **Pre-Publish Privacy & Secret Audit (`skills/14-privacy-pii-shield.md`):**
    - Scan source files and built artifacts (`index.html`, `dist/`, `out/`, `.next/`) to verify:
      - `0` unconsented phone numbers, street addresses, national IDs, salary figures, or NDA client names/code.
      - `0` `{{...}}` or `example.invalid` placeholder strings.
      - `0` secrets or tokens in source files, `.env*`, or client-exposed env prefixes (`VITE_*`, `NEXT_PUBLIC_*`, `PUBLIC_*`), and never print `VERCEL_TOKEN`, `NETLIFY_AUTH_TOKEN`, `CLOUDFLARE_API_TOKEN`, `FIREBASE_TOKEN`, `SURGE_TOKEN`, `ghp_`, or `github_pat_`.
    - Verify Veycraft's root `package.json` still has `"dependencies": {}` and `"devDependencies": {}`.
-2. **Production Build & Local Preview (`LOCAL_PREVIEW_ONLY` Default):**
-   - Run the production build (`npm run build` for Tiers 2-4) inside `<portfolio-dir>` and verify exit code `0`.
-   - Launch a local preview server (`npx serve`, `npm run preview`, or `python3 -m http.server` on `localhost`), optionally inspect layout/links via Playwright MCP (`browser_snapshot`), and share the local preview URL + section summary so the user can request iterative design or copy edits before deploying.
+2. **Multi-Layer Automated QA & Bounded Self-Healing Hand-Off (`skills/30-portfolio-design-system-and-qa.md` Phases 3-4):**
+   - Before presenting `localhost` sign-off or entering Phase 5, run all 3 automated QA layers inside `<portfolio-dir>`: Layer 1 Static/Type/Build gate (`exit 0`), Layer 2 stack-aware Unit/Component tests (`node --test` for Tier 1 or isolated `<portfolio-dir>` `vitest` for Tiers 2-4), and Layer 3 multi-viewport Visual/Overflow/Console QA at `375px`, `768px`, and `1440px`, writing `<portfolio-dir>/qa-report.md`.
+   - Trigger the **Bounded Self-Healing Loop (max 3 cycles)** on any failure; if any layer remains red after Cycle 3, stop and block `localhost` sign-off and Phase 5 deployment.
+3. **Production Build & Local Preview (`LOCAL_PREVIEW_ONLY` Default):**
+   - Once `<portfolio-dir>/qa-report.md` is green, launch a local preview server (`npx serve`, `npm run preview`, or `python3 -m http.server` on `localhost`), share the local preview URL + `qa-report.md` summary, and support iterative token or copy edits before deploying.
 
 ### 5. Phase 5 - Hosting CLI Matrix, Smart Fallback Engine & Approval-Gated Deployment
 - **First-Class CLI-Native Hosting Matrix (Run Strictly Inside `<portfolio-dir>`):**

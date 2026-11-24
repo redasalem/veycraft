@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Agency-Grade Portfolio Design System Studio, Automated Testing & Bounded Self-Healing QA (`skills/30-portfolio-design-system-and-qa.md` v1.0.0, `.agent/workflows/portfolio-design.md`, `commands/portfolio-design.md`, `/portfolio-design`):** Added pre-code `DESIGN_PLAN.md` + separated `portfolio-data` enforcement, Anti-AI-Slop Design System Studio (`7` curated WCAG 2.1 AA palettes + full `Custom` hex derivation, `Display + Body + Mono` + Arabic RTL webfont/logical-CSS pairings, locked in `design-tokens.json` + `tokens.css`), 3-layer automated QA inside `<portfolio-dir>` (TypeScript/static/build gate, `node --test` or isolated `<portfolio-dir>` `vitest` behavioral suites keeping root `package.json` at `0/0` deps, and `375px`/`768px`/`1440px` visual/overflow/console QA writing `qa-report.md`), and a 3-cycle Bounded Self-Healing Loop blocking `localhost` sign-off and deployment until green (`52 -> 53` skills).
+- **Portfolio Design & QA Journey Tests (`evals/journeys/`):** Added `PF03`/`PF04` journey cases, updated `PF01`/`Test 2`/`Test 12`, and added `Test 13` covering manifest parity, acyclic DAG checks, collision-free `portfolio-design-qa` (`4/7`) + `build-portfolio` (`7/7`) routing, and Skill 30 contract enforcement (`112/112` journey tests).
+
+### Changed
+- **Portfolio Builder Blueprint & QA Delegation (`skills/29-portfolio-builder-and-deployer.md` v1.1.0, `skills/19-on-demand-mcp-routing.md` v1.1.2, `bin/cli.mjs`):** Wired Skill 30 pre-code Blueprint/Token Lock and 3-layer QA / 3-cycle Self-Healing gates into Skill 29 without changing `/setup` independence, registered the standalone `portfolio-design-qa` CLI route (`4/7` skills) cleanly ahead of `build-portfolio` (`7/7` skills), and regenerated `assets/proof-card.svg` (`53` skills).
+
 ## [2.1.0] - 2026-11-24 — Recruiter & Domain Intelligence, GitHub CLI Engine & Portfolio Deployer
 
 ### Added

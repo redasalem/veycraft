@@ -134,6 +134,7 @@ test('2. Metadata parity: offline-capable skills never require Playwright/Notion
     'log-and-insights',
     'portfolio-and-github-auditor',
     'portfolio-builder-and-deployer',
+    'portfolio-design-system-and-qa',
     'recruiter-inbox-triage',
     'multilingual-adaptation',
     'linkedin-growth',
@@ -771,15 +772,15 @@ test('11. GitHub CLI Audit, Marketing Polish, Tiered Cleanup & CV Extraction (Sk
   assert.ok(piText.includes('skills/11-portfolio-and-github-auditor.md'), 'profile-intelligence-engine missing delegation note to skills/11');
 });
 
-test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 52 Skills)', () => {
+test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 53 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
-  assert.equal(manifest.skills.length, 52, `Expected 52 skills in manifest, got ${manifest.skills.length}`);
+  assert.equal(manifest.skills.length, 53, `Expected 53 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
   // 1. Manifest parity & zero 5-gate /daily-run coupling
   const s29 = byName.get('portfolio-builder-and-deployer');
   assert.ok(s29, 'portfolio-builder-and-deployer missing from skills-manifest.json');
-  assert.equal(s29.version, '1.0.0');
+  assert.equal(s29.version, '1.1.0');
   assert.equal(s29.path, 'skills/29-portfolio-builder-and-deployer.md');
   assert.deepEqual(s29.requires_mcp, ['none']);
   assert.deepEqual(s29.optional_mcp, ['playwright']);
@@ -788,6 +789,7 @@ test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portf
     'resume-ingestion',
     'tailor-resume-and-verify',
     'portfolio-and-github-auditor',
+    'portfolio-design-system-and-qa',
     'privacy-pii-shield',
     'recruiter-brand-and-domain-intelligence',
     'meta-self-verification',
@@ -813,7 +815,7 @@ test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portf
     assert.ok(parsed.skills.length <= 7, `Skill count > 7 for "${prompt}": ${parsed.skills.length}`);
   }
 
-  // 3. Isolation, privacy, hosting CLI & Smart Fallback clauses in skills/29
+  // 3. Isolation, privacy, hosting CLI, Skill 30 hand-off & Smart Fallback clauses in skills/29
   const s29Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '29-portfolio-builder-and-deployer.md'), 'utf8');
   assert.ok(!s29Text.includes('interrogate-and-onboard'), 'skills/29 must not depend on interrogate-and-onboard');
   for (const clause of [
@@ -827,7 +829,110 @@ test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portf
     'Smart Fallback',
     'cPanel',
     'portfolio-manifest.json',
+    'skills/30-portfolio-design-system-and-qa.md',
+    'DESIGN_PLAN.md',
+    'qa-report.md',
   ]) {
     assert.ok(s29Text.includes(clause), `skills/29 missing required clause: ${clause}`);
+  }
+});
+
+test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Healing QA (Skill 30 /portfolio-design, 53 Skills)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  // 1. Manifest parity & zero circular / /setup coupling
+  const s30 = byName.get('portfolio-design-system-and-qa');
+  assert.ok(s30, 'portfolio-design-system-and-qa missing from skills-manifest.json');
+  assert.equal(s30.version, '1.0.0');
+  assert.equal(s30.path, 'skills/30-portfolio-design-system-and-qa.md');
+  assert.deepEqual(s30.requires_mcp, ['none']);
+  assert.deepEqual(s30.optional_mcp, ['playwright']);
+  assert.ok(!s30.requires_skills.includes('portfolio-builder-and-deployer'), 'Skill 30 must not depend on Skill 29 (acyclic DAG)');
+  assert.ok(!s30.requires_skills.includes('interrogate-and-onboard'), 'Skill 30 must not force 5-gate interrogate-and-onboard');
+  for (const dep of [
+    'recruiter-brand-and-domain-intelligence',
+    'tailor-resume-and-verify',
+    'multilingual-adaptation',
+    'privacy-pii-shield',
+    'meta-self-verification',
+  ]) {
+    assert.ok(s30.requires_skills.includes(dep), `Skill 30 manifest missing requires_skills dep: ${dep}`);
+  }
+
+  // 2. Acyclic DAG check across skills-manifest.json from Skill 30 and Skill 29
+  for (const rootSkill of ['portfolio-design-system-and-qa', 'portfolio-builder-and-deployer']) {
+    const seen = new Set();
+    const queue = [...(byName.get(rootSkill)?.requires_skills || [])];
+    while (queue.length) {
+      const cur = queue.shift();
+      assert.notEqual(cur, rootSkill, `Circular requires_skills dependency detected involving ${rootSkill}`);
+      if (!seen.has(cur)) {
+        seen.add(cur);
+        for (const nxt of byName.get(cur)?.requires_skills || []) queue.push(nxt);
+      }
+    }
+  }
+
+  // 3. Collision-free routing & <= 7 skill cap checks
+  const designRoutes = [
+    ['/portfolio-design', 'portfolio-design-qa', '30-portfolio-design-system-and-qa'],
+    ['redesign my portfolio colors', 'portfolio-design-qa', '30-portfolio-design-system-and-qa'],
+    ['create a portfolio design system', 'portfolio-design-qa', '30-portfolio-design-system-and-qa'],
+    ['run unit tests and visual QA on my portfolio', 'portfolio-design-qa', '30-portfolio-design-system-and-qa'],
+  ];
+  for (const [prompt, expectedIntent, mustIncludeSkill] of designRoutes) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, expectedIntent, `Intent mismatch for "${prompt}"`);
+    assert.equal(parsed.skills.length, 4, `Expected 4 skills for portfolio-design-qa on "${prompt}", got ${parsed.skills.length}`);
+    assert.ok(parsed.skills.includes(mustIncludeSkill), `Missing ${mustIncludeSkill} on "${prompt}"`);
+  }
+
+  const buildRes = runCli(['route', 'build and deploy my portfolio website on vercel', '--json']);
+  assert.equal(buildRes.status, 0, `route failed for build-portfolio: ${buildRes.stderr}`);
+  const buildParsed = JSON.parse(buildRes.stdout);
+  assert.equal(buildParsed.intent, 'build-portfolio');
+  assert.equal(buildParsed.skills.length, 7, `Expected 7/7 skills for build-portfolio, got ${buildParsed.skills.length}`);
+  assert.ok(buildParsed.skills.includes('29-portfolio-builder-and-deployer'));
+  assert.ok(buildParsed.skills.includes('30-portfolio-design-system-and-qa'));
+
+  const piRes = runCli(['route', 'optimize my portfolio profile', '--json']);
+  assert.equal(piRes.status, 0);
+  assert.equal(JSON.parse(piRes.stdout).intent, 'profile-intelligence');
+
+  const ghaRes = runCli(['route', 'audit my portfolio links and github repos', '--json']);
+  assert.equal(ghaRes.status, 0);
+  assert.equal(JSON.parse(ghaRes.stdout).intent, 'github-portfolio-audit');
+
+  // 4. Skill 30 pre-code blueprint, design studio, WCAG/RTL, 3-layer QA & 3-cycle self-healing clauses
+  const s30Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '30-portfolio-design-system-and-qa.md'), 'utf8');
+  assert.ok(!s30Text.includes('interrogate-and-onboard'), 'skills/30 must not depend on interrogate-and-onboard');
+  for (const clause of [
+    'DESIGN_PLAN.md',
+    'portfolio-data.json',
+    'design-tokens.json',
+    'tokens.css',
+    'Editorial Ivory & Ink',
+    'Obsidian Carbon & Warm Brass',
+    'Studio Charcoal & Sage',
+    'Custom',
+    '>= 4.5:1',
+    'IBM Plex Sans Arabic',
+    'margin-inline',
+    'prefers-reduced-motion',
+    'node --test',
+    'vitest',
+    '375px',
+    '768px',
+    '1440px',
+    'qa-report.md',
+    'bounded 3-cycle self-healing loop',
+    '3 cycles',
+    'root package.json',
+    '0/0',
+  ]) {
+    assert.ok(s30Text.includes(clause), `skills/30 missing required clause: ${clause}`);
   }
 });

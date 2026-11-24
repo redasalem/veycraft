@@ -2567,12 +2567,29 @@ const ROUTE_RULES = [
     outputs: ['logs/insights/profile-update-plan-<platform>-YYYY-MM-DD.json', 'Consolidated field-level diff & truthful verification summary'],
   },
   {
+    intent: 'portfolio-design-qa',
+    match: q =>
+      /(^|\s)\/portfolio-design\b/i.test(q) ||
+      (
+        /\bportfolio\b/i.test(q) &&
+        /\b(design system|color palettes?|palettes?|colors?|typography|design tokens?|tokens?|wcag|contrast|unit tests?|component tests?|visual qa|responsive qa|overflow|console errors?|self-heal|wireframe|blueprint)\b/i.test(q) &&
+        !/\b(deploy|host|publish|launch|vercel|wrangler|cloudflare|netlify|github pages|firebase|surge|audit|check\s+(?:my\s+)?portfolio\s+links?)\b/i.test(q)
+      ),
+    skills: ['30-portfolio-design-system-and-qa', '29-portfolio-builder-and-deployer', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
+    workflow: '.agent/workflows/portfolio-design.md',
+    readiness: 'task-specific (verified candidate facts + isolated logs/portfolio/<site-slug>/; no /setup or Playwright required)',
+    required_inputs: ['verified candidate facts / Domain Archetype', 'isolated portfolio workspace path'],
+    optional_tools: ['playwright (optional for live 375px/768px/1440px viewport, overflow, and console QA)'],
+    fallback: 'Works 100% offline with node --test / isolated Vitest unit suites and an automated local Node DOM/CSS verification script writing qa-report.md',
+    outputs: ['DESIGN_PLAN.md & separated portfolio-data', 'WCAG-validated design-tokens.json + tokens.css', '3-layer qa-report.md within <= 3 self-healing cycles'],
+  },
+  {
     intent: 'build-portfolio',
     match: q =>
       /(^|\s)\/build-portfolio\b/i.test(q) ||
       (/\bportfolio\b/i.test(q) && /\b(build|create|generate|design|scaffold|make|deploy|host|publish|launch|vercel|wrangler|cloudflare|netlify|firebase|surge)\b/i.test(q) && !/\b(audit|check)\b/i.test(q)) ||
       (/\b(update|edit|customize|redesign)\b/i.test(q) && /\bportfolio\s+(?:site|website|page|theme|layout)\b/i.test(q)),
-    skills: ['29-portfolio-builder-and-deployer', '01-resume-ingestion', '03-tailor-resume-and-verify', '11-portfolio-and-github-auditor', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
+    skills: ['29-portfolio-builder-and-deployer', '30-portfolio-design-system-and-qa', '01-resume-ingestion', '03-tailor-resume-and-verify', '11-portfolio-and-github-auditor', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: '.agent/workflows/build-portfolio.md',
     readiness: 'task-specific (verified CV/project facts + batched style/stack/hosting choices; no /setup or Playwright required)',
     required_inputs: ['verified CV/profile facts', 'style/stack/public-contact/hosting choices'],

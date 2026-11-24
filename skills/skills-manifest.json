@@ -1144,7 +1144,7 @@
     },
     {
       "name": "on-demand-mcp-routing",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "category": "core",
       "description": "Load at phase boundaries to minimize context bloat by routing MCP tool usage strictly on demand — using zero MCP tools for local JSON/Markdown phases (/weekly-report, rejection patterns, score calibration, PII audit) and invoking Playwright MCP or Notion MCP only in the exact browser or sync phases that require them.",
       "triggers": [
@@ -1437,7 +1437,7 @@
     },
     {
       "name": "portfolio-builder-and-deployer",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "core",
       "description": "Load when the user asks to design, build, customize, preview, update, or deploy a personal or third-party portfolio website (/build-portfolio) using static HTML/CSS/JS or modern frontend frameworks and hosting CLIs or manual hosting providers.",
       "triggers": [
@@ -1462,6 +1462,7 @@
         "resume-ingestion",
         "tailor-resume-and-verify",
         "portfolio-and-github-auditor",
+        "portfolio-design-system-and-qa",
         "privacy-pii-shield",
         "recruiter-brand-and-domain-intelligence",
         "meta-self-verification"
@@ -1470,9 +1471,48 @@
         "portfolio files and dependencies stay strictly isolated inside logs/portfolio/<site-slug>/ (or logs/portfolio/third-party-<slug>/ or external folder) with root package.json at 0/0 dependencies and Veycraft git remote untouched",
         "every project, metric, title, and credential on the site maps to verified candidate data with 0 banned AI cliches, 0 prose em-dashes, and 0 unconfirmed metrics",
         "pre-publish privacy and secret audit confirmed 0 private phone/address/salary/NDA leaks and 0 exposed API tokens or client-bundle secrets",
-        "local production build and preview passed before deployment, Deploy Confirmation Table received explicit APPROVE, and live HTTPS URL returned 200 with intact assets before reporting deployed"
+        "DESIGN_PLAN.md, tokens.css, and 3-layer QA (qa-report.md within <= 3 self-healing cycles) passed before localhost preview, Deploy Confirmation Table received explicit APPROVE, and live HTTPS URL returned 200 with intact assets before reporting deployed"
       ],
       "path": "skills/29-portfolio-builder-and-deployer.md"
+    },
+    {
+      "name": "portfolio-design-system-and-qa",
+      "version": "1.0.0",
+      "category": "core",
+      "description": "Load before coding or previewing any portfolio website, or when the user asks to author a portfolio blueprint, select or customize a WCAG-compliant color palette and typography system, run stack-aware unit/component tests or multi-viewport responsive QA at 375px/768px/1440px, or self-heal portfolio layout and console errors.",
+      "triggers": [
+        "/portfolio-design",
+        "portfolio design system",
+        "redesign my portfolio colors",
+        "choose portfolio palette",
+        "unit test my portfolio",
+        "visual qa on my portfolio",
+        "fix portfolio layout errors"
+      ],
+      "requires_mcp": [
+        "none"
+      ],
+      "optional_mcp": [
+        "playwright"
+      ],
+      "preconditions": [
+        "verified candidate facts and target Domain Archetype available in context/ or confirmed in the active session",
+        "isolated target directory under logs/portfolio/<site-slug>/ (or logs/portfolio/third-party-<slug>/ or user-selected external directory) is writable"
+      ],
+      "requires_skills": [
+        "recruiter-brand-and-domain-intelligence",
+        "tailor-resume-and-verify",
+        "multilingual-adaptation",
+        "privacy-pii-shield",
+        "meta-self-verification"
+      ],
+      "verification": [
+        "DESIGN_PLAN.md, separated portfolio-data module, design-tokens.json, and tokens.css were authored and owner-approved inside <portfolio-dir>/ before writing UI components",
+        "selected or custom palette passed WCAG 2.1 AA contrast checks (>= 4.5:1 normal text, >= 3.0:1 large text and UI controls) across active color modes with 0 hardcoded hex colors in components",
+        "all 3 QA layers passed strictly inside <portfolio-dir>/ (static/type/build/PII gate, node --test or isolated Vitest unit tests, and 375px/768px/1440px viewport/overflow/console QA) and wrote qa-report.md while root package.json stayed at 0/0 dependencies",
+        "any failure triggered at most 3 targeted Self-Healing cycles without weakening assertions, or halted before localhost sign-off and deployment with the exact failing error log"
+      ],
+      "path": "skills/30-portfolio-design-system-and-qa.md"
     },
     {
       "name": "linkedin-growth",

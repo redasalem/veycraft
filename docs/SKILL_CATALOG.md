@@ -1,10 +1,10 @@
-# Consolidated 52-Skill Catalog & URL Construction Guide
+# Consolidated 53-Skill Catalog & URL Construction Guide
 
-Every skill in `veycraft` (`52` consolidated skills total: `34` core/career playbooks, `4` `meta-*` skills, `7` platform playbooks, and `7` ATS engines) follows the **`agentskills.io` / `SKILL.md` progressive disclosure standard** (`skills/REGISTRY.md` & `skills/skills-manifest.json`), loading only when its trigger matches the active phase of work.
+Every skill in `veycraft` (`53` consolidated skills total: `35` core/career playbooks, `4` `meta-*` skills, `7` platform playbooks, and `7` ATS engines) follows the **`agentskills.io` / `SKILL.md` progressive disclosure standard** (`skills/REGISTRY.md` & `skills/skills-manifest.json`), loading only when its trigger matches the active phase of work.
 
 ---
 
-## 1. Core & Career-Ops Playbooks (34 Skills)
+## 1. Core & Career-Ops Playbooks (35 Skills)
 
 | # | Skill File | Responsibility |
 |---|---|---|
@@ -39,6 +39,7 @@ Every skill in `veycraft` (`52` consolidated skills total: `34` core/career play
 | `27` | [`skills/27-universal-cv-builder.md`](../skills/27-universal-cv-builder.md) | Universal CV builder for any person/field with persistent `cv-profile.json` and third-party isolation (`logs/resumes/cv-<slug>/`, `owner_scope: "third_party"`) |
 | `28` | [`skills/28-recruiter-brand-and-domain-intelligence.md`](../skills/28-recruiter-brand-and-domain-intelligence.md) | Cross-cutting Senior HR JD decoder, 6–10s CV scan & truthful risk framing, LinkedIn Recruiter SEO & dynamic multi-industry adapter |
 | `29` | [`skills/29-portfolio-builder-and-deployer.md`](../skills/29-portfolio-builder-and-deployer.md) | Isolated portfolio website builder (`logs/portfolio/<slug>/`: Vanilla HTML/CSS/JS, Astro, Vite+React, Next.js), pre-publish PII/secret gate, and `APPROVE`-gated multi-CLI deployer (`vercel`, `wrangler`, `netlify`, dedicated-repo `gh`, `firebase`, `surge`, or Smart Fallback) |
+| `30` | [`skills/30-portfolio-design-system-and-qa.md`](../skills/30-portfolio-design-system-and-qa.md) | Agency-grade portfolio design system studio (`7` palettes + `Custom` WCAG AA `tokens.css`, LTR & Arabic RTL typography), pre-code `DESIGN_PLAN.md` + separated `portfolio-data`, 3-layer QA (`node --test`/isolated `vitest` + `375px`/`768px`/`1440px` -> `qa-report.md`), and bounded 3-cycle Self-Healing Loop |
 | `—` | [`skills/linkedin-growth.md`](../skills/linkedin-growth.md) | Grounded `0–100` Recruiter-SEO LinkedIn audit, CV-sync & rewrites (`DRAFT_ONLY` default; `APPROVE`-gated live edits) |
 | `—` | [`skills/profile-intelligence-engine.md`](../skills/profile-intelligence-engine.md) | Cross-platform Profile Intelligence Engine: schema-validated update plans, adapter contracts, batch-fill & fresh read-back |
 | `—` | [`skills/fallback-no-mcp.md`](../skills/fallback-no-mcp.md) | Non-MCP & missing-capability fallback (Web AI chats & manual-assisted IDE flows) |

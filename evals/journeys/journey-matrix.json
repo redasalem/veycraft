@@ -249,14 +249,28 @@
       "id": "PF01",
       "prompt": "/build-portfolio",
       "expected_intent": "build-portfolio",
-      "required_skills": ["29-portfolio-builder-and-deployer", "01-resume-ingestion", "03-tailor-resume-and-verify", "11-portfolio-and-github-auditor", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "required_skills": ["29-portfolio-builder-and-deployer", "30-portfolio-design-system-and-qa", "01-resume-ingestion", "03-tailor-resume-and-verify", "11-portfolio-and-github-auditor", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
       "requires_full_setup": false
     },
     {
       "id": "PF02",
       "prompt": "Build and deploy my portfolio website on Vercel.",
       "expected_intent": "build-portfolio",
-      "required_skills": ["29-portfolio-builder-and-deployer", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "required_skills": ["29-portfolio-builder-and-deployer", "30-portfolio-design-system-and-qa", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "PF03",
+      "prompt": "/portfolio-design",
+      "expected_intent": "portfolio-design-qa",
+      "required_skills": ["30-portfolio-design-system-and-qa", "29-portfolio-builder-and-deployer", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "PF04",
+      "prompt": "Redesign my portfolio colors and run unit tests and visual QA on my portfolio.",
+      "expected_intent": "portfolio-design-qa",
+      "required_skills": ["30-portfolio-design-system-and-qa", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
       "requires_full_setup": false
     }
   ]

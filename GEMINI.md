@@ -33,6 +33,7 @@ This is a **Markdown-first career operations repository with a zero-dependency N
 - Cross-channel deduplication & blacklist guard -> `skills/26-deduplication-and-blacklist-guard.md`
 - Universal CV builder (any person/field, with/without prior CV & iterative edits) -> `skills/27-universal-cv-builder.md`
 - Recruiter, personal-brand, LinkedIn SEO & domain-agnostic market intelligence -> `skills/28-recruiter-brand-and-domain-intelligence.md`
-- `/build-portfolio` or personalized portfolio website build & deploy -> `skills/29-portfolio-builder-and-deployer.md` (isolated `logs/portfolio/<slug>/`, 4-tier stack matrix, PII/secret scan, `LOCAL_PREVIEW_ONLY` -> `APPROVE`-gated CLI deploy)
+- `/build-portfolio` or personalized portfolio website build & deploy -> `skills/29-portfolio-builder-and-deployer.md` + `skills/30-portfolio-design-system-and-qa.md` (isolated `logs/portfolio/<slug>/`, 4-tier stack matrix, pre-code blueprint & WCAG token lock, 3-layer QA, PII/secret scan, `LOCAL_PREVIEW_ONLY` -> `APPROVE`-gated CLI deploy)
+- `/portfolio-design` or portfolio design system, unit tests & visual QA -> `skills/30-portfolio-design-system-and-qa.md` (`DESIGN_PLAN.md`, separated `portfolio-data`, 7 curated palettes + `Custom` WCAG AA `tokens.css`, RTL Arabic typography, `node --test`/isolated `vitest` + `375px`/`768px`/`1440px` -> `qa-report.md`, max 3 self-healing cycles)
 
 See `adapters/models/gemini.md` for Gemini-specific multimodal & snapshot verification guidance. Respect `dry_run: true`, verified facts only, caps, and explicit `APPROVE` gates.

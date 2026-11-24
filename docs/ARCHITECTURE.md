@@ -1,6 +1,6 @@
 # System Architecture & Execution Lifecycle
 
-`veycraft` combines **52 Markdown-first skills** (loaded progressively by your existing AI IDE or CLI harness) with a **zero-dependency Node.js CLI (`bin/cli.mjs`, `dependencies: {}`, `devDependencies: {}`)**.
+`veycraft` combines **53 Markdown-first skills** (loaded progressively by your existing AI IDE or CLI harness) with a **zero-dependency Node.js CLI (`bin/cli.mjs`, `dependencies: {}`, `devDependencies: {}`)**.
 
 > **Enforcement Transparency:** Deterministic validations (`pre-submit` cap/word/cliché checks, `career` ledger lifecycle writes, run-session/checkpoint orchestration, preparation verification, `next` queue planning, analytics/migration, `career sync` offline planning/approval/locking/receipts/reconciliation, `eval`, `proof`, `audit`, `verify`, `doctor`, `backup`, `unlock`, Git pre-commit PII hook) run locally in `bin/cli.mjs`, `bin/career-intelligence.mjs`, and `bin/notion-sync.mjs`. Semantic workflow steps (CV fact-checking, prompt-injection quarantine, DOM inspection, and human `APPROVE` gating) are agent workflow requirements in `AGENTS.md` and `skills/*.md`—see [`docs/execution-safety.md`](execution-safety.md).
 
