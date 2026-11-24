@@ -18,7 +18,7 @@
 
 All names, employers, and metrics below come from synthetic repository fixtures ([`evals/fixtures/`](evals/fixtures/candidate-profile.md)):
 
-![Veycraft v2.2.0 10-second animated terminal demo: doctor, route, and pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.3.0 10-second animated terminal demo: doctor, route, and pre-submit safety gate](assets/demo.svg)
 
 ```diff
 - Built backend APIs for an e-commerce and payments app using Node.js.

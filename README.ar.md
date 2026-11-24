@@ -20,7 +20,7 @@
 
 جميع الأسماء والشركات والأرقام في المعاينة أدناه هي بيانات عرض اصطناعية من [`evals/fixtures/`](evals/fixtures/candidate-profile.md):
 
-![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.2.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.3.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 <div dir="ltr" align="left">
 
