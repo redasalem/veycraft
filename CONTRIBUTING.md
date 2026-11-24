@@ -92,3 +92,13 @@ Verify that first-time users on a specific AI IDE or CLI harness can discover `/
 - **Resume HTML Templates:** Single-column semantic HTML (`templates/ats-resume-template.html`, `templates/ats-cover-letter-template.html`), escaped source facts, zero `<script>` tags, zero remote assets, zero hidden text.
 - **Acceptance & Synthetic Examples:** Keep [`ACCEPTANCE.md`](ACCEPTANCE.md) in sync when changing non-negotiable invariants. Use synthetic sample outputs under `examples/outputs/` (such as [`examples/outputs/sample-tailoring-notes.md`](examples/outputs/sample-tailoring-notes.md)) — never commit real CVs or personal candidate data.
 - **Security & Conduct:** Report security issues privately per [SECURITY.md](SECURITY.md) and follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+---
+
+## Maintainer Release & npm Publish Checklist
+
+1. **Pre-Flight Gate:** Run `npm run prepublishOnly` (`node --check` on all `bin/*.mjs`, `npm test` across `20/20` baseline, `20/20` live eval, and all `eval --journeys` suites, plus `npm run pack:check` verifying `0/0` deps and `0` private files) and `git diff --check`.
+2. **Version, Changelog & Proof Card:** Bump `"version"` in `package.json`, promote `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (no bottom comparison links in `CHANGELOG.md`), and regenerate `assets/proof-card.svg` via `node ./bin/cli.mjs proof` (inspect `git diff assets/proof-card.svg` to verify `0` PII).
+3. **Signed Release Commit on `main`:** Stage only release files, commit with `git commit -S -m "chore(release): prepare vX.Y.Z"`, and push with `git push origin main`.
+4. **Immutable Signed Tag:** Create, verify, and push an annotated SSH-signed tag (`git tag -s vX.Y.Z -m "Release vX.Y.Z"`, `git verify-tag vX.Y.Z`, `git push origin vX.Y.Z` — immutable under `protect-release-tags`).
+5. **GitHub Release → npm Provenance Publish:** Run `gh release create vX.Y.Z --latest --notes-file -` (including the `compare/vPREV...vX.Y.Z` link in the release notes body), which triggers [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml) (`npm publish --provenance --access public`).
