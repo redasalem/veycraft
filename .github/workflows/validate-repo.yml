@@ -254,17 +254,7 @@ jobs:
               '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
               '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
               | HOME="$ISO_HOME" USERPROFILE="$ISO_HOME" node "$REPO_DIR/bin/cli.mjs" mcp)"
-            MCP_OUT="$MCP_OUT" node - <<'JS'
-              const lines = (process.env.MCP_OUT || '').split(/\r?\n/).filter(Boolean);
-              if (lines.length !== 2) throw new Error('Expected 2 JSON-RPC frames, got ' + lines.length);
-              const frames = lines.map((l) => JSON.parse(l));
-              if (frames.some((f) => f.jsonrpc !== '2.0')) throw new Error('Invalid jsonrpc envelope');
-              if (frames[0].id !== 1 || frames[0].result?.serverInfo?.name !== 'veycraft') throw new Error('Bad initialize frame');
-              const tools = frames[1].result?.tools || [];
-              if (frames[1].id !== 2 || tools.length !== 8 || !tools.some((t) => t.name === 'veycraft_doctor')) {
-                throw new Error('Expected 8 MCP tools including veycraft_doctor');
-              }
-            JS
+            MCP_OUT="$MCP_OUT" node -e 'const lines=(process.env.MCP_OUT||``).split(/\r?\n/).filter(Boolean);if(lines.length!==2)throw new Error(`Expected 2 frames, got ${lines.length}`);const frames=lines.map(l=>JSON.parse(l));if(frames.some(f=>f.jsonrpc!==`2.0`))throw new Error(`Invalid jsonrpc`);if(frames[0].id!==1||frames[0].result?.serverInfo?.name!==`veycraft`)throw new Error(`Bad init`);const tools=frames[1].result?.tools||[];if(frames[1].id!==2||tools.length!==8||!tools.some(t=>t.name===`veycraft_doctor`))throw new Error(`Bad tools`);'
           )
 
           test -f "$ISO_PROJ/AGENTS.md"
