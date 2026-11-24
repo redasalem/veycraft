@@ -6,9 +6,17 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI_PATH = path.join(REPO_ROOT, 'bin', 'cli.mjs');
-const MCP_SERVER_PATH = path.join(REPO_ROOT, 'bin', 'mcp-server.mjs');
+const LOCAL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const CLI_PATH = [
+  process.env.JHO_CLI_PATH,
+  path.join(LOCAL_ROOT, 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.veycraft', 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.job-hunter-os', 'bin', 'cli.mjs'),
+].find((p) => p && fs.existsSync(p));
+assert.ok(CLI_PATH, 'Could not locate bin/cli.mjs');
+const BIN_DIR = path.dirname(CLI_PATH);
+const REPO_ROOT = path.resolve(BIN_DIR, '..');
+const MCP_SERVER_PATH = path.join(BIN_DIR, 'mcp-server.mjs');
 const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')).version;
 
 function createTempWorkspace() {
@@ -481,13 +489,18 @@ test('MCP security boundaries, JSON-RPC errors, CRLF, chunked messages, and spli
 
   const client = new McpStdioClient(MCP_SERVER_PATH, { cwd: ws });
   try {
-    // 1. CRLF initialize
+  // 1. CRLF + leading UTF-8 BOM (\uFEFF) initialize (Windows PowerShell pipeline compatibility)
     const initRes = await client.request(
       'initialize',
       { protocolVersion: '2025-06-18', capabilities: {} },
       { eol: '\r\n' },
     );
     assert.equal(initRes.result.protocolVersion, '2025-06-18');
+    const bomId = 707;
+    const bomWait = new Promise((resolve) => client._waiters.set(bomId, resolve));
+    client.sendRaw(`\uFEFF${JSON.stringify({ jsonrpc: '2.0', id: bomId, method: 'ping' })}\r\n`);
+    const bomRes = await bomWait;
+    assert.deepEqual(bomRes.result, {});
 
     // 2. Malformed JSON -> -32700
     const parseErrPromise = client.nextUnmatchedMessage();

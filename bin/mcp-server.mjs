@@ -642,8 +642,8 @@ export function startMcpServer({
   }
 
   function processRawLine(rawLine) {
-    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
-    if (!line.trim()) return;
+    const line = (rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine).replace(/^\uFEFF/, '').trim();
+    if (!line) return;
     let parsed;
     try {
       parsed = JSON.parse(line);
