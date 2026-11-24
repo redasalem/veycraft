@@ -19,12 +19,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-pages:
-    name: Publish CV Tailoring & Tracker Demos
+  build:
+    name: Build Static Demo Artifact
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -37,6 +34,14 @@ jobs:
         with:
           path: "docs"
 
+  deploy-pages:
+    name: Publish CV Tailoring & Tracker Demos
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
