@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Pure CSS-Animated Terminal Demo (`assets/demo.svg`, `README.md`, `README.ar.md`):** Added a 10.5-second, zero-script, `prefers-reduced-motion`-safe animated SVG terminal demo showcasing authentic `v2.2.0` CLI output (`doctor`, `route`, and `pre-submit` safety gate) in both English and Arabic READMEs while preserving `0/0` npm dependencies.
+
 ## [2.2.0] - 2026-11-24 — Portfolio Design System Studio, Dual-Engine LinkedIn Growth & Streamlined Onboarding
 
 ### Added
