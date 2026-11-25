@@ -430,7 +430,7 @@ test('MCP tools/list, all 8 read-only offline tools, and resources read/template
     const nextData = JSON.parse(nextRes.result.content[0].text);
     assert.ok(nextData && typeof nextData === 'object');
 
-    // 9. veycraft_get_skill
+    // 9. veycraft_get_skill (including Skill 54)
     const skillRes = await client.request('tools/call', {
       name: 'veycraft_get_skill',
       arguments: { name: 'tailor-resume-and-verify' },
@@ -439,6 +439,23 @@ test('MCP tools/list, all 8 read-only offline tools, and resources read/template
     assert.equal(skillData.skill.name, 'tailor-resume-and-verify');
     assert.equal(skillData.uri, 'veycraft://skill/tailor-resume-and-verify');
     assert.ok(skillData.content.length > 100);
+
+    const ghRemoteSkillRes = await client.request('tools/call', {
+      name: 'veycraft_get_skill',
+      arguments: { name: 'github-cli-remote-manager' },
+    });
+    const ghRemoteSkillData = JSON.parse(ghRemoteSkillRes.result.content[0].text);
+    assert.equal(ghRemoteSkillData.skill.name, 'github-cli-remote-manager');
+    assert.equal(ghRemoteSkillData.uri, 'veycraft://skill/github-cli-remote-manager');
+    assert.ok(ghRemoteSkillData.content.includes('gh api'));
+
+    const ghRemoteRouteRes = await client.request('tools/call', {
+      name: 'veycraft_route',
+      arguments: { query: 'Update remote GitHub files and add LICENSE via gh api without cloning' },
+    });
+    const ghRemoteRouteData = JSON.parse(ghRemoteRouteRes.result.content[0].text);
+    assert.equal(ghRemoteRouteData.intent, 'github-remote-ops');
+    assert.ok(ghRemoteRouteData.skills.includes('54-github-cli-remote-manager'));
 
     // 10. resources/list + resources/templates/list + resources/read
     const resList = await client.request('resources/list');
@@ -451,7 +468,7 @@ test('MCP tools/list, all 8 read-only offline tools, and resources read/template
 
     const manifestRead = await client.request('resources/read', { uri: 'veycraft://manifest' });
     assert.equal(manifestRead.result.contents[0].mimeType, 'application/json');
-    assert.equal(JSON.parse(manifestRead.result.contents[0].text).skills.length, 53);
+    assert.equal(JSON.parse(manifestRead.result.contents[0].text).skills.length, 54);
 
     const registryRead = await client.request('resources/read', { uri: 'veycraft://registry' });
     assert.equal(registryRead.result.contents[0].mimeType, 'text/markdown');

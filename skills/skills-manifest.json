@@ -1596,6 +1596,46 @@
         "fresh read-back verification confirms saved state before reporting verified"
       ],
       "path": "skills/profile-intelligence-engine.md"
+    },
+    {
+      "name": "github-cli-remote-manager",
+      "version": "1.0.0",
+      "category": "core",
+      "description": "Load when any AI agent needs to inspect, audit, edit files, configure metadata/topics/licenses/visibility, or run PR/issue/CI/GraphQL workflows on GitHub repositories remotely via gh CLI and REST/GraphQL APIs without cloning locally (/github-remote).",
+      "triggers": [
+        "/github-remote",
+        "edit or manage remote GitHub files without cloning",
+        "commit or update LICENSE or config files via gh api",
+        "manage remote GitHub PRs, issues, workflows, visibility, or topics via gh CLI"
+      ],
+      "requires_mcp": [
+        "none"
+      ],
+      "requires": [
+        "gh"
+      ],
+      "tags": [
+        "github",
+        "gh-cli",
+        "remote-git",
+        "no-clone",
+        "cross-agent"
+      ],
+      "preconditions": [
+        "authenticated gh CLI session (`gh auth status`) with required scopes (`repo`, plus `workflow` or `user` only when updating Actions or `/user`)",
+        "target `<owner>/<repo>` explicitly identified and verified before any write operation"
+      ],
+      "requires_skills": [
+        "privacy-pii-shield",
+        "meta-self-verification"
+      ],
+      "verification": [
+        "zero tokens, cookies, or `.env` secrets were read aloud or printed in logs/output",
+        "any `README.md` edit preserved existing HTML/Markdown layout, colors, badges, and icons verbatim with surgical diff verification",
+        "zero repositories were deleted without explicit per-repo typed `DELETE <owner>/<repo>` confirmation, and all public/visibility mutations received explicit user approval",
+        "every write was confirmed via fresh remote `gh repo view`, `gh api`, or `gh pr/run` read-back without modifying unrelated local workspaces"
+      ],
+      "path": "skills/54-github-cli-remote-manager.md"
     }
   ]
 }

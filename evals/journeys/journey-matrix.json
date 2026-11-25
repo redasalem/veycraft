@@ -286,6 +286,20 @@
       "expected_intent": "portfolio-design-qa",
       "required_skills": ["30-portfolio-design-system-and-qa", "28-recruiter-brand-and-domain-intelligence", "meta-self-verification"],
       "requires_full_setup": false
+    },
+    {
+      "id": "GH03",
+      "prompt": "Update remote GitHub files and add LICENSE via gh api without cloning.",
+      "expected_intent": "github-remote-ops",
+      "required_skills": ["54-github-cli-remote-manager", "14-privacy-pii-shield", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "GH04",
+      "prompt": "/github-remote",
+      "expected_intent": "github-remote-ops",
+      "required_skills": ["54-github-cli-remote-manager", "14-privacy-pii-shield", "meta-self-verification"],
+      "requires_full_setup": false
     }
   ]
 }

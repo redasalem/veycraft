@@ -90,9 +90,10 @@ jobs:
           agent_skills = sorted(pathlib.Path(".agents/skills").glob("*/SKILL.md"))
           expected_wrappers = {
               "apply-url", "contract-and-nda-auditor", "daily-run", "demo",
-              "linkedin-growth", "offer-negotiator", "profile-intelligence-engine",
-              "quick-tailor", "recruiter-inbox-triage", "rejection-pattern-analyzer",
-              "score-calibration", "setup", "tailor-cv", "weekly-report",
+              "github-cli-remote-manager", "linkedin-growth", "offer-negotiator",
+              "profile-intelligence-engine", "quick-tailor", "recruiter-inbox-triage",
+              "rejection-pattern-analyzer", "score-calibration", "setup", "tailor-cv",
+              "weekly-report",
           }
           actual_wrappers = {ap.parent.name for ap in agent_skills}
           if actual_wrappers != expected_wrappers:

@@ -772,9 +772,9 @@ test('11. GitHub CLI Audit, Marketing Polish, Tiered Cleanup & CV Extraction (Sk
   assert.ok(piText.includes('skills/11-portfolio-and-github-auditor.md'), 'profile-intelligence-engine missing delegation note to skills/11');
 });
 
-test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 53 Skills)', () => {
+test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 54 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
-  assert.equal(manifest.skills.length, 53, `Expected 53 skills in manifest, got ${manifest.skills.length}`);
+  assert.equal(manifest.skills.length, 54, `Expected 54 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
   // 1. Manifest parity & zero 5-gate /daily-run coupling
@@ -837,7 +837,7 @@ test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portf
   }
 });
 
-test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Healing QA (Skill 30 /portfolio-design, 53 Skills)', () => {
+test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Healing QA (Skill 30 /portfolio-design, 54 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
@@ -937,9 +937,9 @@ test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Heali
   }
 });
 
-test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Services Funnel (linkedin-growth v3.1.0, 53 Skills)', () => {
+test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Services Funnel (linkedin-growth v3.1.0, 54 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
-  assert.equal(manifest.skills.length, 53, `Expected 53 skills in manifest, got ${manifest.skills.length}`);
+  assert.equal(manifest.skills.length, 54, `Expected 54 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
   // 1. Manifest parity & zero 5-gate /setup coupling
@@ -1039,5 +1039,62 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Servic
     'skills/24-circuit-breaker-and-antiban.md',
   ]) {
     assert.ok(liText.includes(clause), `skills/linkedin-growth.md missing required clause: ${clause}`);
+  }
+});
+
+test('15. Universal No-Clone GitHub CLI Remote Manager & Cross-Model Agent Bridges (Skill 54, 54 Skills)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  assert.equal(manifest.skills.length, 54, `Expected 54 skills in manifest, got ${manifest.skills.length}`);
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  const s54 = byName.get('github-cli-remote-manager');
+  assert.ok(s54, 'github-cli-remote-manager missing from skills-manifest.json');
+  assert.equal(s54.version, '1.0.0');
+  assert.equal(s54.path, 'skills/54-github-cli-remote-manager.md');
+  assert.deepEqual(s54.requires_mcp, ['none']);
+  assert.deepEqual(s54.requires, ['gh']);
+  assert.deepEqual(s54.requires_skills, ['privacy-pii-shield', 'meta-self-verification']);
+
+  const s54Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '54-github-cli-remote-manager.md'), 'utf8');
+  assert.ok(s54Text.split(/\r?\n/).length < 500, 'skills/54-github-cli-remote-manager.md must stay under 500 lines');
+  for (const clause of [
+    '## When to Use & Preconditions',
+    '## Deterministic Step-by-Step Execution',
+    '## Anti-Patterns (What NEVER To Do) & Self-Verification Check',
+    'git/trees/HEAD',
+    'git/commits',
+    'gh repo edit',
+    'gh api',
+    'gh workflow run',
+    'gh api graphql',
+    'DELETE <owner>/<repo>',
+  ]) {
+    assert.ok(s54Text.includes(clause), `skills/54 missing required clause: ${clause}`);
+  }
+
+  // Wrapper & cross-model bridges verify Skill 54 + MCP discovery
+  const wrapperText = fs.readFileSync(path.join(REPO_ROOT, '.agents', 'skills', 'github-cli-remote-manager', 'SKILL.md'), 'utf8');
+  assert.ok(wrapperText.includes('name: github-cli-remote-manager'));
+  assert.ok(wrapperText.includes('skills/54-github-cli-remote-manager.md'));
+
+  for (const bridgePath of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', path.join('.github', 'copilot-instructions.md')]) {
+    const bText = fs.readFileSync(path.join(REPO_ROOT, bridgePath), 'utf8');
+    assert.ok(bText.includes('54-github-cli-remote-manager.md'), `${bridgePath} missing Skill 54 reference`);
+    assert.ok(bText.includes('veycraft_get_skill') && bText.includes('veycraft://manifest'), `${bridgePath} missing veycraft MCP discovery reference`);
+  }
+
+  // Collision-free routing between github-remote-ops (Skill 54) and github-portfolio-audit (Skill 11)
+  for (const [prompt, expectedIntent, expectedSkill] of [
+    ['/github-remote', 'github-remote-ops', '54-github-cli-remote-manager'],
+    ['Update remote GitHub files and LICENSE via gh api without cloning', 'github-remote-ops', '54-github-cli-remote-manager'],
+    ['Trigger a GitHub Actions workflow and inspect open pull requests via gh pr', 'github-remote-ops', '54-github-cli-remote-manager'],
+    ['/github-audit', 'github-portfolio-audit', '11-portfolio-and-github-auditor'],
+    ['Audit my GitHub repos and extract real projects for my CV.', 'github-portfolio-audit', '11-portfolio-and-github-auditor'],
+  ]) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, expectedIntent, `Intent mismatch for "${prompt}"`);
+    assert.ok(parsed.skills.includes(expectedSkill), `Missing ${expectedSkill} for "${prompt}"`);
   }
 });

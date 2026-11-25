@@ -6,7 +6,7 @@
 
 [![Zero Core Dependencies](https://img.shields.io/badge/Core_CLI-0_NPM_Dependencies-2ea44f)](package.json)
 [![Node >= 18](https://img.shields.io/badge/Node-%3E%3D18-339933)](package.json)
-[![53 Markdown Skills](https://img.shields.io/badge/Skills-53_Markdown_Skills-167d60)](skills/REGISTRY.md)
+[![54 Markdown Skills](https://img.shields.io/badge/Skills-54_Markdown_Skills-167d60)](skills/REGISTRY.md)
 [![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
 [![Veycraft MCP server](https://glama.ai/mcp/servers/redasalem/veycraft/badges/score.svg)](https://glama.ai/mcp/servers/redasalem/veycraft)
@@ -17,7 +17,7 @@
 
 - **صفر خبرات مختلقة:** كل رقم ومهارة وشركة وتاريخ يرتبط بحقائق مؤكدة من ملفك المحلي فقط، مع عزل المتطلبات غير المؤكدة في **الفجوات الحقيقية (`True Gaps`)**.
 - **صفر إرسال أعمى:** وضع `dry_run: true` مفعّل افتراضيًا، وأي تقديم حي أو حفظ بروفايل أو نشر منشور أو بورتفوليو يتطلب موافقة بشرية صريحة (`APPROVE`).
-- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`>= 18.0.0`، `dependencies: {}`, `devDependencies: {}`) مع **53 مهارة Markdown محمولة (`agentskills.io`)** دون مفاتيح API خارجية أو خوادم سحابية.
+- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`>= 18.0.0`، `dependencies: {}`, `devDependencies: {}`) مع **54 مهارة Markdown محمولة (`agentskills.io`)** دون مفاتيح API خارجية أو خوادم سحابية.
 
 جميع الأسماء والشركات والأرقام في المعاينة أدناه هي بيانات عرض اصطناعية من [`evals/fixtures/`](evals/fixtures/candidate-profile.md):
 
@@ -52,7 +52,7 @@ npx --yes veycraft doctor        # أو: npm install -g veycraft
 veycraft init --global
 
 # الخطوة 3 — شغّل الواجهة المحلية للقراءة فقط (127.0.0.1) أو افحص سيرتك محليًا
-npx --yes veycraft ui            # واجهة ويب محلية من 5 تبويبات (Kanban، التحليلات، الاستوديو، 53 مهارة)
+npx --yes veycraft ui            # واجهة ويب محلية من 5 تبويبات (Kanban، التحليلات، الاستوديو، 54 مهارة)
 veycraft audit ./resume.docx --share
 ```
 
@@ -155,13 +155,13 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | الأمر | الوظيفة |
 |---|---|
 | `veycraft --help` / `--version [--json]` | عرض دليل الاستخدام (قراءة فقط) أو الإصدار وبيانات الأصل |
-| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 53 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
+| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 54 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
 | `veycraft init [--global] [--force] [--ide <name>]` | تهيئة `~/.veycraft` (أو المجلد الحالي) وربط مهارات المحررات ومزامنة MCP دون حذف القواعد القائمة |
 | `veycraft route "<request>" [--json]` | توجيه أي طلب طبيعي (عربي أو إنجليزي) لأقل مجموعة مهارات مناسبة مع البديل الآمن |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |
 | `veycraft verify <dir\|file> [--facts <json\|md>]` | التحقق بعد الكتابة من المخرجات وسجلات التقديم ونقاط حفظ الجلسة وإصدارات الـ CV وخطط Notion و`Profile Update Plan` |
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | ملخص التقديمات، تحليلات حتمية (`MIN_N = 5`)، لوحة Kanban HTML محلية للقراءة فقط، وقائمة الأولويات |
-| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | واجهة ويب محلية للقراءة فقط على `127.0.0.1` بلا شبكة (الجاهزية، Kanban، التحليلات، استوديو الفحص بالذاكرة، و53 مهارة) |
+| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | واجهة ويب محلية للقراءة فقط على `127.0.0.1` بلا شبكة (الجاهزية، Kanban، التحليلات، استوديو الفحص بالذاكرة، و54 مهارة) |
 | `veycraft mcp [--global]` | خادم MCP محلي أصيل عبر `stdio` بصفر تبعيات (8 أدوات قراءة فقط بلا شبكة + موارد `veycraft://` — [`mcp/README.md`](mcp/README.md)) |
 | `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`122/122` |
 

@@ -1025,6 +1025,19 @@ export const ROUTE_RULES = [
     outputs: ['Isolated portfolio project in logs/portfolio/<site-slug>/', 'Pre-publish PII/secret scan + local preview', 'Optional APPROVE-gated live HTTPS deployment + HTTP 200 verification'],
   },
   {
+    intent: 'github-remote-ops',
+    matches: q =>
+      /(^|\s)\/github-remote\b|\b(no[- ]clone|without cloning|gh api|contents api|git data api|pull requests?|gh pr|gh issue|gh workflow|github actions?|workflow runs?|push commit remotely)\b/i.test(q) ||
+      (/\bgithub\b/i.test(q) && /\b(license|workflows?|branches?|tags?|releases?|issues?|prs?)\b/i.test(q) && !/\b(cv|resume|portfolio|recruiter|audit)\b/i.test(q)),
+    skills: ['54-github-cli-remote-manager', '14-privacy-pii-shield', 'meta-self-verification'],
+    workflow: null,
+    readiness: 'task-specific (authenticated gh CLI session + explicit target <owner>/<repo>; no /setup or local clone required)',
+    required_inputs: ['authenticated gh CLI session (`gh auth status`)', 'target <owner>/<repo> and requested remote operation'],
+    optional_tools: ['gh CLI (required for remote execution)'],
+    fallback: 'Generates exact copy-pasteable `gh` CLI / `gh api` commands if `gh` is unavailable or unauthenticated',
+    outputs: ['Zero-clone `gh api` file/tree commits, topics/visibility/license edits, or PR/CI status with fresh read-back verification'],
+  },
+  {
     intent: 'github-portfolio-audit',
     matches: q =>
       /(^|\s)\/github-audit\b/i.test(q) ||

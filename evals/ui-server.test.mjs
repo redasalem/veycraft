@@ -124,11 +124,15 @@ test('UI server binds strictly to 127.0.0.1, serves static assets with CSP, and 
   assert.equal(overview.summary.funnel.total_tracked, 0);
 
   const skills = JSON.parse((await rawHttpRequest(handle.port, '/api/skills')).body);
-  assert.equal(skills.skills_count, 53);
+  assert.equal(skills.skills_count, 54);
 
   const skillDetail = JSON.parse((await rawHttpRequest(handle.port, '/api/skills/daily-run')).body);
   assert.equal(skillDetail.uri, 'veycraft://skill/daily-run');
   assert.ok(skillDetail.content.includes('## When to Use & Preconditions'));
+
+  const remoteSkillDetail = JSON.parse((await rawHttpRequest(handle.port, '/api/skills/github-cli-remote-manager')).body);
+  assert.equal(remoteSkillDetail.uri, 'veycraft://skill/github-cli-remote-manager');
+  assert.ok(remoteSkillDetail.content.includes('## Deterministic Step-by-Step Execution'));
 
   // Empty workspace remains 100% empty on disk (read-only guarantee)
   assert.deepEqual(fs.readdirSync(emptyDir), []);

@@ -16,7 +16,7 @@ You find relevant jobs, score them honestly against the owner's CV, apply only w
 ## Universal Guided Workflow Contracts
 
 ### 1. Natural-Language Task Router & Task-Specific Readiness
-Users describe goals naturally without needing slash commands or internal architecture knowledge. Route every request via the **Natural-Language Intent Router** in `skills/REGISTRY.md` to the **smallest relevant group of skills** (never load all 53 skills).
+Users describe goals naturally without needing slash commands or internal architecture knowledge. Route every request via the **Natural-Language Intent Router** in `skills/REGISTRY.md` to the **smallest relevant group of skills** (never load all 54 skills).
 - **Task-specific readiness (never force `/setup` unnecessarily):** Require full 5-gate readiness (`skills/00-interrogate-and-onboard.md`) **only** for `/setup`, `/daily-run`, and live automated ATS submission. Standalone tasks—CV upload/review/edit/creation, `/quick-tailor`, `/tailor-cv`, LinkedIn review/drafts, standalone JD analysis/ranking, interview prep, offer/contract review, and local tracking/reports—execute independently with only the inputs needed for that task.
 
 ### 2. Universal Conversational Contract
@@ -46,7 +46,7 @@ Classify every task step as **(A) executable now**, **(B) needs user input**, **
 |---|---|---|
 | Browser | **Playwright MCP** (`playwright`) | Persistent profile in `./browser-profile`. Use accessibility snapshots (`browser_snapshot`) and element refs/roles/labels. Never rely on CSS selectors. |
 | Memory & analytics | **Notion MCP** (`notion`, optional) | One-way, allowlisted 3-DB sync (`Applications`, `Daily Runs`, `Weekly & Monthly Insights`) governed by `logs/sync-state.json`, live guardrails (`storage_adapters.notion_mcp: true` & `dry_run: false`), and explicit owner approval (`veycraft career sync`). Local JSON under `logs/` is always authoritative and never written back from Notion. |
-| Local CLI & files | IDE file tools + `bin/cli.mjs` | Read/write `context/`, `config/`, `logs/`, and `templates/` directly; run deterministic offline/local commands (`veycraft career summary\|analytics\|dashboard\|migrate\|cv-versions\|record\|reserve\|confirm-submit\|transition\|skip\|cv-register\|next\|run-start\|run-triage\|run-enqueue\|prepare\|run-checkpoint\|run-resume\|run-finish\|sync`, `audit`, `verify`, `pre-submit`). |
+| Local CLI, native MCP & files | IDE file tools + `bin/cli.mjs` + `veycraft mcp` | Read/write `context/`, `config/`, `logs/`, and `templates/` directly; discover/read skills via `veycraft` MCP (`veycraft_route`, `veycraft_get_skill`, `veycraft://manifest`, `veycraft://skill/<name>`); run offline CLI commands (`veycraft career summary\|analytics\|dashboard\|migrate\|cv-versions\|record\|reserve\|confirm-submit\|transition\|skip\|cv-register\|next\|run-start\|run-triage\|run-enqueue\|prepare\|run-checkpoint\|run-resume\|run-finish\|sync`, `audit`, `verify`, `pre-submit`). |
 
 ## Progressive Disclosure Rule (Context Budget)
 
@@ -86,6 +86,7 @@ At the start of every session, read `AGENTS.md` and `skills/REGISTRY.md` first. 
   - `skills/28-recruiter-brand-and-domain-intelligence.md` — Cross-cutting Senior HR JD decoder, 6–10s CV scan & truthful risk framing, LinkedIn Recruiter SEO & dynamic multi-industry adapter
   - `skills/29-portfolio-builder-and-deployer.md` — Isolated personalized portfolio builder (`logs/portfolio/<slug>/`: Vanilla HTML/CSS/JS, Astro, Vite+React, Next.js), PII/secret gate & `APPROVE`-gated multi-CLI deployer (`/build-portfolio`)
   - `skills/30-portfolio-design-system-and-qa.md` — Agency-grade portfolio design system studio (`7` palettes + `Custom` WCAG AA tokens), pre-code `DESIGN_PLAN.md` + separated `portfolio-data`, 3-layer QA (`node --test`/isolated `vitest` + `375px`/`768px`/`1440px` -> `qa-report.md`), & 3-cycle Self-Healing Loop (`/portfolio-design`)
+  - `skills/54-github-cli-remote-manager.md` — Model-agnostic no-clone GitHub CLI & REST/GraphQL remote operations (`gh api` Contents/Git Data atomic commits, repo topics/visibility/licenses, PR/issue/Actions ops & fresh read-back verification; `/github-remote`)
   - `skills/linkedin-growth.md` — Dual-Engine LinkedIn Recruiter Search (`0–100` SEO, multi-role skills, 3-stage funnel) & Feed Algorithm Strategist (Topical Authority, Dwell Time, Comment-First, Native Format Matrix, Anti-Myth & Anti-Pod; `/linkedin-growth`, `DRAFT_ONLY` + `APPROVE` gate)
   - `skills/profile-intelligence-engine.md` — Shared Profile Intelligence Engine (`/profile-update`, cross-platform profile audit, `schemas/profile-update-plan.schema.json`, `DRAFT_ONLY` consolidated diff, batch-fill & read-back verification)
   - `skills/platforms/b2b-contract-networks.md` — Curated B2B contract networks (Toptal, Braintrust, Lemon.io, Gun.io, Contra, Arc.dev, Turing)

@@ -4,7 +4,7 @@
 
 [![Zero Core Dependencies](https://img.shields.io/badge/Core_CLI-0_NPM_Dependencies-2ea44f)](package.json)
 [![Node >= 18](https://img.shields.io/badge/Node-%3E%3D18-339933)](package.json)
-[![53 Markdown Skills](https://img.shields.io/badge/Skills-53_Markdown_Skills-167d60)](skills/REGISTRY.md)
+[![54 Markdown Skills](https://img.shields.io/badge/Skills-54_Markdown_Skills-167d60)](skills/REGISTRY.md)
 [![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
 [![Veycraft MCP server](https://glama.ai/mcp/servers/redasalem/veycraft/badges/score.svg)](https://glama.ai/mcp/servers/redasalem/veycraft)
@@ -15,7 +15,7 @@
 
 - **Zero fabricated experience:** Every metric, tool, employer, and date traces back to verified local facts; unconfirmed JD requirements stay isolated under **True Gaps**.
 - **Zero blind submissions:** `dry_run: true` by default; every live submit, profile save, post, or portfolio deploy requires explicit human `APPROVE`.
-- **Zero npm dependencies:** Pure Node.js (`>= 18.0.0`) CLI (`dependencies: {}`, `devDependencies: {}`) plus **53 portable `agentskills.io` Markdown skills**. No external API keys or hosted backend.
+- **Zero npm dependencies:** Pure Node.js (`>= 18.0.0`) CLI (`dependencies: {}`, `devDependencies: {}`) plus **54 portable `agentskills.io` Markdown skills**. No external API keys or hosted backend.
 
 All names, employers, and metrics below come from synthetic repository fixtures ([`evals/fixtures/`](evals/fixtures/candidate-profile.md)):
 
@@ -44,7 +44,7 @@ npx --yes veycraft doctor        # or: npm install -g veycraft
 veycraft init --global
 
 # Step 3 — Launch the read-only local Web UI (127.0.0.1) or audit a CV offline
-npx --yes veycraft ui            # 5-tab local UI: Readiness, Kanban, Analytics, Studio, 53 Skills
+npx --yes veycraft ui            # 5-tab local UI: Readiness, Kanban, Analytics, Studio, 54 Skills
 veycraft audit ./resume.docx --share
 ```
 
@@ -133,13 +133,13 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | Command | Purpose |
 |---|---|
 | `veycraft --help` / `--version [--json]` | Safe, read-only usage guide or version & provenance metadata |
-| `veycraft doctor [--global] [--strict] [--json]` | Diagnose Node runtime, provenance, 53-skill manifest, 5 gates, `<60d` playbooks, PII hook & MCP configs |
+| `veycraft doctor [--global] [--strict] [--json]` | Diagnose Node runtime, provenance, 54-skill manifest, 5 gates, `<60d` playbooks, PII hook & MCP configs |
 | `veycraft init [--global] [--force] [--ide <name>]` | Non-destructively scaffold `~/.veycraft` (or workspace), link IDE skills/rules & safely merge MCP configs |
 | `veycraft route "<request>" [--json]` | Deterministic natural-language Task Intent Router (minimal skills, readiness & fallback) |
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | Offline CV hygiene audit, fake-`.docx`/scanned-PDF/SSRF/token checks & PII-safe SVG/MD scorecard |
 | `veycraft verify <dir\|file> [--facts <json\|md>]` | Post-write verification for deliverables, ledgers, checkpoints, CV versions, Notion plans, and `Profile Update Plan` JSON |
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | Local Career Intelligence funnel, score-band analytics (`MIN_N = 5`), read-only HTML Kanban, and prioritized action queue |
-| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | Read-only offline local Web UI on `127.0.0.1` (Overview, Kanban, Analytics, in-memory Studio & 53 Skills explorer) |
+| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | Read-only offline local Web UI on `127.0.0.1` (Overview, Kanban, Analytics, in-memory Studio & 54 Skills explorer) |
 | `veycraft mcp [--global]` | Native zero-dependency MCP `stdio` server (8 read-only offline tools + allowlisted `veycraft://` resources — [`mcp/README.md`](mcp/README.md)) |
 | `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `122/122` eval suites |
 
