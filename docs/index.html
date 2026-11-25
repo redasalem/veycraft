@@ -287,10 +287,10 @@
 
     <header>
       <div>
-        <span class="eyebrow">Primary Product Demo · Fact-Checked CV Tailoring</span>
-        <h1>Veycraft — Truthful CV Tailoring Preview</h1>
+        <span class="eyebrow">Primary Product Demo · v2.3.1 · 53 Skills · 0/0 npm Deps</span>
+        <h1>Veycraft — Truthful CV Tailoring &amp; Native MCP</h1>
         <p class="subtitle">
-          Give your existing AI coding agent one CV and one job description. Get a fact-checked tailored HTML/TXT resume, a transparent evidence map, an ATS keyword comparison, and explicit True Gaps — with zero fabricated experience and zero blind submissions.
+          Give your existing AI coding agent one CV and one job description, or attach the built-in zero-dependency MCP server over <code>stdio</code>. Get a fact-checked tailored HTML/TXT resume, a transparent evidence map, an ATS keyword comparison, and explicit True Gaps — verified by 116/116 journey tests and 20/20 eval assertions.
         </p>
       </div>
       <div class="nav-links">
@@ -365,25 +365,58 @@
 
     <div class="gate-banner" id="out-gate-banner"></div>
 
-    <section class="try-box">
-      <h2>Run the Real Workflow Inside Your AI IDE</h2>
-      <p>
-        This page is a static visual demonstration. To run the actual workflow in Cursor, Claude Code, Antigravity, Codex CLI, Windsurf, Cline, or OpenCode (zero external API keys, zero core npm dependencies):
-      </p>
-      <pre># 1. Try an instant offline hygiene audit on your own resume (no setup required)
-npx github:redasalem/veycraft audit ./resume.md --share
+    <section class="grid-2" style="margin-top: 24px;" aria-label="CLI Quick Start and Native MCP Server">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Run the Real Workflow Inside Your AI IDE</span>
+          <span class="tag">v2.3.1 · Zero API Keys</span>
+        </div>
+        <p style="color: var(--muted); font-size: 0.86rem; margin-bottom: 12px;">
+          Verified by <strong>116/116</strong> journey tests, <strong>20/20</strong> baseline &amp; live-agent evals, <strong>53</strong> portable Markdown skills (<code>14</code> auto-discovered <code>.agents/skills/</code> wrappers), and <strong>0/0</strong> npm dependencies:
+        </p>
+        <pre># 1. Instant offline CV hygiene check (zero setup)
+npx -y veycraft audit ./resume.md --share
 
-# 2. Initialize locally or globally, then run /demo or /quick-tailor in your AI IDE
-npx github:redasalem/veycraft init --global
-# Open your AI IDE:
-#   /demo          -> Complete synthetic workflow (no personal CV, no browser login)
-#   /quick-tailor  -> Your real CV + 1 JD (no browser login required)</pre>
+# 2. Link ~/.veycraft non-destructively, then run /demo or /quick-tailor
+npx -y veycraft init --global
+npx -y veycraft doctor</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Native Zero-Dependency MCP Server</span>
+          <span class="tag">8 Read-Only Offline Tools</span>
+        </div>
+        <p style="color: var(--muted); font-size: 0.86rem; margin-bottom: 12px;">
+          Attach directly via <code>stdio</code> in Claude Desktop/Code, Cursor, Windsurf, Antigravity, Gemini CLI, VS Code Copilot, or Codex CLI (<a href="https://github.com/redasalem/veycraft/blob/main/mcp/README.md" style="color: var(--blue);">MCP guide ↗</a>):
+        </p>
+        <pre>{
+  "mcpServers": {
+    "veycraft": {
+      "command": "npx",
+      "args": ["-y", "veycraft", "mcp"]
+    }
+  }
+}</pre>
+        <div class="chip-row" style="margin-top: 12px;">
+          <span class="chip chip-info">veycraft_doctor</span>
+          <span class="chip chip-info">veycraft_route</span>
+          <span class="chip chip-info">veycraft_audit</span>
+          <span class="chip chip-info">veycraft_verify</span>
+          <span class="chip chip-info">veycraft_pre_submit</span>
+          <span class="chip chip-info">veycraft_career_summary</span>
+          <span class="chip chip-info">veycraft_career_next</span>
+          <span class="chip chip-info">veycraft_get_skill</span>
+          <span class="chip chip-ok">veycraft://manifest · registry · invariants · skill/{name}</span>
+        </div>
+      </div>
     </section>
 
     <footer>
-      <span>Veycraft · MIT License · Zero Core npm Dependencies · Local-First</span>
+      <span>Veycraft v2.3.1 · MIT License · 0/0 Core npm Dependencies · 0 Open CodeQL Alerts</span>
       <span>
         <a href="./demo-dashboard.html">Secondary Demo: Application Tracking Dashboard</a> ·
+        <a href="https://github.com/redasalem/veycraft/blob/main/mcp/README.md">Native MCP Guide</a> ·
         <a href="https://github.com/redasalem/veycraft/blob/main/docs/execution-safety.md">Execution Safety</a>
       </span>
     </footer>

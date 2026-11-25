@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-25 — MCP Windows Hardening, Security Fixes & Pages Sync
+
+### Fixed
+- **Native MCP Windows Pipeline & Isolated `cli-smoke` Resolution (`bin/mcp-server.mjs`, `evals/mcp-server.test.mjs`, `.github/workflows/validate-repo.yml`):** Stripped leading UTF-8 BOM (`\uFEFF`) from incoming JSON-RPC frames in `processRawLine()` for Windows PowerShell `stdio` pipelines, resolved `JHO_CLI_PATH` cleanly across isolated `veycraft init` workspaces in `evals/mcp-server.test.mjs`, and hardened the cross-platform CI `mcp` pipe assertion in `validate-repo.yml`.
+
+### Security
+- **CodeQL Remediation & Zero Open Alerts (`bin/fs-safety.mjs`, `bin/core-ops.mjs`, `bin/career-intelligence.mjs`, `bin/profile-intelligence.mjs`, `evals/*.test.mjs`):** Replaced sequential entity decoding with single-pass `decodeXmlHtmlEntities()` (`#2`, `#19`), replaced regex `<script>`/`<style>` and tag stripping with regex-free O(n) `stripHtmlBlocks()` and `stripMarkupTags()` (`#4`, `#7`, `#18`), escaped backslashes before pipes in Markdown table cells (`#8`), enforced strict `new URL()` origin/pathname checks for GitHub provenance verification (`#16`, `#17`), renamed `ROUTE_RULES[].match` → `matches` (`#15`), and hardened test assertions (`#6`, `#9`–`#12`) — reducing open CodeQL alerts from `14` to `0`.
+
+### Changed
+- **GitHub Pages & Release Asset Sync (`docs/index.html`, `assets/demo.svg`, `assets/proof-card.svg`, `README.md`, `README.ar.md`):** Updated the live GitHub Pages preview (`redasalem.github.io/veycraft/`) to `v2.3.1` with a dedicated **Native Zero-Dependency MCP Server (`npx -y veycraft mcp`)** setup card (`8` tools + `veycraft://` resources) and synced `116/116` journey / `20/20` eval / `53`-skill metrics, plus regenerated SVG badges.
+
 ## [2.3.0] - 2026-11-24 — Native Zero-Dependency MCP Server & Animated Demo
 
 ### Added
