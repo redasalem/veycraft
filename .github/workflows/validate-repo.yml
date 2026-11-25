@@ -140,7 +140,7 @@ jobs:
           tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
           bad = [
               f for f in tracked
-              if re.search(r"(\.pdf$|^\.env$|browser-profile|^logs/|^context/(?!.*\.example$|DROP_YOUR_FILES_HERE\.md$))", f)
+              if re.search(r"(\.pdf$|^\.env$|browser-profile|^logs/|^tracker/|^context/(?!.*\.example$|DROP_YOUR_FILES_HERE\.md$))", f)
           ]
           if bad:
               raise SystemExit("Sensitive files tracked in Git:\n" + "\n".join(bad))
@@ -220,6 +220,8 @@ jobs:
           node --check bin/notion-sync.mjs
           node --check bin/cli.mjs
           node --check bin/profile-intelligence.mjs
+          node --check bin/fast-ops.mjs
+          node --check bin/browser-payloads.mjs
           npm run pack:check
           node ./bin/cli.mjs --version --json
           node ./bin/cli.mjs eval --baseline

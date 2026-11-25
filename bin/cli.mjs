@@ -50,6 +50,9 @@ import {
   runNotionSyncCli,
 } from './notion-sync.mjs';
 import {
+  runFastOpsCli,
+} from './fast-ops.mjs';
+import {
   normalizePathForCompare,
   isSamePath,
   isObj,
@@ -106,6 +109,7 @@ let argErr = null;
 let careerSyncArgs = [];
 let careerWriteArgs = [];
 let preSubmitArgs = [];
+let fastOpsArgs = [];
 
 for (let i = 0; i < ARGV.length; i++) {
   if (positional[0] === 'career' && (positional[1] || '').toLowerCase() === 'sync') {
@@ -118,6 +122,10 @@ for (let i = 0; i < ARGV.length; i++) {
   }
   if (positional[0] === 'pre-submit') {
     preSubmitArgs = ARGV.slice(i);
+    break;
+  }
+  if (positional[0] === 'brief' || positional[0] === 'feed-scan' || positional[0] === 'browser-script') {
+    fastOpsArgs = ARGV.slice(i);
     break;
   }
   const a = ARGV[i];
@@ -1935,6 +1943,9 @@ Core & Verification Commands:
   veycraft career record|reserve|confirm-submit|transition|skip|cv-register [--help] Atomic ledger & CV writes
   veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery
   veycraft pre-submit [--draft <f> | --text <t>] [--platform <p> --company <c> --title <t> --url <u> --job-id <id>] [--json] Pre-submit cap, dedup, blacklist & word-cap gate
+  veycraft brief [--refresh] [--no-write] [--json] Compile or read cached context/brief.json (< 400 tokens, zero PII)
+  veycraft feed-scan (--url <u> | --file <p>) [--top <n>] [--min-budget <n>] [--json] Zero-token SSRF-safe RSS/Atom/JSON scanner & local ranker
+  veycraft browser-script <distill-feed|distill-form|batch-fill> [--json] Output read-only DOM distiller or non-submitting batch-fill payload
   veycraft eval [--baseline | --file <json> | --journeys] Run deterministic safety assertions & journey tests
   veycraft proof [--global | -g]                   Generate reproducible proof-card.svg & proof-card.md
   veycraft status [--global | -g] [--json]         Print readiness gates, warm-up cap & pipeline funnel summary
@@ -1995,6 +2006,15 @@ try {
   else if (command === 'eval') cmdEval();
   else if (command === 'proof') cmdProof();
   else if (command === 'pre-submit') cmdPreSubmit();
+  else if (command === 'brief' || command === 'feed-scan' || command === 'browser-script') {
+    const res = await runFastOpsCli(ROOT, command, fastOpsArgs, { home: HOME, cwd: process.cwd() });
+    if (res.json) {
+      console.log(JSON.stringify(res.data, null, 2));
+    } else {
+      for (const line of res.lines) info(line);
+    }
+    if (res.exitCode !== 0) process.exitCode = res.exitCode;
+  }
   else if (command === 'status') cmdStatus();
   else if (command === 'bundle') cmdBundle();
   else if (command === 'dashboard') cmdDashboard();

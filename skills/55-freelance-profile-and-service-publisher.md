@@ -46,7 +46,7 @@ Use this model-agnostic playbook to audit a freelance marketplace profile, craft
 ## Deterministic Step-by-Step Execution
 
 ### 1. Grounded Fact & Anti-Slop Extraction
-- Read `context/cv.md`, `context/github-projects.md` (if present), and the owner's service prompt.
+- Run `veycraft brief --json` first to load the cache-invalidated `< 400`-token candidate summary (`context/brief.json`); fall back to reading `context/cv.md` and `context/github-projects.md` only when deeper project detail is needed.
 - Extract strictly verified deliverables, tech stacks, project outcomes, and turnaround bounds. Flag any unverified metric or tool before drafting.
 - Keep copy direct, buyer-focused, and free of banned AI clichés and prose em-dashes (`0` fabricated reviews, fake enterprise logos, or guaranteed rankings).
 
@@ -73,7 +73,7 @@ Present the complete blueprint to the owner for edits or confirmation before cre
 
 ### 5. Non-Submitting Browser Form Fill & Hard Stop (`APPROVE PUBLISH`)
 - Navigate to the platform's New Service / Create Gig form with `3-9 s` human pacing between multi-page steps.
-- Fill text fields, dropdowns/comboboxes, tags, pricing tiers, FAQs, and upload the cover image **without triggering final Publish**.
+- Use `veycraft browser-script distill-form --json` (`< 600` tokens) to map visible fields and `veycraft browser-script batch-fill --json` (passing `fieldMap` as a separate serialized argument, never clicking Publish/Save) to fill text/pricing/FAQ fields in a single round-trip; use Playwright's native upload/semantic combobox tools for `requires_native_upload[]` (cover image) and `requires_interactive_select[]` (fall back to `browser_snapshot` if `evaluate` is blocked).
 - Wait via fresh `browser_snapshot` until the uploaded cover image filename/thumbnail renders cleanly.
 - **Mandatory Hard Stop Before Final Publish/Save:** Present the **Live DOM Read-Back Table** showing exact platform name, URL, profile changes (if any), final service title, pricing/delivery summary, uploaded cover filename verified in snapshot, `dry_run` status, and exact target button label (`Publish` / `Save & Publish` / `إضافة الخدمة`).
 - **Execution Gate:** Never click Publish/Save while `dry_run: true`, and never treat earlier draft edits or open tabs as authorization. Click Publish/Save **once** only in a subsequent turn after the user explicitly replies **`APPROVE PUBLISH`**.

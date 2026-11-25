@@ -1,6 +1,6 @@
 {
   "name": "veycraft",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "type": "module",
   "description": "Veycraft — Agent-native career operations & Profile Intelligence Engine for the AI agent you already use. Zero-dependency CLI, 56 Markdown skills, truthful CV tailoring, and human APPROVE gates.",
   "license": "MIT",
@@ -45,8 +45,8 @@
   "scripts": {
     "test": "node ./bin/cli.mjs eval --baseline && node ./bin/cli.mjs eval --file evals/results/live-agent-eval-run.json && node ./bin/cli.mjs eval --journeys",
     "doctor": "node ./bin/cli.mjs doctor",
-    "pack:check": "node -e \"const cp=require('node:child_process');const raw=cp.execSync('npm pack --dry-run --json',{encoding:'utf8'});const p=JSON.parse(raw.slice(raw.indexOf('[')))[0];const paths=p.files.map(f=>f.path);const bad=paths.filter(x=>/context\\/(?!.*\\.example$|DROP_YOUR_FILES_HERE\\.md$)|^logs\\/|\\.pdf$|^\\.env|browser-profile|\\.veycraft\\.bak$/i.test(x));if(bad.length)throw new Error('Blocked sensitive files in tarball: '+bad.join(', '));for(const req of ['bin/cli.mjs','bin/core-ops.mjs','bin/mcp-server.mjs','bin/ui-server.mjs','bin/fs-safety.mjs','bin/career-intelligence.mjs','bin/notion-sync.mjs','bin/profile-intelligence.mjs','ui/index.html','ui/styles.css','ui/app.js','ui/favicon.svg','glama.json','AGENTS.md','skills/REGISTRY.md','.github/copilot-instructions.md','.github/CODEOWNERS','PROVENANCE.json','NOTICE']){if(!paths.includes(req))throw new Error('Missing required package file: '+req);}console.log('pack:check OK ->',p.filename,p.entryCount,'files,',p.size,'bytes');\"",
-    "prepublishOnly": "node --check bin/fs-safety.mjs && node --check bin/core-ops.mjs && node --check bin/mcp-server.mjs && node --check bin/ui-server.mjs && node --check ui/app.js && node --check bin/career-intelligence.mjs && node --check bin/notion-sync.mjs && node --check bin/cli.mjs && node --check bin/profile-intelligence.mjs && npm test && npm run pack:check"
+    "pack:check": "node -e \"const cp=require('node:child_process');const raw=cp.execSync('npm pack --dry-run --json',{encoding:'utf8'});const p=JSON.parse(raw.slice(raw.indexOf('[')))[0];const paths=p.files.map(f=>f.path);const bad=paths.filter(x=>/context\\/(?!.*\\.example$|DROP_YOUR_FILES_HERE\\.md$)|^logs\\/|^tracker\\/|\\.pdf$|^\\.env|browser-profile|\\.veycraft\\.bak$/i.test(x));if(bad.length)throw new Error('Blocked sensitive files in tarball: '+bad.join(', '));for(const req of ['bin/cli.mjs','bin/core-ops.mjs','bin/mcp-server.mjs','bin/ui-server.mjs','bin/fs-safety.mjs','bin/career-intelligence.mjs','bin/notion-sync.mjs','bin/profile-intelligence.mjs','bin/fast-ops.mjs','bin/browser-payloads.mjs','ui/index.html','ui/styles.css','ui/app.js','ui/favicon.svg','glama.json','AGENTS.md','skills/REGISTRY.md','.github/copilot-instructions.md','.github/CODEOWNERS','PROVENANCE.json','NOTICE']){if(!paths.includes(req))throw new Error('Missing required package file: '+req);}console.log('pack:check OK ->',p.filename,p.entryCount,'files,',p.size,'bytes');\"",
+    "prepublishOnly": "node --check bin/fs-safety.mjs && node --check bin/core-ops.mjs && node --check bin/mcp-server.mjs && node --check bin/ui-server.mjs && node --check ui/app.js && node --check bin/career-intelligence.mjs && node --check bin/notion-sync.mjs && node --check bin/cli.mjs && node --check bin/profile-intelligence.mjs && node --check bin/fast-ops.mjs && node --check bin/browser-payloads.mjs && npm test && npm run pack:check"
   },
   "bin": {
     "veycraft": "./bin/cli.mjs",

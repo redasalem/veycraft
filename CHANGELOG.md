@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-26 — Token-Efficiency Fast-Path Architecture (`brief`, `feed-scan`, `browser-script`) & `tracker/` Privacy Guards
+
+### Added
+- **Compact Candidate Brief Compiler (`bin/fast-ops.mjs`, `veycraft brief [--refresh] [--no-write] [--json]`):** Compiles a zero-PII, `< 400`-token summary (`context/brief.json`, hard-capped `<= 1,550` bytes) with deterministic `mtimeMs + sha256` cache invalidation across `context/cv.md`, `profile.md`, `preferences.yaml`, `form-answers.yaml`, `resume-facts.json`, and `github-projects.md`, cutting recurring context-loading tokens by `86%–92%`.
+- **Zero-Token SSRF-Safe Feed Scanner (`bin/fs-safety.mjs` `fetchTextWithSafeRedirects`, `bin/fast-ops.mjs` `scanPublicFeeds`, `veycraft feed-scan`):** Parses public RSS 2.0, Atom XML, and JSON feeds locally with `0` dependencies, full **SEC-01** DNS-pinned SSRF protection on every redirect hop (`maxBytes` cap + bounded gzip/deflate decode), cross-source deduplication against `logs/` and `tracker/freelance-proposals.md`, employer blacklist & budget-floor filtering, BiDi/Unicode + prompt-injection sanitization, and local `Fit Score (0–100)` ranking.
+- **Safe DOM Distiller & Single-Shot Non-Submitting Batch Form Fill (`bin/browser-payloads.mjs`, `veycraft browser-script distill-feed|distill-form|batch-fill`):** Extracts open project cards or visible editable fields (+ open Shadow DOM, cross-origin `iframe_srcs[]`, CAPTCHA/login detection, and honeypot segregation) into compact `< 600`-token JSON payloads, and executes single-shot React/Vue/Next.js-compatible form filling by accepting `fieldMap` strictly as a separate serialized argument (Arabic/UTF-8 multiline safe, `0` string interpolation, `0` `.submit()` or Submit/Publish clicks) returning a compact Live DOM Read-Back JSON ahead of mandatory human `APPROVE` / `APPROVE PUBLISH` / `APPROVE <numbers>` gates.
+- **Token-Efficiency & Security Test Suite (`evals/fast-ops.test.mjs`):** Added 5 deterministic offline suites covering brief caching/PII stripping, JSON/RSS parsing & dedup, SEC-01 SSRF/redirect/`maxBytes` guards, DOM distiller/batch-fill honeypot & zero-submit invariants, and CLI subprocess validation (`124/124 -> 129/129` journey tests, `108/108 -> 113/113` unit tests).
+
+### Security & Changed
+- **`tracker/` Privacy Hardening (`.gitignore`, `package.json` `pack:check`, `.github/workflows/validate-repo.yml`):** Blocked `tracker/` from Git tracking and npm tarballs so local `tracker/freelance-proposals.md` logs never leak.
+- **Fast-Path Integration Across Skills & Cross-Model Bridges (`skills/18`, `55`, `56`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`):** Wired the low-token CLI fast-path across all major AI coding agents while strictly preserving the 8-tool MCP contract (`0` breaking changes) and `0/0` npm dependencies.
+
 ## [2.6.0] - 2026-11-26 — Universal Freelance Service Publisher & Global Offer Radar Batch Bidder
 
 ### Added

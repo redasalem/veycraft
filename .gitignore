@@ -46,6 +46,7 @@ context/*
 !context/*.example
 !context/DROP_YOUR_FILES_HERE.md
 logs/
+tracker/
 
 # Explicit personal generated artifacts (also covered by logs/)
 logs/resumes/

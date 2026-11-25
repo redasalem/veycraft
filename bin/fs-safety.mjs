@@ -555,6 +555,195 @@ export async function fetchUrlWithSafeRedirects(initialUrl, {
   throw new Error(`Maximum redirect limit (${maxRedirects}) exceeded.`);
 }
 
+function pinnedHttpTextRequest(targetUrl, {
+  method = 'GET',
+  headers = {},
+  timeoutMs = 8000,
+  maxBytes = 1_500_000,
+  resolvedAddresses,
+}) {
+  const isHttps = targetUrl.protocol === 'https:';
+  const transport = isHttps ? https : http;
+  const normalizedHost = String(targetUrl.hostname || '').toLowerCase().replace(/\.+$/, '').replace(/^\[|\]$/g, '');
+  const primary = resolvedAddresses[0];
+
+  const pinnedLookup = (_hostname, optionsOrCb, maybeCb) => {
+    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+    const opts = typeof optionsOrCb === 'object' && optionsOrCb !== null ? optionsOrCb : {};
+    if (opts.all) {
+      cb(null, resolvedAddresses.map(r => ({ address: r.address, family: r.family })));
+    } else {
+      cb(null, primary.address, primary.family);
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (err, val) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+      else resolve(val);
+    };
+
+    const reqOpts = {
+      protocol: targetUrl.protocol,
+      hostname: normalizedHost,
+      port: targetUrl.port ? Number(targetUrl.port) : (isHttps ? 443 : 80),
+      path: `${targetUrl.pathname || '/'}${targetUrl.search || ''}`,
+      method,
+      headers,
+      agent: false,
+      lookup: pinnedLookup,
+      ...(isHttps && net.isIP(normalizedHost) === 0 ? { servername: normalizedHost } : {}),
+    };
+
+    const req = transport.request(reqOpts, res => {
+      const rawHeaders = res.headers || {};
+      const status = res.statusCode || 0;
+      const headerAccessor = {
+        get(name) {
+          const val = rawHeaders[String(name).toLowerCase()];
+          if (Array.isArray(val)) return val.join(', ');
+          return val === undefined ? null : String(val);
+        },
+      };
+
+      if (REDIRECT_STATUS_CODES.has(status)) {
+        res.resume();
+        finish(null, { status, headers: headerAccessor, text: '' });
+        return;
+      }
+
+      const chunks = [];
+      let total = 0;
+      res.on('data', chunk => {
+        total += chunk.length;
+        if (total > maxBytes) {
+          res.destroy();
+          req.destroy();
+          finish(new Error(`Response exceeded maxBytes limit (${maxBytes} bytes) from ${targetUrl.href}`));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => {
+        try {
+          let buf = Buffer.concat(chunks);
+          const enc = String(headerAccessor.get('content-encoding') || '').toLowerCase().trim();
+          if (enc === 'gzip' || enc === 'x-gzip') {
+            buf = zlib.gunzipSync(buf, { maxOutputLength: maxBytes });
+          } else if (enc === 'deflate') {
+            buf = zlib.inflateSync(buf, { maxOutputLength: maxBytes });
+          }
+          finish(null, { status, headers: headerAccessor, text: buf.toString('utf8') });
+        } catch (err) {
+          finish(err);
+        }
+      });
+      res.on('error', err => finish(err));
+    });
+
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
+    });
+    req.on('error', err => finish(err));
+    req.end();
+  });
+}
+
+export async function fetchTextWithSafeRedirects(initialUrl, {
+  fetchImpl = null,
+  lookupImpl = defaultDnsLookup,
+  maxRedirects = 5,
+  timeoutMs = 8000,
+  maxBytes = 1_500_000,
+  headers = {
+    'User-Agent': 'veycraft-feed-scan/2.6',
+    Accept: 'application/json, application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9',
+  },
+} = {}) {
+  let currentUrl;
+  try {
+    currentUrl = initialUrl instanceof URL ? new URL(initialUrl.href) : new URL(String(initialUrl));
+  } catch {
+    throw new Error(`Malformed URL: "${initialUrl}"`);
+  }
+  const initialBlock = isBlockedSsrfUrl(currentUrl);
+  if (initialBlock) {
+    throw new Error(`Blocked by SSRF guard (${initialBlock}): ${currentUrl.href}`);
+  }
+
+  const visited = new Set([currentUrl.href]);
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    const resolvedAddresses = await resolveAndValidateSsrfHost(currentUrl, { lookupImpl });
+    let res;
+    if (typeof fetchImpl === 'function') {
+      res = await fetchImpl(currentUrl.href, {
+        method: 'GET',
+        redirect: 'manual',
+        headers,
+        maxBytes,
+        timeoutMs,
+        resolvedAddresses,
+      });
+      const textVal = typeof res?.text === 'function' ? await res.text() : String(res?.text ?? '');
+      if (Buffer.byteLength(textVal, 'utf8') > maxBytes) {
+        throw new Error(`Response exceeded maxBytes limit (${maxBytes} bytes) from ${currentUrl.href}`);
+      }
+      res = { status: res?.status || 0, headers: res?.headers || { get: () => null }, text: textVal };
+    } else {
+      res = await pinnedHttpTextRequest(currentUrl, {
+        method: 'GET',
+        headers,
+        timeoutMs,
+        maxBytes,
+        resolvedAddresses,
+      });
+    }
+
+    if (!REDIRECT_STATUS_CODES.has(res.status)) {
+      const contentType = res.headers && typeof res.headers.get === 'function'
+        ? String(res.headers.get('content-type') || '')
+        : String(res.headers?.['content-type'] || '');
+      return {
+        status: res.status,
+        finalUrl: currentUrl.href,
+        redirects: hop,
+        contentType,
+        text: res.text,
+      };
+    }
+
+    if (hop >= maxRedirects) {
+      throw new Error(`Maximum redirect limit (${maxRedirects}) exceeded at ${currentUrl.href}`);
+    }
+    const locationHeader = res.headers && typeof res.headers.get === 'function'
+      ? res.headers.get('location')
+      : (res.headers && (res.headers.location || res.headers.Location));
+    if (typeof locationHeader !== 'string' || !locationHeader.trim()) {
+      throw new Error(`Redirect response (HTTP ${res.status}) missing Location header.`);
+    }
+    let nextUrl;
+    try {
+      nextUrl = new URL(locationHeader.trim(), currentUrl);
+    } catch {
+      throw new Error(`Malformed redirect Location "${locationHeader}" from ${currentUrl.href}`);
+    }
+    const redirectBlock = isBlockedSsrfUrl(nextUrl);
+    if (redirectBlock) {
+      throw new Error(`Redirect target blocked by SSRF guard (${redirectBlock}): ${nextUrl.href}`);
+    }
+    if (visited.has(nextUrl.href)) {
+      throw new Error(`Redirect loop detected to ${nextUrl.href}`);
+    }
+    visited.add(nextUrl.href);
+    currentUrl = nextUrl;
+  }
+
+  throw new Error(`Maximum redirect limit (${maxRedirects}) exceeded.`);
+}
+
 // ---------------- SEC-03: Hardened OOXML (.docx) ZIP Parser with Decompression Limits ----------------
 
 export const DOCX_LIMITS = Object.freeze({
