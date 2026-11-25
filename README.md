@@ -7,6 +7,7 @@
 [![53 Markdown Skills](https://img.shields.io/badge/Skills-53_Markdown_Skills-167d60)](skills/REGISTRY.md)
 [![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
+[![Veycraft MCP server](https://glama.ai/mcp/servers/redasalem/veycraft/badges/score.svg)](https://glama.ai/mcp/servers/redasalem/veycraft)
 
 **[Interactive Demo ↗](https://redasalem.github.io/veycraft/)** · **[Quick Start](#quick-start)** · **[AI Agent Onboarding](#ai-agent-onboarding)** · **[CLI Reference](#cli-commands)** · **[Upgrade & Uninstall](#upgrade--uninstall)** · **[العربية (RTL)](README.ar.md)**
 
