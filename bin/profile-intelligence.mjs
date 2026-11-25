@@ -62,7 +62,7 @@ export const PLATFORM_ADAPTERS = Object.freeze({
   linkedin: Object.freeze({
     platform_id: 'linkedin',
     display_name: 'LinkedIn',
-    supported_sections: ['headline', 'about', 'experience', 'projects', 'skills', 'featured', 'open_to_work'],
+    supported_sections: ['headline', 'about', 'experience', 'projects', 'skills', 'featured', 'open_to_work', 'services'],
     capabilities: Object.freeze({ read: true, draft: true, fill: true, save: true, verify: true }),
     required_permissions: ['signed_in_browser_session', 'explicit_owner_approve'],
     requires_approval: true,
@@ -76,6 +76,7 @@ export const PLATFORM_ADAPTERS = Object.freeze({
       experience: ['Description', 'Experience'],
       projects: ['Project name', 'Description'],
       skills: ['Skill', 'Add skill'],
+      services: ['Services', 'Providing services', 'About'],
     },
   }),
   wellfound: Object.freeze({

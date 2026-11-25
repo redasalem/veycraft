@@ -937,7 +937,7 @@ test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Heali
   }
 });
 
-test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strategist (linkedin-growth v3.0.0, 53 Skills)', () => {
+test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Services Funnel (linkedin-growth v3.1.0, 53 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
   assert.equal(manifest.skills.length, 53, `Expected 53 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
@@ -945,7 +945,7 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strateg
   // 1. Manifest parity & zero 5-gate /setup coupling
   const li = byName.get('linkedin-growth');
   assert.ok(li, 'linkedin-growth missing from skills-manifest.json');
-  assert.equal(li.version, '3.0.0');
+  assert.equal(li.version, '3.1.0');
   assert.equal(li.path, 'skills/linkedin-growth.md');
   assert.deepEqual(li.requires_mcp, ['none']);
   assert.deepEqual(li.optional_mcp, ['playwright']);
@@ -972,14 +972,20 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strateg
     }
   }
 
-  // 3. Collision-free routing & 6/7 skill cap checks
+  // 3. Collision-free EN + AR routing & 6/7 skill cap checks
   const liPrompts = [
     '/linkedin-growth',
+    'optimize linkedin',
+    'LinkedIn SEO setup',
+    'set up my LinkedIn Services page for freelance clients',
     'optimize my LinkedIn for the LinkedIn algorithm and dwell time',
     'build a LinkedIn comment-first strategy and content pillars',
     'draft a LinkedIn native PDF carousel to grow my reach and impressions',
     'improve my LinkedIn topical authority and profile funnel',
     'how to grow my LinkedIn organically without engagement pods',
+    'ظبط لينكد إن',
+    'عدل لينكد إن',
+    'تجهيز صفحة خدمات لينكد إن للفريلانس',
   ];
   for (const prompt of liPrompts) {
     const res = runCli(['route', prompt, '--json']);
@@ -992,6 +998,9 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strateg
 
   for (const [prompt, expectedIntent] of [
     ['/profile-update', 'profile-intelligence'],
+    ['Update my LinkedIn profile for this job', 'profile-intelligence'],
+    ['حسّن ملفي المهني', 'profile-intelligence'],
+    ['حدّث بروفايلي لهذه الوظيفة', 'profile-intelligence'],
     ['optimize my professional profile across platforms', 'profile-intelligence'],
     ['find remote LinkedIn jobs for Product Manager', 'job-discovery-and-triage'],
   ]) {
@@ -1000,8 +1009,10 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strateg
     assert.equal(JSON.parse(res.stdout).intent, expectedIntent, `Boundary collision on "${prompt}"`);
   }
 
-  // 4. Dual-Engine (Recruiter Search + Feed Algorithm), Anti-Myth, Anti-Pod & 0 em-dash hygiene in skills/linkedin-growth.md
+  // 4. Engines A-D (Recruiter Search + Credibility + Feed Algorithm + Services Funnel), Anti-Myth, Anti-Pod, <500 lines & 0 em-dash hygiene
   const liText = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'linkedin-growth.md'), 'utf8');
+  const liLineCount = liText.split(/\r?\n/).length;
+  assert.ok(liLineCount < 500, `skills/linkedin-growth.md must stay under 500 lines (got ${liLineCount})`);
   assert.ok(!liText.includes('\u2014'), 'skills/linkedin-growth.md must contain 0 prose em-dashes (U+2014)');
   assert.doesNotMatch(liText, /4 Proven Engineering Post Templates/);
   for (const clause of [
@@ -1012,12 +1023,17 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search & Feed Algorithm Strateg
     'Likely to Respond',
     '~140-210',
     'Search Appearances -> Profile Views -> Inbound Replies',
+    'Credibility & Trust Signals',
     'Topical Authority',
     'Comment-First Strategy',
     'Native Format Tradeoffs Matrix',
     'Native PDF Document / Carousel',
     'Engagement pods',
     'canonical 19-item banned AI-cliche list',
+    '10-Service Taxonomy Selection',
+    'Services Page',
+    'Direct Requests',
+    'Post-Delivery Review',
     'logs/insights/linkedin-seo-audit-YYYY-MM-DD.md',
     'pre-submit',
     'skills/24-circuit-breaker-and-antiban.md',

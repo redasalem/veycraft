@@ -1516,9 +1516,9 @@
     },
     {
       "name": "linkedin-growth",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "category": "core",
-      "description": "Load when the owner runs /linkedin-growth or asks to audit or optimize a LinkedIn profile for Recruiter search ranking, align LinkedIn with a CV, diagnose funnel or analytics bottlenecks, build a LinkedIn content/carousel/comment-first strategy, improve dwell time or topical authority, or draft posts and <=75-word outreach; defaults to DRAFT_ONLY and permits live updates or publishing only with verified signed-in Playwright auth, explicit APPROVE, and post-action snapshot verification.",
+      "description": "Load when the owner runs /linkedin-growth or asks (in English or Arabic) to audit or optimize a LinkedIn profile for Recruiter search ranking and credibility signals, align LinkedIn with a CV, diagnose funnel or analytics bottlenecks, build a LinkedIn content/carousel/comment-first strategy, set up a LinkedIn Services Page and inbound freelance client funnel, or draft posts, concise proposals, and <=75-word outreach; defaults to DRAFT_ONLY and permits live updates or publishing only with verified signed-in Playwright auth, explicit APPROVE, and post-action snapshot verification.",
       "triggers": [
         "/linkedin-growth",
         "review or audit my LinkedIn profile",
@@ -1528,8 +1528,10 @@
         "check my LinkedIn rank, analytics, or profile errors",
         "LinkedIn algorithm, reach, dwell time, or topical authority strategy",
         "LinkedIn comment-first strategy, content pillars, or native PDF carousel",
-        "write or publish a LinkedIn post or personal-brand marketing copy",
-        "add open-source projects or optimize LinkedIn skills and Featured section"
+        "set up or optimize my LinkedIn Services page and inbound freelance client funnel",
+        "write or publish a LinkedIn post, concise client proposal, or personal-brand copy",
+        "add open-source projects or optimize LinkedIn skills, credibility signals, and Featured section",
+        "ظبط لينكد إن / عدل لينكد إن / تحسين بروفايل وصفحة خدمات لينكد إن للفريلانس"
       ],
       "requires_mcp": [
         "none"
