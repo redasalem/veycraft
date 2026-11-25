@@ -17,6 +17,7 @@ Veycraft ships a built-in, zero-dependency **Model Context Protocol (`stdio`) se
 }
 ```
 
+- **One-command IDE registration:** Run `npx veycraft sync-mcp --with-veycraft --dry-run` (or add `--global`) to preview merging `veycraft` alongside Playwright/Notion across `.mcp.json`, Cursor, Gemini, Claude, Antigravity, Windsurf, VS Code (`.vscode/mcp.json`), and Codex (`.codex/config.toml`), then run `npx veycraft sync-mcp --with-veycraft` to apply with automatic `<file>.veycraft.bak` backups.
 - **Windows desktop/IDE clients (`cmd /c` wrapper):** Where an MCP host on Windows does not resolve `npx.cmd` directly, use `"command": "cmd", "args": ["/c", "npx", "-y", "veycraft", "mcp"]` (or point straight to a local clone: `"command": "node", "args": ["C:/path/to/veycraft/bin/cli.mjs", "mcp"]`).
 - **Workspace / home resolution:** Uses the current working directory (or `VEYCRAFT_HOME` / `veycraft mcp --global` for `~/.veycraft`).
 

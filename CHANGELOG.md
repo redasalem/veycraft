@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-25 — Read-Only Local Web UI, One-Command MCP Sync & Glama Manifest
+
+### Added
+- **Read-Only Local Web UI (`bin/ui-server.mjs`, `ui/`, `npx -y veycraft ui`):** Added a zero-dependency `node:http` server bound strictly to `127.0.0.1` (`--port`, `--no-open`, `--workspace`, `--global`) with automatic ephemeral port fallback, safe `execFile` browser launch (`shell: false`), strict `CSP` / `Host` / `Origin` / `Sec-Fetch-Site` / `Cache-Control: no-store` / zero-taint `Map` lookup guards, and a zero-build static frontend (`ui/index.html`, `ui/styles.css`, `ui/app.js`, `ui/favicon.svg`) featuring 5 views (`Overview & Readiness`, `Kanban Board`, `Career Analytics`, `Verification Studio`, and `Skills & Guardrails`).
+- **One-Command IDE MCP Registration (`bin/core-ops.mjs`, `bin/cli.mjs`, `veycraft sync-mcp --with-veycraft`):** Added opt-in `--with-veycraft` registration of the native `veycraft` `stdio` MCP server across Cursor, Claude, Gemini, Antigravity, Windsurf, Copilot/VS Code (`servers`), and OpenAI Codex CLI (`[mcp_servers.veycraft]`) with `--dry-run`, `--json`, atomic `<file>.veycraft.bak` (`0o600`) backups, custom entry preservation, and `.gitignore` / pre-commit PII shield coverage while keeping default `sync-mcp` 100% backwards-compatible.
+- **Glama Registry Manifest (`glama.json`, `package.json`):** Added root `glama.json` (`"$schema": "https://glama.ai/mcp/schemas/server.json"`, `"maintainers": ["redasalem"]`) for automated Glama discovery and release syncing.
+- **UI & MCP Sync Integration Suite (`evals/ui-server.test.mjs`, `.github/workflows/validate-repo.yml`):** Expanded deterministic journey and integration coverage from `116/116` to `122/122` tests across Ubuntu, macOS, and Windows (covering loopback binding, CSP/XSS invariants, Host/Origin/path-traversal defenses, third-party ledger isolation, disk immutability, `sync-mcp --with-veycraft --dry-run`, and CLI subprocess startup) with `0` open CodeQL alerts.
+
 ## [2.3.1] - 2026-11-25 — MCP Windows Hardening, Security Fixes & Pages Sync
 
 ### Fixed

@@ -19,7 +19,7 @@
 
 All names, employers, and metrics below come from synthetic repository fixtures ([`evals/fixtures/`](evals/fixtures/candidate-profile.md)):
 
-![Veycraft v2.3.1 10-second animated terminal demo: doctor, route, and pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.4.0 10-second animated terminal demo: doctor, route, and pre-submit safety gate](assets/demo.svg)
 
 ```diff
 - Built backend APIs for an e-commerce and payments app using Node.js.
@@ -43,7 +43,8 @@ npx --yes veycraft doctor        # or: npm install -g veycraft
 # Step 2 — Link your AI coding IDE non-destructively (~/.veycraft)
 veycraft init --global
 
-# Step 3 — Start in terminal (offline) or inside your AI IDE chat
+# Step 3 — Launch the read-only local Web UI (127.0.0.1) or audit a CV offline
+npx --yes veycraft ui            # 5-tab local UI: Readiness, Kanban, Analytics, Studio, 53 Skills
 veycraft audit ./resume.docx --share
 ```
 
@@ -90,7 +91,7 @@ and prepare it for this workspace. Do not modify personal data or perform live e
 actions without explicit approval.
 ```
 
-**Machine-readable agent discovery:** `veycraft --version --json`, `veycraft doctor --json`, `veycraft status --json`, and `veycraft route "<request>" --json` return structured JSON without modifying personal files or performing external actions. For MCP hosts, `npx -y veycraft mcp` starts the built-in zero-dependency `stdio` MCP server exposing 8 read-only offline tools and allowlisted `veycraft://` resources ([`mcp/README.md`](mcp/README.md)).
+**Machine-readable agent discovery:** `veycraft --version --json`, `veycraft doctor --json`, `veycraft status --json`, and `veycraft route "<request>" --json` return structured JSON without modifying personal files or performing external actions. For MCP hosts, `npx -y veycraft mcp` starts the built-in zero-dependency `stdio` MCP server exposing 8 read-only offline tools and allowlisted `veycraft://` resources ([`mcp/README.md`](mcp/README.md)); preview or wire it into your IDE configs in one command via `veycraft sync-mcp --with-veycraft --dry-run` (then drop `--dry-run` to apply with automatic `.veycraft.bak` backups).
 
 <details>
 <summary>Target a Specific AI Tool (<code>--ide</code> Flags)</summary>
@@ -138,8 +139,9 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | Offline CV hygiene audit, fake-`.docx`/scanned-PDF/SSRF/token checks & PII-safe SVG/MD scorecard |
 | `veycraft verify <dir\|file> [--facts <json\|md>]` | Post-write verification for deliverables, ledgers, checkpoints, CV versions, Notion plans, and `Profile Update Plan` JSON |
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | Local Career Intelligence funnel, score-band analytics (`MIN_N = 5`), read-only HTML Kanban, and prioritized action queue |
+| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | Read-only offline local Web UI on `127.0.0.1` (Overview, Kanban, Analytics, in-memory Studio & 53 Skills explorer) |
 | `veycraft mcp [--global]` | Native zero-dependency MCP `stdio` server (8 read-only offline tools + allowlisted `veycraft://` resources — [`mcp/README.md`](mcp/README.md)) |
-| `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `116/116` eval suites |
+| `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `122/122` eval suites |
 
 <details>
 <summary>Advanced CLI Reference (Run State Machine, Atomic Ledger, Notion Sync &amp; Maintenance)</summary>
@@ -152,7 +154,7 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | `veycraft career sync <subcommand> [--help]` | One-way local-to-Notion sync engine (`preview`, `status`, `verify-schema`, `approve`, `mark-in-flight`, `apply-receipt`, `record-failure`, `expire-stale`, `reconcile`, `reset-permanent`, `release-stale-lock`); zero external writes from CLI |
 | `veycraft status [--global] [--json]` | Print readiness gates, warm-up caps & pipeline funnel summary |
 | `veycraft proof` / `dashboard [--global] [--no-open]` / `bundle` | Regenerate proof card SVG/MD, open classic Kanban viewer, or export web-chat master prompt |
-| `veycraft sync-mcp` / `login` / `unlock` / `backup` / `update` | Sync MCP TOML/JSON, open persistent Chromium, clean stale locks, snapshot logs, or SSH-verified update |
+| `veycraft sync-mcp [--with-veycraft] [--dry-run]` / `login` / `unlock` / `backup` / `update` | Sync MCP TOML/JSON (with `.veycraft.bak` backups), open persistent Chromium, clean stale locks, snapshot logs, or SSH-verified update |
 
 *(Note: when passing `--global` / `-g` with scoped `career` subcommands such as `career sync`, `career record`, `career run-start`, or `career next`, place it before `career`, e.g., `veycraft --global career sync status`.)*
 

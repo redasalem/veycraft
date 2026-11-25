@@ -21,7 +21,7 @@
 
 جميع الأسماء والشركات والأرقام في المعاينة أدناه هي بيانات عرض اصطناعية من [`evals/fixtures/`](evals/fixtures/candidate-profile.md):
 
-![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.3.1: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.4.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 <div dir="ltr" align="left">
 
@@ -51,7 +51,8 @@ npx --yes veycraft doctor        # أو: npm install -g veycraft
 # الخطوة 2 — ربط محرّر الذكاء الاصطناعي بأمان دون حذف قواعدك (~/.veycraft)
 veycraft init --global
 
-# الخطوة 3 — ابدأ من الطرفية (محليًا) أو داخل محادثة محرّر الذكاء الاصطناعي
+# الخطوة 3 — شغّل الواجهة المحلية للقراءة فقط (127.0.0.1) أو افحص سيرتك محليًا
+npx --yes veycraft ui            # واجهة ويب محلية من 5 تبويبات (Kanban، التحليلات، الاستوديو، 53 مهارة)
 veycraft audit ./resume.docx --share
 ```
 
@@ -108,7 +109,7 @@ actions without explicit approval.
 
 </div>
 
-**اكتشاف برمجي منظم للوكلاء (`JSON`):** الأوامر `veycraft --version --json` و`veycraft doctor --json` و`veycraft status --json` و`veycraft route "<request>" --json` تعيد JSON منظمًا دون تعديل ملفات شخصية أو تنفيذ أي إجراءات خارجية. كما يوفّر `npx -y veycraft mcp` خادم MCP محليًا أصيلًا عبر `stdio` بصفر تبعيات يضم 8 أدوات قراءة فقط بلا شبكة وموارد `veycraft://` المسموحة ([`mcp/README.md`](mcp/README.md)).
+**اكتشاف برمجي منظم للوكلاء (`JSON`):** الأوامر `veycraft --version --json` و`veycraft doctor --json` و`veycraft status --json` و`veycraft route "<request>" --json` تعيد JSON منظمًا دون تعديل ملفات شخصية أو تنفيذ أي إجراءات خارجية. كما يوفّر `npx -y veycraft mcp` خادم MCP محليًا أصيلًا عبر `stdio` بصفر تبعيات يضم 8 أدوات قراءة فقط بلا شبكة وموارد `veycraft://` المسموحة ([`mcp/README.md`](mcp/README.md))، ويمكن معاينة ربطه أو تفعيله بأمر واحد عبر `veycraft sync-mcp --with-veycraft --dry-run` (مع نسخ احتياطية `.veycraft.bak` تلقائية عند التطبيق).
 
 <details>
 <summary>ربط أداة ذكاء اصطناعي محددة فقط (خيارات <code>--ide</code>)</summary>
@@ -160,8 +161,9 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |
 | `veycraft verify <dir\|file> [--facts <json\|md>]` | التحقق بعد الكتابة من المخرجات وسجلات التقديم ونقاط حفظ الجلسة وإصدارات الـ CV وخطط Notion و`Profile Update Plan` |
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | ملخص التقديمات، تحليلات حتمية (`MIN_N = 5`)، لوحة Kanban HTML محلية للقراءة فقط، وقائمة الأولويات |
+| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | واجهة ويب محلية للقراءة فقط على `127.0.0.1` بلا شبكة (الجاهزية، Kanban، التحليلات، استوديو الفحص بالذاكرة، و53 مهارة) |
 | `veycraft mcp [--global]` | خادم MCP محلي أصيل عبر `stdio` بصفر تبعيات (8 أدوات قراءة فقط بلا شبكة + موارد `veycraft://` — [`mcp/README.md`](mcp/README.md)) |
-| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`116/116` |
+| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`122/122` |
 
 <details>
 <summary>مرجع CLI المتقدم (محرك الجلسات، السجل الذرّي المحمي بقفل، مزامنة Notion، والصيانة)</summary>
@@ -174,7 +176,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | `veycraft career sync <subcommand> [--help]` | محرك مزامنة أحادي الاتجاه إلى Notion (`preview`، `status`، `verify-schema`، `approve`، `mark-in-flight`، `apply-receipt`، `record-failure`، `expire-stale`، `reconcile`، `reset-permanent`، `release-stale-lock`) بلا كتابة خارجية من الـ CLI |
 | `veycraft status [--global] [--json]` | عرض حالة البوابات والحد اليومي وملخص التقديمات |
 | `veycraft proof` / `dashboard [--global] [--no-open]` / `bundle` | توليد بطاقة الإثبات، فتح لوحة Kanban الكلاسيكية، أو تصدير برومبت ويب شات موحد |
-| `veycraft sync-mcp` / `login` / `unlock` / `backup` / `update` | مزامنة MCP، فتح متصفح دائم، إزالة الأقفال العالقة، النسخ الاحتياطي الشامل، أو التحديث الموقّع بـ SSH |
+| `veycraft sync-mcp [--with-veycraft] [--dry-run]` / `login` / `unlock` / `backup` / `update` | مزامنة MCP (مع نسخ `.veycraft.bak` احتياطية)، فتح متصفح دائم، إزالة الأقفال العالقة، النسخ الاحتياطي الشامل، أو التحديث الموقّع بـ SSH |
 
 *(ملاحظة: عند تمرير `--global` أو `-g` مع أوامر `career` مثل `career sync` أو `career record` أو `career next`، ضعه قبل `career`، مثلًا: `veycraft --global career sync status`.)*
 
