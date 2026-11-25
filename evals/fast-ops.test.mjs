@@ -4,30 +4,34 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import {
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const LOCAL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const CLI_PATH = [
+  process.env.JHO_CLI_PATH,
+  path.join(LOCAL_ROOT, 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.veycraft', 'bin', 'cli.mjs'),
+  path.join(os.homedir(), '.job-hunter-os', 'bin', 'cli.mjs'),
+].find(p => p && fs.existsSync(p));
+assert.ok(CLI_PATH, 'Could not locate bin/cli.mjs');
+const BIN_DIR = path.dirname(CLI_PATH);
+const REPO_ROOT = path.resolve(BIN_DIR, '..');
+
+const {
   compileCandidateBrief,
   sanitizeUntrustedSnippet,
   parseFeedText,
   scanPublicFeeds,
   BRIEF_MAX_BYTES,
-} from '../bin/fast-ops.mjs';
-import {
+} = await import(pathToFileURL(path.join(BIN_DIR, 'fast-ops.mjs')).href);
+const {
   PAYLOAD_NAMES,
   distillFeedInDom,
   distillFormInDom,
   batchFillFormInDom,
   getBrowserPayload,
-} from '../bin/browser-payloads.mjs';
-import { fetchTextWithSafeRedirects } from '../bin/fs-safety.mjs';
-
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI_PATH = [
-  process.env.JHO_CLI_PATH,
-  path.join(REPO_ROOT, 'bin', 'cli.mjs'),
-  path.join(os.homedir(), '.veycraft', 'bin', 'cli.mjs'),
-].find(p => p && fs.existsSync(p));
-assert.ok(CLI_PATH, 'Could not locate bin/cli.mjs');
+} = await import(pathToFileURL(path.join(BIN_DIR, 'browser-payloads.mjs')).href);
+const { fetchTextWithSafeRedirects } = await import(pathToFileURL(path.join(BIN_DIR, 'fs-safety.mjs')).href);
 
 function makeTempWs() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'veycraft-fast-ops-'));
