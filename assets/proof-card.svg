@@ -13,7 +13,7 @@
   <rect width="840" height="360" rx="18" fill="url(#bg)"/>
   <rect x="1" y="1" width="838" height="358" rx="17" fill="none" stroke="#334155" stroke-width="1.5"/>
   <rect x="32" y="28" width="166" height="28" rx="14" fill="#064e3b" fill-opacity="0.55" stroke="#34d399" stroke-opacity="0.5"/>
-  <text x="115" y="47" text-anchor="middle" fill="#6ee7b7" font-family="Segoe UI,Inter,Arial,sans-serif" font-size="12" font-weight="700">VEYCRAFT · v2.4.0</text>
+  <text x="115" y="47" text-anchor="middle" fill="#6ee7b7" font-family="Segoe UI,Inter,Arial,sans-serif" font-size="12" font-weight="700">VEYCRAFT · v2.5.0</text>
   <text x="808" y="47" text-anchor="end" fill="#94a3b8" font-family="Consolas,ui-monospace,monospace" font-size="12">redasalem/veycraft · MIT</text>
   <text x="32" y="92" fill="#f8fafc" font-family="Segoe UI,Inter,Arial,sans-serif" font-size="26" font-weight="800">Reproducible Safety &amp; Architecture Proof Card</text>
   <rect x="32" y="106" width="160" height="3" rx="1.5" fill="url(#accent)"/>
@@ -27,7 +27,7 @@
     <text x="248" y="202" fill="#e2e8f0" font-size="13" font-weight="700">Core / Dev NPM Deps</text>
     <text x="248" y="222" fill="#94a3b8" font-size="11">Playwright MCP optional</text>
     <rect x="428" y="128" width="182" height="118" rx="12" fill="#0f172a" stroke="#1e293b"/>
-    <text x="446" y="176" fill="#f8fafc" font-size="34" font-weight="800">53</text>
+    <text x="446" y="176" fill="#f8fafc" font-size="34" font-weight="800">54</text>
     <text x="446" y="202" fill="#e2e8f0" font-size="13" font-weight="700">Markdown Skills</text>
     <text x="446" y="222" fill="#94a3b8" font-size="11">agentskills.io portable</text>
     <rect x="626" y="128" width="182" height="118" rx="12" fill="#0f172a" stroke="#1e293b"/>

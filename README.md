@@ -19,7 +19,7 @@
 
 All names, employers, and metrics below come from synthetic repository fixtures ([`evals/fixtures/`](evals/fixtures/candidate-profile.md)):
 
-![Veycraft v2.4.0 10-second animated terminal demo: doctor, route, and pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.5.0 10-second animated terminal demo: doctor, route, and pre-submit safety gate](assets/demo.svg)
 
 ```diff
 - Built backend APIs for an e-commerce and payments app using Node.js.
@@ -141,7 +141,7 @@ Legacy aliases `job-hunter` and `job-hunter-os` map to the exact same `bin/cli.m
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | Local Career Intelligence funnel, score-band analytics (`MIN_N = 5`), read-only HTML Kanban, and prioritized action queue |
 | `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | Read-only offline local Web UI on `127.0.0.1` (Overview, Kanban, Analytics, in-memory Studio & 54 Skills explorer) |
 | `veycraft mcp [--global]` | Native zero-dependency MCP `stdio` server (8 read-only offline tools + allowlisted `veycraft://` resources — [`mcp/README.md`](mcp/README.md)) |
-| `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `122/122` eval suites |
+| `veycraft pre-submit` / `veycraft eval` | Enforce daily/warm-up/platform caps, circuit breakers, dedup, banned AI clichés & `<= 75`-word cap; run `20/20` & `123/123` eval suites |
 
 <details>
 <summary>Advanced CLI Reference (Run State Machine, Atomic Ledger, Notion Sync &amp; Maintenance)</summary>

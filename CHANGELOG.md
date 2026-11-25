@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-26 — Universal No-Clone GitHub CLI Skill & Cross-Model Agent Bridges
+
+### Added
+- **Universal No-Clone GitHub CLI Remote Manager (`skills/54-github-cli-remote-manager.md` v1.0.0, `.agents/skills/github-cli-remote-manager/SKILL.md`, `/github-remote`):** Added a model-agnostic zero-clone remote GitHub engineering playbook (`requires: ["gh"]`, `requires_mcp: ["none"]`) enabling any AI coding agent to inspect repository trees, create/update files via REST Contents API (`PUT` with `sha`), perform multi-file atomic commits via Git Data API (`git/blobs` -> `git/trees` -> `git/commits` -> `PATCH git/refs/heads/<branch>`), update metadata/topics/visibility (`gh repo edit` + REST fallback), and run PR, issue, Actions workflow, and parameterized GraphQL queries without local `git clone` stalls (`53 -> 54` skills, `14 -> 15` `.agents/skills/` wrappers).
+- **Collision-Free `github-remote-ops` Routing & Journey Coverage (`bin/core-ops.mjs`, `evals/journeys/`, `evals/mcp-server.test.mjs`, `evals/ui-server.test.mjs`):** Wired the `github-remote-ops` route cleanly ahead of `github-portfolio-audit` (`/github-audit`, Skill 11) and expanded deterministic journey and integration suites from `122/122` to `123/123` tests (`GH03`, `GH04`, and `Test 15`).
+
+### Changed
+- **Cross-Model Agent Discovery Bridges & Documentation Sync (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `skills/REGISTRY.md`, `skills/skills-manifest.json`, `docs/`, `ui/app.js`, `llms.txt`):** Documented native `veycraft` MCP skill discovery (`veycraft_route`, `veycraft_get_skill`, `veycraft://manifest`, `veycraft://skill/<name>`) and `/github-remote` across all major agent entry points, and synced `54`-skill / `15`-wrapper / `123/123`-test counts across READMEs, UI, and assets.
+
 ## [2.4.0] - 2026-11-25 — Read-Only Local Web UI, One-Command MCP Sync & Glama Manifest
 
 ### Added
