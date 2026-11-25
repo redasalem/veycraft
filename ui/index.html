@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Veycraft — Local Career Operations UI</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">V</div>
+        <div>
+          <div class="brand-title-row">
+            <h1>Veycraft</h1>
+            <span id="version-badge" class="pill pill-emerald">v--</span>
+            <span class="pill pill-blue">READ-ONLY</span>
+            <span class="pill pill-slate">OFFLINE · 127.0.0.1</span>
+            <span id="dryrun-badge" class="pill pill-amber">dry_run: true</span>
+          </div>
+          <p id="workspace-subtitle" class="subtitle">Loading local workspace...</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="refresh-btn" type="button" class="btn">Refresh Snapshot</button>
+      </div>
+    </header>
+
+    <nav class="nav-tabs" role="tablist" aria-label="Veycraft Views">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="overview">Overview &amp; Readiness</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="kanban">Kanban Board</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="analytics">Career Analytics</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="studio">Verification Studio</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="skills">Skills &amp; Guardrails</button>
+    </nav>
+
+    <div id="global-toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <main id="main-content" class="main-area">
+      <section id="view-overview" class="view-panel" aria-label="Overview and Readiness"></section>
+      <section id="view-kanban" class="view-panel hidden" aria-label="Read-Only Kanban Board"></section>
+      <section id="view-analytics" class="view-panel hidden" aria-label="Deterministic Career Analytics"></section>
+      <section id="view-studio" class="view-panel hidden" aria-label="In-Memory Verification Studio"></section>
+      <section id="view-skills" class="view-panel hidden" aria-label="Skills and Safety Invariants Explorer"></section>
+    </main>
+
+    <aside id="detail-drawer" class="drawer hidden" aria-label="Application Inspector"></aside>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

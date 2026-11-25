@@ -211,6 +211,8 @@ jobs:
           node --check bin/fs-safety.mjs
           node --check bin/core-ops.mjs
           node --check bin/mcp-server.mjs
+          node --check bin/ui-server.mjs
+          node --check ui/app.js
           node --check bin/career-intelligence.mjs
           node --check bin/notion-sync.mjs
           node --check bin/cli.mjs

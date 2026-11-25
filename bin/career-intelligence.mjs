@@ -2508,6 +2508,130 @@ export function summarizeCareerWorkspace(root, { home = os.homedir(), nowIso = n
   };
 }
 
+export function listOwnerApplicationsForKanban(root, { home = os.homedir(), nowIso = new Date().toISOString() } = {}) {
+  const resolvedRoot = path.resolve(root);
+  const logPath = path.join(resolvedRoot, 'logs', 'applications-log.json');
+  const ledgerExists = fs.existsSync(logPath);
+  const { records, cvRegistry } = loadLocalLedgerAndCvVersions(resolvedRoot, home);
+
+  const columns = {
+    triage: [],
+    prepared: [],
+    applied: [],
+    interview_assessment: [],
+    offer: [],
+    closed: [],
+  };
+  const columnDefs = [
+    { id: 'triage', label: 'Triage & Review', statuses: ['discovered', 'needs_review'] },
+    { id: 'prepared', label: 'Prepared & Dry Run', statuses: ['prepared', 'dry_run'] },
+    { id: 'applied', label: 'Applied', statuses: ['applied'] },
+    { id: 'interview_assessment', label: 'Interview & Assessment', statuses: ['interview', 'assessment'] },
+    { id: 'offer', label: 'Offer', statuses: ['offer'] },
+    { id: 'closed', label: 'Closed & Skipped', statuses: ['rejected', 'withdrawn', 'skipped', 'failed', 'aborted'] },
+  ];
+
+  const warnings = [];
+  const items = [];
+  let thirdPartyExcluded = 0;
+
+  for (let i = 0; i < records.length; i++) {
+    const raw = records[i];
+    if (!isObj(raw)) {
+      warnings.push(`records[${i}]: skipped non-object entry.`);
+      continue;
+    }
+    const own = classifyApplicationOwnership(raw, cvRegistry);
+    if (!own.isOwner) {
+      if (own.isThirdPartyOrAmbiguous) {
+        thirdPartyExcluded++;
+      }
+      continue;
+    }
+    const st = normalizeStatus(raw.status);
+    if (!st.valid) {
+      warnings.push(`records[${i}] (${raw.job_id || 'no-id'}): skipped unrecognized status "${raw.status}".`);
+      continue;
+    }
+    const rawScore = raw.match_score !== null && raw.match_score !== undefined ? raw.match_score : raw.score;
+    const numScore = rawScore !== null && rawScore !== undefined && rawScore !== '' ? Number(rawScore) : null;
+    const matchScore = numScore !== null && Number.isFinite(numScore) && numScore > 0 && numScore <= 10
+      ? round1(numScore)
+      : null;
+    const rawUrl = typeof raw.url === 'string' ? raw.url.trim() : '';
+    const safeUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : null;
+    const appId = isNonEmptyString(raw.application_id)
+      ? raw.application_id.trim()
+      : (isUsableJobId(raw.job_id) ? computeApplicationId(raw.job_id) : `row_${i}`);
+    const hasVerifiedReceipt = Boolean(
+      raw.provenance?.receipt_verified === true ||
+      (typeof raw.notes === 'string' && VERIFIED_RECEIPT_RE.test(raw.notes)),
+    );
+
+    const card = {
+      application_id: appId,
+      job_id: isNonEmptyString(raw.job_id) ? raw.job_id.trim() : null,
+      company: isNonEmptyString(raw.company) ? raw.company.trim() : 'Unknown Employer',
+      role_title: isNonEmptyString(raw.role_title)
+        ? raw.role_title.trim()
+        : (isNonEmptyString(raw.title) ? raw.title.trim() : (isNonEmptyString(raw.role) ? raw.role.trim() : 'Untitled Role')),
+      platform: isNonEmptyString(raw.platform) ? raw.platform.trim().toLowerCase() : 'unknown',
+      source_channel: classifySourceChannel(raw),
+      work_mode: isNonEmptyString(raw.work_mode) ? raw.work_mode.trim().toLowerCase() : 'unknown',
+      status: st.canonical,
+      raw_status: isNonEmptyString(raw.status) ? raw.status.trim() : st.canonical,
+      submission_uncertain: Boolean(raw.submission_uncertain),
+      match_score: matchScore,
+      applied_at: raw.applied_at || raw.date || null,
+      discovered_at: raw.discovered_at || null,
+      updated_at: raw.updated_at || null,
+      cv_version_id: isNonEmptyString(raw.cv_version_id) ? raw.cv_version_id.trim() : null,
+      resume_folder: isNonEmptyString(raw.resume_folder) ? raw.resume_folder.trim() : null,
+      url: safeUrl,
+      has_verified_receipt: hasVerifiedReceipt,
+      interviews: Array.isArray(raw.interviews) ? raw.interviews : [],
+      assessments: Array.isArray(raw.assessments) ? raw.assessments : [],
+      follow_up: isObj(raw.follow_up) ? raw.follow_up : null,
+      stage_history: Array.isArray(raw.stage_history) ? raw.stage_history : [],
+      matched_skills: Array.isArray(raw.matched_skills) ? raw.matched_skills : [],
+      true_gaps: Array.isArray(raw.true_gaps) ? raw.true_gaps : (Array.isArray(raw.missing_skills) ? raw.missing_skills : []),
+      notes: typeof raw.notes === 'string' ? raw.notes : null,
+    };
+
+    items.push(card);
+    if (st.canonical === 'discovered' || st.canonical === 'needs_review') columns.triage.push(card);
+    else if (st.canonical === 'prepared' || st.canonical === 'dry_run') columns.prepared.push(card);
+    else if (st.canonical === 'applied') columns.applied.push(card);
+    else if (st.canonical === 'interview' || st.canonical === 'assessment') columns.interview_assessment.push(card);
+    else if (st.canonical === 'offer') columns.offer.push(card);
+    else columns.closed.push(card);
+  }
+
+  const sortNewestFirst = (a, b) => {
+    const ta = Date.parse(a.updated_at || a.applied_at || a.discovered_at || '') || 0;
+    const tb = Date.parse(b.updated_at || b.applied_at || b.discovered_at || '') || 0;
+    if (tb !== ta) return tb - ta;
+    return String(a.application_id).localeCompare(String(b.application_id));
+  };
+  items.sort(sortNewestFirst);
+  for (const key of Object.keys(columns)) {
+    columns[key].sort(sortNewestFirst);
+  }
+
+  return {
+    root: resolvedRoot,
+    computed_at: nowIso,
+    ledger_exists: ledgerExists,
+    total_owner_records: items.length,
+    third_party_excluded: thirdPartyExcluded,
+    canonical_statuses: CANONICAL_STATUSES,
+    column_definitions: columnDefs,
+    columns,
+    items,
+    warnings,
+  };
+}
+
 // ================================================================================
 // Stage 5 (T11): Ledger Lock, Atomic Persistence, Lifecycle Write-Engine,
 // CV Registration & Linking Transaction, and Pre-Submit Integrity Gate

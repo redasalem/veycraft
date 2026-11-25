@@ -29,8 +29,10 @@ import {
   matchNaturalLanguageRoute,
   verifyArtifactTarget,
   evaluatePreSubmitWithDraft,
+  syncMcpConfigs,
 } from './core-ops.mjs';
 import { startMcpServer } from './mcp-server.mjs';
+import { startUiServer } from './ui-server.mjs';
 import {
   validateCvVersionsRegistry,
   migrateApplicationsLedger,
@@ -72,7 +74,7 @@ const fail = msg => console.error(paint('31', `[✗] ${msg}`));
 const ATTRIBUTION_BANNER = 'Veycraft — Created by Reda Salem (@redasalem) | https://github.com/redasalem/veycraft';
 const PINNED_SIGNING_PRINCIPAL = CORE_PINNED_SIGNING_PRINCIPAL;
 const PINNED_SIGNING_PUBKEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7t6GfNExgWOy+djcVZlb62BD9DKRrz81Xk++LTZTSo';
-const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys', '--dry-run', '--apply', '--write']);
+const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys', '--dry-run', '--apply', '--write', '--with-veycraft']);
 const positional = [];
 const opts = {
   global: false,
@@ -89,6 +91,9 @@ const opts = {
   dryRun: false,
   apply: false,
   write: false,
+  withVeycraft: false,
+  port: null,
+  workspace: null,
   period: null,
   file: null,
   facts: null,
@@ -130,6 +135,26 @@ for (let i = 0; i < ARGV.length; i++) {
   else if (a === '--dry-run') opts.dryRun = true;
   else if (a === '--apply') opts.apply = true;
   else if (a === '--write') opts.write = true;
+  else if (a === '--with-veycraft') opts.withVeycraft = true;
+  else if (a === '--port') {
+    const rawPort = ARGV[++i];
+    const val = rawPort !== undefined && /^\d+$/.test(rawPort) ? Number(rawPort) : NaN;
+    if (!Number.isInteger(val) || val < 0 || val > 65535) argErr = '--port requires an integer between 0 and 65535.';
+    else opts.port = val;
+  } else if (a.startsWith('--port=')) {
+    const rawPort = a.slice(7);
+    const val = rawPort && /^\d+$/.test(rawPort) ? Number(rawPort) : NaN;
+    if (!Number.isInteger(val) || val < 0 || val > 65535) argErr = '--port= requires an integer between 0 and 65535.';
+    else opts.port = val;
+  } else if (a === '--workspace') {
+    const val = ARGV[++i];
+    if (!val || val.startsWith('-')) argErr = '--workspace requires a directory path.';
+    else opts.workspace = val;
+  } else if (a.startsWith('--workspace=')) {
+    const val = a.slice(12);
+    if (!val) argErr = '--workspace= requires a directory path.';
+    else opts.workspace = val;
+  }
   else if (a === '--period') {
     const val = ARGV[++i];
     if (!val || val.startsWith('-')) argErr = '--period requires a value ("all", "YYYY-Www", or "YYYY-MM").';
@@ -344,6 +369,7 @@ function ensurePrivateGitignore(root) {
     '.codex/config.toml',
     '.gemini/settings.json',
     '.vscode/mcp.json',
+    '*.veycraft.bak',
     '/mcp/*.import.json',
     '/assets/*.pdf',
     '/context/*.pdf',
@@ -564,183 +590,46 @@ function installIdeSkills(srcRoot, targetRoot, { isGlobal, ide, preserve = false
 }
 
 // ---------------- MCP merge ----------------
-function readJsonSafe(file) {
-  return readJsonSafeBase(file, { boundary: ROOT, home: HOME });
-}
+function syncMcp({
+  root = ROOT,
+  isGlobal = opts.global || isGlobalRoot(root),
+  src = SOURCE,
+  withVeycraft = false,
+  dryRun = false,
+  json = false,
+} = {}) {
+  const res = syncMcpConfigs({
+    root,
+    isGlobal,
+    source: src,
+    home: HOME,
+    env: process.env,
+    platform: process.platform,
+    withVeycraft,
+    dryRun,
+    backup: true,
+  });
 
-function mcpTargetFiles(root, isGlobal) {
-  return mcpTargetFilesBase(root, isGlobal, HOME);
-}
+  if (json) {
+    console.log(JSON.stringify(res, null, 2));
+    return res;
+  }
 
-function codexConfigTomlPath(root, isGlobal) {
-  return codexConfigTomlPathBase(root, isGlobal, HOME);
-}
-
-function formatTomlMcpSection(name, cfg) {
-  const q = v => JSON.stringify(String(v));
-  const argsList = (cfg.args || []).map(q).join(', ');
-  const envEntries = Object.entries(cfg.env || {})
-    .map(([k, v]) => `${q(k)} = ${q(v)}`)
-    .join(', ');
-  const lines = [
-    `[mcp_servers.${name}]`,
-    `command = ${q(cfg.command)}`,
-    `args = [${argsList}]`,
-  ];
-  if (envEntries) lines.push(`env = { ${envEntries} }`);
-  return lines.join('\n') + '\n';
-}
-
-function findTomlSectionRange(lines, sectionHeader) {
-  const start = lines.findIndex(line => line.trim() === sectionHeader);
-  if (start === -1) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^\s*\[[^\]]+\]\s*$/.test(lines[i])) {
-      end = i;
-      break;
+  for (const w of res.warnings) warn(w);
+  for (const op of res.operations) {
+    if (op.action === 'updated' || op.action === 'created') {
+      const bakNote = op.backup_path ? ` (backup: ${op.backup_path})` : '';
+      ok(`Synced ${op.label} -> ${op.file}${bakNote}`);
+    } else if (op.action === 'would_update' || op.action === 'would_create') {
+      const verb = op.action === 'would_create' ? 'Would create' : 'Would update';
+      const bakNote = op.backup_path ? ` (with backup ${op.backup_path})` : '';
+      info(`[DRY-RUN] ${verb} ${op.label} -> ${op.file}${bakNote}`);
     }
   }
-  return { start, end };
-}
-
-function upsertTomlMcpServer(tomlText, name, cfg) {
-  const section = formatTomlMcpSection(name, cfg);
-  const lines = tomlText ? tomlText.replace(/\r\n/g, '\n').split('\n') : [];
-  const header = `[mcp_servers.${name}]`;
-  const range = findTomlSectionRange(lines, header);
-  if (range) {
-    const existingBlock = lines
-      .slice(range.start, range.end)
-      .filter(l => l.trim() !== '')
-      .join('\n') + '\n';
-    const expectedBlock = section.trimEnd() + '\n';
-    if (existingBlock === expectedBlock) return { status: 'unchanged', text: tomlText };
-    return { status: 'preserved', text: tomlText };
+  if (!res.updated) {
+    info(dryRun ? '[DRY-RUN] MCP configurations already up to date (0 changes planned).' : 'MCP configurations already up to date.');
   }
-  const trimmed = tomlText.replace(/\r\n/g, '\n').trimEnd();
-  const next = trimmed ? `${trimmed}\n\n${section}` : section;
-  return { status: 'added', text: next };
-}
-
-const MCP_QUIET_NPM_ENV = {
-  NPM_CONFIG_UPDATE_NOTIFIER: 'false',
-  NPM_CONFIG_FUND: 'false',
-  NPM_CONFIG_AUDIT: 'false',
-  NPM_CONFIG_LOGLEVEL: 'error',
-};
-
-function toPlatformMcpServer(cfg) {
-  const env = { ...MCP_QUIET_NPM_ENV, ...(isObj(cfg.env) ? cfg.env : {}) };
-  if (process.platform === 'win32' && cfg.command === 'npx') {
-    return {
-      ...cfg,
-      command: 'cmd',
-      args: ['/c', 'npx', ...cfg.args],
-      env,
-    };
-  }
-  return { ...cfg, env };
-}
-
-function syncMcp({ root = ROOT, isGlobal = opts.global || isGlobalRoot(root), src = SOURCE } = {}) {
-  const templatePath = [path.join(root, 'mcp', 'mcp.template.json'), path.join(src, 'mcp', 'mcp.template.json')].find(f => fs.existsSync(f));
-  if (!templatePath) throw new Error('mcp/mcp.template.json not found. Run init first.');
-  const template = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
-  const tplPlaywright = template?.mcpServers?.playwright;
-  if (!isObj(tplPlaywright) || !Array.isArray(tplPlaywright.args)) {
-    throw new Error('Invalid mcp/mcp.template.json playwright server definition.');
-  }
-
-  const profileDir = path.join(root, 'browser-profile');
-  const rawPlaywrightCfg = {
-    ...tplPlaywright,
-    args: tplPlaywright.args.map(a => (a.startsWith('--user-data-dir=') ? `--user-data-dir=${profileDir}` : a)),
-  };
-  if (!rawPlaywrightCfg.args.some(a => a.startsWith('--user-data-dir='))) {
-    rawPlaywrightCfg.args.push(`--user-data-dir=${profileDir}`);
-  }
-  const playwrightCfg = toPlatformMcpServer(rawPlaywrightCfg);
-  const notionCfg = isObj(template.mcpServers?.notion) && Array.isArray(template.mcpServers.notion.args)
-    ? toPlatformMcpServer(template.mcpServers.notion)
-    : null;
-
-  const targets = mcpTargetFiles(root, isGlobal);
-  let updated = 0;
-
-  for (const file of targets) {
-    const current = readJsonSafe(file);
-    const servers = isObj(current.mcpServers) ? { ...current.mcpServers } : {};
-    if (servers.playwright && JSON.stringify(servers.playwright) !== JSON.stringify(playwrightCfg)) {
-      warn(`Preserved existing custom playwright MCP server in ${file}`);
-      continue;
-    }
-    servers.playwright = playwrightCfg;
-    if (process.env.NOTION_TOKEN && notionCfg && !servers.notion) {
-      servers.notion = notionCfg;
-    }
-    const nextText = JSON.stringify({ ...current, mcpServers: servers }, null, 2) + '\n';
-    if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === nextText) continue;
-    writeAtomic(file, nextText, { mode: 0o600 });
-    updated++;
-    ok(`Synced Playwright MCP -> ${file}`);
-  }
-
-  // VS Code / GitHub Copilot local workspace MCP uses top-level "servers" key
-  if (!isGlobal) {
-    const vscodeMcp = path.join(root, '.vscode', 'mcp.json');
-    const current = readJsonSafe(vscodeMcp);
-    const servers = isObj(current.servers) ? { ...current.servers } : {};
-    const vsPlaywright = { type: 'stdio', ...playwrightCfg };
-    if (servers.playwright && JSON.stringify(servers.playwright) !== JSON.stringify(vsPlaywright)) {
-      warn(`Preserved existing custom playwright MCP server in ${vscodeMcp}`);
-    } else {
-      servers.playwright = vsPlaywright;
-      if (process.env.NOTION_TOKEN && notionCfg && !servers.notion) {
-        servers.notion = { type: 'stdio', ...notionCfg };
-      }
-      const nextText = JSON.stringify({ ...current, servers }, null, 2) + '\n';
-      if (!fs.existsSync(vscodeMcp) || fs.readFileSync(vscodeMcp, 'utf8') !== nextText) {
-        writeAtomic(vscodeMcp, nextText, { mode: 0o600 });
-        updated++;
-        ok(`Synced VS Code MCP -> ${vscodeMcp}`);
-      }
-    }
-  }
-
-  // OpenAI Codex CLI uses TOML [mcp_servers.<name>] in config.toml
-  const codexToml = codexConfigTomlPath(root, isGlobal);
-  refuseSymlink(codexToml);
-  let tomlText = fs.existsSync(codexToml) ? fs.readFileSync(codexToml, 'utf8') : '';
-  const pwRes = upsertTomlMcpServer(tomlText, 'playwright', playwrightCfg);
-  if (pwRes.status === 'preserved') {
-    warn(`Preserved existing custom playwright MCP server in ${codexToml}`);
-  } else {
-    tomlText = pwRes.text;
-    let tomlChanged = pwRes.status === 'added';
-    if (process.env.NOTION_TOKEN && notionCfg) {
-      const notionRes = upsertTomlMcpServer(tomlText, 'notion', notionCfg);
-      if (notionRes.status === 'added') {
-        tomlText = notionRes.text;
-        tomlChanged = true;
-      }
-    }
-    if (tomlChanged) {
-      writeAtomic(codexToml, tomlText, { mode: 0o600 });
-      updated++;
-      ok(`Synced Codex CLI MCP -> ${codexToml}`);
-    }
-  }
-
-  // Write opt-in Notion staging import file without secrets
-  if (notionCfg) {
-    writeAtomic(
-      path.join(root, 'mcp', 'notion.import.json'),
-      JSON.stringify({ mcpServers: { notion: notionCfg } }, null, 2) + '\n',
-      { preserve: true, mode: 0o600 },
-    );
-  }
-  if (!updated) info('MCP configurations already up to date.');
+  return res;
 }
 
 // ---------------- init ----------------
@@ -1976,6 +1865,51 @@ function cmdVersion() {
   console.log(ATTRIBUTION_BANNER);
 }
 
+async function cmdUi() {
+  let uiRoot = ROOT;
+  let uiIsGlobal = opts.global || isGlobalRoot(ROOT);
+  if (opts.workspace !== null) {
+    const wsResolved = path.resolve(process.cwd(), opts.workspace);
+    if (!fs.existsSync(wsResolved)) {
+      throw new Error(`Workspace directory not found: ${wsResolved}`);
+    }
+    const st = fs.lstatSync(wsResolved);
+    if (st.isSymbolicLink() || !st.isDirectory()) {
+      throw new Error(`Refusing symbolic-link or non-directory --workspace: ${wsResolved}`);
+    }
+    uiRoot = wsResolved;
+    uiIsGlobal = isGlobalRoot(uiRoot);
+  }
+
+  const handle = await startUiServer({
+    root: uiRoot,
+    source: SOURCE,
+    home: HOME,
+    isGlobal: uiIsGlobal,
+    port: opts.port !== null ? opts.port : 4310,
+    portExplicit: opts.port !== null,
+    openBrowser: !opts.noOpen,
+    env: process.env,
+    platform: process.platform,
+    stderr: process.stderr,
+  });
+
+  console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+  ok(`Veycraft Local Read-Only Web UI running at ${handle.url}`);
+  info(`Workspace: ${uiRoot} (${uiIsGlobal ? 'global' : 'local'} · offline · read-only · 127.0.0.1 only)`);
+  info('Press Ctrl+C to stop the server.');
+
+  await new Promise((resolve) => {
+    const shutdown = () => {
+      process.removeListener('SIGINT', shutdown);
+      process.removeListener('SIGTERM', shutdown);
+      handle.close().finally(resolve);
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+  });
+}
+
 function cmdHelp() {
   const { version } = readPackageMeta();
   console.log(`${ATTRIBUTION_BANNER}
@@ -1985,6 +1919,7 @@ Legacy CLI aliases \`job-hunter\` and \`job-hunter-os\` remain supported for bac
 Quick Start:
   veycraft doctor [--json]                         Verify runtime, provenance & workspace readiness (read-only)
   veycraft init [--global | -g] [--ide <name>]     Scaffold agent home & sync AI IDE skills/MCP (non-destructive)
+  veycraft ui [--port <n>] [--no-open] [--workspace <dir> | -g] Launch local read-only Web UI on 127.0.0.1
   veycraft route "<request>" [--json]              Route natural-language career task to minimal skills
   veycraft audit <cv.md|txt|docx|html|doc> [--share] Instant offline CV hygiene audit + PII-safe scorecard
 
@@ -2005,8 +1940,9 @@ Core & Verification Commands:
   veycraft status [--global | -g] [--json]         Print readiness gates, warm-up cap & pipeline funnel summary
 
 Workspace & Maintenance Commands:
+  veycraft ui [--port <n>] [--no-open] [--workspace <dir> | -g] Start offline read-only Web UI on 127.0.0.1
   veycraft mcp [--global | -g]                    Start native read-only offline MCP server over stdio
-  veycraft sync-mcp [--global | -g]                Safely merge Playwright & optional Notion MCP configs
+  veycraft sync-mcp [-g] [--with-veycraft] [--dry-run] [--json] Safely merge Playwright, Notion & opt-in Veycraft MCP
   veycraft login [--global | -g]                   Open Chrome/Chromium with persistent browser-profile/
   veycraft bundle [--global | -g]                  Export single-file web-chat prompt bundle
   veycraft dashboard [--global | -g] [--no-open]   Generate local Kanban dashboard at logs/exports/dashboard.html
@@ -2026,9 +1962,22 @@ try {
     throw new Error(`Node.js >= 18 is required (found ${process.versions.node}). Upgrade from https://nodejs.org/.`);
   }
   if (argErr) throw new Error(argErr);
-  if ((opts.dryRun || opts.apply) && !(command === 'career' && (positional[1] || '').toLowerCase() === 'migrate')) {
-    const used = [opts.dryRun ? '--dry-run' : null, opts.apply ? '--apply' : null].filter(Boolean).join(', ');
-    throw new Error(`Option ${used} is only supported with \`veycraft career migrate\`.`);
+  const isCareerMigrate = command === 'career' && (positional[1] || '').toLowerCase() === 'migrate';
+  if (opts.apply && !isCareerMigrate) {
+    throw new Error('Option --apply is only supported with `veycraft career migrate`.');
+  }
+  if (opts.dryRun && !isCareerMigrate && command !== 'sync-mcp') {
+    throw new Error('Option --dry-run is only supported with `veycraft career migrate` or `veycraft sync-mcp`.');
+  }
+  if (opts.withVeycraft && command !== 'sync-mcp') {
+    throw new Error('Option --with-veycraft is only supported with `veycraft sync-mcp`.');
+  }
+  if ((opts.port !== null || opts.workspace !== null) && command !== 'ui') {
+    const used = [opts.port !== null ? '--port' : null, opts.workspace !== null ? '--workspace' : null].filter(Boolean).join(', ');
+    throw new Error(`Option ${used} is only supported with \`veycraft ui\`.`);
+  }
+  if (opts.workspace !== null && opts.global) {
+    throw new Error('Cannot combine --workspace with --global.');
   }
   if ((opts.write || opts.period !== null) && !(command === 'career' && (positional[1] || '').toLowerCase() === 'analytics')) {
     const used = [opts.write ? '--write' : null, opts.period !== null ? '--period' : null].filter(Boolean).join(', ');
@@ -2052,8 +2001,9 @@ try {
   else if (command === 'unlock') cmdUnlock();
   else if (command === 'backup') cmdBackup();
   else if (command === 'login') cmdLogin();
+  else if (command === 'ui') await cmdUi();
   else if (command === 'mcp') await startMcpServer({ root: ROOT, source: SOURCE, home: HOME });
-  else if (command === 'sync-mcp') syncMcp();
+  else if (command === 'sync-mcp') syncMcp({ withVeycraft: opts.withVeycraft, dryRun: opts.dryRun, json: opts.json });
   else throw new Error(`Unknown command "${command}". Run with --help for usage.`);
 } catch (err) {
   fail(err instanceof Error ? err.message : String(err));

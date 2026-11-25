@@ -315,7 +315,7 @@ export function installGitPreCommitHook(root, home = os.homedir()) {
     'for f in $STAGED; do',
     '  case "$f" in',
     '    context/*.example|context/DROP_YOUR_FILES_HERE.md) ;;',
-    '    context/*|logs/*|browser-profile/*|*.pdf|.env|.env.*|.mcp.json|.cursor/mcp.json|.codex/config.toml|.gemini/settings.json|.vscode/mcp.json)',
+    '    context/*|logs/*|browser-profile/*|*.pdf|.env|.env.*|*.veycraft.bak|.mcp.json|.cursor/mcp.json|.codex/config.toml|.gemini/settings.json|.vscode/mcp.json)',
     '      echo "[veycraft PII Shield] BLOCKED commit of private file: $f" >&2',
     '      exit 1',
     '      ;;',
@@ -798,14 +798,21 @@ export function readCvInputText(resolved) {
   return { text: rawText, format: ext.replace(/^\./, '') || 'txt' };
 }
 
-export function auditCvFile(targetArg, { root, source, home = os.homedir(), cwd = process.cwd() } = {}) {
-  const targetInfo = assertSafeCliInputPath(targetArg, { label: 'resume file', root, source, home, cwd });
-  if (!targetInfo.exists) {
-    throw new Error(`Resume file not found: ${targetInfo.resolved}`);
+export function auditCvText(rawText, {
+  format = 'md',
+  resolved = '<inline>',
+  root = process.cwd(),
+  source = root,
+  isPreExtracted = false,
+} = {}) {
+  if (typeof rawText !== 'string') {
+    throw new Error('CV text must be a string.');
   }
-  const resolved = targetInfo.resolved;
-  const { text, format } = readCvInputText(resolved);
-  const trimmed = text.trim();
+  const normFormat = String(format || 'md').toLowerCase().replace(/^\./, '') || 'txt';
+  const extracted = !isPreExtracted && (normFormat === 'html' || normFormat === 'htm' || normFormat === 'word-html-doc')
+    ? extractHtmlText(rawText)
+    : rawText;
+  const trimmed = extracted.trim();
   if (!trimmed) {
     throw new Error(`CV file is empty: ${resolved}`);
   }
@@ -877,7 +884,7 @@ export function auditCvFile(targetArg, { root, source, home = os.homedir(), cwd 
 
   return {
     resolved,
-    format,
+    format: normFormat === 'htm' ? 'html' : normFormat,
     version,
     total_score: totalScore,
     tone_score: toneScore,
@@ -899,6 +906,16 @@ export function auditCvFile(targetArg, { root, source, home = os.homedir(), cwd 
     hygiene_label: hygieneLabel,
     scope: 'Local heuristic CV hygiene check — not an ATS acceptance probability or verification of factual claims.',
   };
+}
+
+export function auditCvFile(targetArg, { root, source, home = os.homedir(), cwd = process.cwd() } = {}) {
+  const targetInfo = assertSafeCliInputPath(targetArg, { label: 'resume file', root, source, home, cwd });
+  if (!targetInfo.exists) {
+    throw new Error(`Resume file not found: ${targetInfo.resolved}`);
+  }
+  const resolved = targetInfo.resolved;
+  const { text, format } = readCvInputText(resolved);
+  return auditCvText(text, { format, resolved, root, source, isPreExtracted: true });
 }
 
 export const ROUTE_RULES = [
@@ -1251,6 +1268,44 @@ export function verifyArtifactFile(filePath, factsConfig = null) {
   }
 
   const rawText = rawBuf.toString('utf8');
+  const textRes = verifyArtifactText(rawText, { format: ext, name, factsConfig });
+  return { name: textRes.name, errors: textRes.errors, warnings: textRes.warnings };
+}
+
+export function verifyArtifactText(rawText, {
+  format = 'html',
+  name = 'inline.html',
+  factsConfig = null,
+  factsText = null,
+  factsJson = null,
+} = {}) {
+  if (typeof rawText !== 'string') {
+    throw new Error('Artifact text must be a string.');
+  }
+  const errors = [];
+  const warnings = [];
+  const cleanFormat = String(format || path.extname(name) || 'html').toLowerCase().replace(/^\./, '') || 'html';
+  const ext = `.${cleanFormat}`;
+  if (rawText.length === 0) {
+    errors.push(`${name}: file is empty (0 bytes)`);
+    return { name, format: cleanFormat, ok: false, errors, warnings };
+  }
+
+  let effectiveFacts = factsConfig;
+  if (!effectiveFacts && isObj(factsJson)) {
+    const allowedMetrics = new Set(
+      (Array.isArray(factsJson.ground_truth_metrics) ? factsJson.ground_truth_metrics : []).map(m => String(m).trim().toLowerCase()),
+    );
+    const forbiddenSkills = Array.isArray(factsJson.forbidden_skills)
+      ? factsJson.forbidden_skills.filter(s => typeof s === 'string' && s.trim())
+      : [];
+    effectiveFacts = { allowedMetrics, forbiddenSkills };
+  } else if (!effectiveFacts && typeof factsText === 'string' && factsText.trim()) {
+    const metricTokenRe = /(?<![A-Za-z0-9_])\$?\d[\d,]*(?:\.\d+)?(?:\s*(?:%|k|m|b|x|ms|sec|seconds|min|minutes|hrs|hours|days|weeks|months|years)\b|%|[KMBX]\b|\+)/gi;
+    const allowedMetrics = new Set((factsText.match(metricTokenRe) || []).map(m => m.trim().toLowerCase()));
+    effectiveFacts = { allowedMetrics, forbiddenSkills: [] };
+  }
+
   if (/\{\{[A-Za-z0-9_]+\}\}/.test(rawText)) {
     const matches = rawText.match(/\{\{[A-Za-z0-9_]+\}\}/g) || [];
     errors.push(`${name}: unresolved template placeholder(s): ${[...new Set(matches)].join(', ')}`);
@@ -1279,23 +1334,23 @@ export function verifyArtifactFile(filePath, factsConfig = null) {
     errors.push(`${name}: prose em-dash (—) detected inside paragraph/bullet text`);
   }
 
-  if (factsConfig && (ext === '.html' || ext === '.doc' || ext === '.txt' || ext === '.md') && !isNotesDoc) {
-    let plain = (ext === '.html' || ext === '.doc') ? extractHtmlText(rawText) : rawText;
+  if (effectiveFacts && (ext === '.html' || ext === '.htm' || ext === '.doc' || ext === '.txt' || ext === '.md') && !isNotesDoc) {
+    let plain = (ext === '.html' || ext === '.htm' || ext === '.doc') ? extractHtmlText(rawText) : rawText;
     if (isLinkedinAudit) {
       plain = plain.split(/\r?\n/).filter(l => !/True Gaps/i.test(l)).join('\n');
     }
     const metricTokenRe = /(?<![A-Za-z0-9_])\$?\d[\d,]*(?:\.\d+)?(?:\s*(?:%|k|m|b|x|ms|sec|seconds|min|minutes|hrs|hours|days|weeks|months|years)\b|%|[KMBX]\b|\+)/gi;
     const foundMetrics = plain.match(metricTokenRe) || [];
-    const unverified = foundMetrics.filter(tok => !factsConfig.allowedMetrics.has(tok.trim().toLowerCase()));
+    const unverified = foundMetrics.filter(tok => !effectiveFacts.allowedMetrics.has(tok.trim().toLowerCase()));
     if (unverified.length > 0) {
       errors.push(`${name}: unverified metric token(s) not in source facts: ${[...new Set(unverified)].join(', ')}`);
     }
-    const forbidden = factsConfig.forbiddenSkills.filter(sk => buildSkillRegex(sk).test(plain));
+    const forbidden = effectiveFacts.forbiddenSkills.filter(sk => buildSkillRegex(sk).test(plain));
     if (forbidden.length > 0) {
       errors.push(`${name}: forbidden/unclaimed skill(s) found: ${forbidden.join(', ')}`);
     }
   }
-  return { name, errors, warnings };
+  return { name, format: cleanFormat, ok: errors.length === 0, errors, warnings };
 }
 
 export function loadFactsConfig(factsPath, { root, source, home = os.homedir(), cwd = process.cwd() } = {}) {
@@ -1466,5 +1521,281 @@ export function evaluatePreSubmitWithDraft(root, {
     checks: { ...gate.checks, draft: draftReport },
     invariants_file: invFile || null,
     invariants_text: invariantsText,
+  };
+}
+
+export const MCP_QUIET_NPM_ENV = Object.freeze({
+  NPM_CONFIG_UPDATE_NOTIFIER: 'false',
+  NPM_CONFIG_FUND: 'false',
+  NPM_CONFIG_AUDIT: 'false',
+  NPM_CONFIG_LOGLEVEL: 'error',
+});
+
+export function toPlatformMcpServer(cfg, platform = process.platform) {
+  const env = { ...MCP_QUIET_NPM_ENV, ...(isObj(cfg.env) ? cfg.env : {}) };
+  if (platform === 'win32' && cfg.command === 'npx') {
+    return {
+      ...cfg,
+      command: 'cmd',
+      args: ['/c', 'npx', ...cfg.args],
+      env,
+    };
+  }
+  return { ...cfg, env };
+}
+
+export function formatTomlMcpSection(name, cfg) {
+  const q = v => JSON.stringify(String(v));
+  const argsList = (cfg.args || []).map(q).join(', ');
+  const envEntries = Object.entries(cfg.env || {})
+    .map(([k, v]) => `${q(k)} = ${q(v)}`)
+    .join(', ');
+  const lines = [
+    `[mcp_servers.${name}]`,
+    `command = ${q(cfg.command)}`,
+    `args = [${argsList}]`,
+  ];
+  if (envEntries) lines.push(`env = { ${envEntries} }`);
+  return lines.join('\n') + '\n';
+}
+
+export function findTomlSectionRange(lines, sectionHeader) {
+  const start = lines.findIndex(line => line.trim() === sectionHeader);
+  if (start === -1) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^\s*\[[^\]]+\]\s*$/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return { start, end };
+}
+
+export function upsertTomlMcpServer(tomlText, name, cfg) {
+  const section = formatTomlMcpSection(name, cfg);
+  const lines = tomlText ? tomlText.replace(/\r\n/g, '\n').split('\n') : [];
+  const header = `[mcp_servers.${name}]`;
+  const range = findTomlSectionRange(lines, header);
+  if (range) {
+    const existingBlock = lines
+      .slice(range.start, range.end)
+      .filter(l => l.trim() !== '')
+      .join('\n') + '\n';
+    const expectedBlock = section.trimEnd() + '\n';
+    if (existingBlock === expectedBlock) return { status: 'unchanged', text: tomlText };
+    return { status: 'preserved', text: tomlText };
+  }
+  const trimmed = tomlText.replace(/\r\n/g, '\n').trimEnd();
+  const next = trimmed ? `${trimmed}\n\n${section}` : section;
+  return { status: 'added', text: next };
+}
+
+export function syncMcpConfigs({
+  root,
+  isGlobal = false,
+  source = root,
+  home = os.homedir(),
+  env = process.env,
+  platform = process.platform,
+  withVeycraft = false,
+  dryRun = false,
+  backup = true,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  const resolvedSource = path.resolve(source);
+  const templatePath = [
+    path.join(resolvedRoot, 'mcp', 'mcp.template.json'),
+    path.join(resolvedSource, 'mcp', 'mcp.template.json'),
+  ].find(f => fs.existsSync(f));
+  if (!templatePath) throw new Error('mcp/mcp.template.json not found. Run init first.');
+  const template = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
+  const tplPlaywright = template?.mcpServers?.playwright;
+  if (!isObj(tplPlaywright) || !Array.isArray(tplPlaywright.args)) {
+    throw new Error('Invalid mcp/mcp.template.json playwright server definition.');
+  }
+
+  const profileDir = path.join(resolvedRoot, 'browser-profile');
+  const rawPlaywrightCfg = {
+    ...tplPlaywright,
+    args: tplPlaywright.args.map(a => (a.startsWith('--user-data-dir=') ? `--user-data-dir=${profileDir}` : a)),
+  };
+  if (!rawPlaywrightCfg.args.some(a => a.startsWith('--user-data-dir='))) {
+    rawPlaywrightCfg.args.push(`--user-data-dir=${profileDir}`);
+  }
+  const playwrightCfg = toPlatformMcpServer(rawPlaywrightCfg, platform);
+  const notionCfg = isObj(template.mcpServers?.notion) && Array.isArray(template.mcpServers.notion.args)
+    ? toPlatformMcpServer(template.mcpServers.notion, platform)
+    : null;
+
+  let veycraftCfg = null;
+  if (withVeycraft) {
+    const rawVeycraftArgs = ['-y', 'veycraft', 'mcp', ...(isGlobal ? ['--global'] : [])];
+    const rawVeycraftEnv = env.VEYCRAFT_HOME && String(env.VEYCRAFT_HOME).trim()
+      ? { VEYCRAFT_HOME: path.resolve(String(env.VEYCRAFT_HOME).trim()) }
+      : {};
+    veycraftCfg = toPlatformMcpServer({
+      command: 'npx',
+      args: rawVeycraftArgs,
+      env: rawVeycraftEnv,
+    }, platform);
+  }
+
+  let updated = 0;
+  const warnings = [];
+  const operations = [];
+
+  function writeTargetSafe(file, nextText, label) {
+    refuseSymlinkBase(file, resolvedRoot, home);
+    const existed = fs.existsSync(file);
+    const prevText = existed ? fs.readFileSync(file, 'utf8') : null;
+    if (existed && prevText === nextText) {
+      operations.push({ file, label, action: 'unchanged', backup_path: null });
+      return false;
+    }
+    const backupPath = existed && backup ? `${file}.veycraft.bak` : null;
+    if (dryRun) {
+      updated++;
+      operations.push({
+        file,
+        label,
+        action: existed ? 'would_update' : 'would_create',
+        backup_path: backupPath,
+      });
+      return true;
+    }
+    if (existed && backupPath) {
+      refuseSymlinkBase(backupPath, resolvedRoot, home);
+      writeAtomicBase(backupPath, prevText, { preserve: false, mode: 0o600, boundary: resolvedRoot, home });
+    }
+    writeAtomicBase(file, nextText, { preserve: false, mode: 0o600, boundary: resolvedRoot, home });
+    updated++;
+    operations.push({
+      file,
+      label,
+      action: existed ? 'updated' : 'created',
+      backup_path: backupPath,
+    });
+    return true;
+  }
+
+  const targets = mcpTargetFiles(resolvedRoot, isGlobal, home);
+  for (const file of targets) {
+    const current = readJsonSafeBase(file, { boundary: resolvedRoot, home });
+    const servers = isObj(current.mcpServers) ? { ...current.mcpServers } : {};
+    let allowPlaywrightMerge = true;
+    if (servers.playwright && JSON.stringify(servers.playwright) !== JSON.stringify(playwrightCfg)) {
+      warnings.push(`Preserved existing custom playwright MCP server in ${file}`);
+      allowPlaywrightMerge = false;
+      if (!withVeycraft) {
+        operations.push({ file, label: 'Playwright MCP', action: 'preserved', backup_path: null });
+        continue;
+      }
+    }
+    if (allowPlaywrightMerge) {
+      servers.playwright = playwrightCfg;
+      if (env.NOTION_TOKEN && notionCfg && !servers.notion) {
+        servers.notion = notionCfg;
+      }
+    }
+    if (withVeycraft && veycraftCfg) {
+      if (servers.veycraft && JSON.stringify(servers.veycraft) !== JSON.stringify(veycraftCfg)) {
+        warnings.push(`Preserved existing custom veycraft MCP server in ${file}`);
+      } else {
+        servers.veycraft = veycraftCfg;
+      }
+    }
+    const nextText = JSON.stringify({ ...current, mcpServers: servers }, null, 2) + '\n';
+    writeTargetSafe(file, nextText, withVeycraft ? 'Playwright + Veycraft MCP' : 'Playwright MCP');
+  }
+
+  if (!isGlobal) {
+    const vscodeMcp = path.join(resolvedRoot, '.vscode', 'mcp.json');
+    const current = readJsonSafeBase(vscodeMcp, { boundary: resolvedRoot, home });
+    const servers = isObj(current.servers) ? { ...current.servers } : {};
+    const vsPlaywright = { type: 'stdio', ...playwrightCfg };
+    let allowVsPlaywright = true;
+    if (servers.playwright && JSON.stringify(servers.playwright) !== JSON.stringify(vsPlaywright)) {
+      warnings.push(`Preserved existing custom playwright MCP server in ${vscodeMcp}`);
+      allowVsPlaywright = false;
+    }
+    if (allowVsPlaywright) {
+      servers.playwright = vsPlaywright;
+      if (env.NOTION_TOKEN && notionCfg && !servers.notion) {
+        servers.notion = { type: 'stdio', ...notionCfg };
+      }
+    }
+    if (withVeycraft && veycraftCfg) {
+      const vsVeycraft = { type: 'stdio', ...veycraftCfg };
+      if (servers.veycraft && JSON.stringify(servers.veycraft) !== JSON.stringify(vsVeycraft)) {
+        warnings.push(`Preserved existing custom veycraft MCP server in ${vscodeMcp}`);
+      } else {
+        servers.veycraft = vsVeycraft;
+      }
+    }
+    if (allowVsPlaywright || withVeycraft) {
+      const nextText = JSON.stringify({ ...current, servers }, null, 2) + '\n';
+      writeTargetSafe(vscodeMcp, nextText, 'VS Code MCP');
+    } else {
+      operations.push({ file: vscodeMcp, label: 'VS Code MCP', action: 'preserved', backup_path: null });
+    }
+  }
+
+  const codexToml = isGlobal
+    ? path.join(resolveCodexHome(home, env), 'config.toml')
+    : path.join(resolvedRoot, '.codex', 'config.toml');
+  refuseSymlinkBase(codexToml, resolvedRoot, home);
+  let tomlText = fs.existsSync(codexToml) ? fs.readFileSync(codexToml, 'utf8') : '';
+  let tomlChanged = false;
+  const pwRes = upsertTomlMcpServer(tomlText, 'playwright', playwrightCfg);
+  if (pwRes.status === 'preserved') {
+    warnings.push(`Preserved existing custom playwright MCP server in ${codexToml}`);
+  } else {
+    tomlText = pwRes.text;
+    if (pwRes.status === 'added') tomlChanged = true;
+    if (env.NOTION_TOKEN && notionCfg) {
+      const notionRes = upsertTomlMcpServer(tomlText, 'notion', notionCfg);
+      if (notionRes.status === 'added') {
+        tomlText = notionRes.text;
+        tomlChanged = true;
+      }
+    }
+  }
+  if (withVeycraft && veycraftCfg) {
+    const vcRes = upsertTomlMcpServer(tomlText, 'veycraft', veycraftCfg);
+    if (vcRes.status === 'preserved') {
+      warnings.push(`Preserved existing custom veycraft MCP server in ${codexToml}`);
+    } else if (vcRes.status === 'added') {
+      tomlText = vcRes.text;
+      tomlChanged = true;
+    }
+  }
+  if (tomlChanged) {
+    writeTargetSafe(codexToml, tomlText, 'Codex CLI MCP');
+  } else {
+    operations.push({
+      file: codexToml,
+      label: 'Codex CLI MCP',
+      action: pwRes.status === 'preserved' ? 'preserved' : 'unchanged',
+      backup_path: null,
+    });
+  }
+
+  if (!dryRun && notionCfg) {
+    writeAtomicBase(
+      path.join(resolvedRoot, 'mcp', 'notion.import.json'),
+      JSON.stringify({ mcpServers: { notion: notionCfg } }, null, 2) + '\n',
+      { preserve: true, mode: 0o600, boundary: resolvedRoot, home },
+    );
+  }
+
+  return {
+    root: resolvedRoot,
+    is_global: Boolean(isGlobal),
+    dry_run: Boolean(dryRun),
+    with_veycraft: Boolean(withVeycraft),
+    updated,
+    operations,
+    warnings,
   };
 }
