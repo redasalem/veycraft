@@ -247,7 +247,7 @@ test('7. Config, manifest, registry, guardrails, docs & Profile Intelligence ada
   const globalEntry = manifest.skills.find(s => s.name === 'global-boards');
   assert.ok(globalEntry, 'global-boards entry missing in skills/skills-manifest.json');
   assert.equal(globalEntry.path, 'skills/platforms/global-boards.md');
-  assert.match(GLOBAL_SKILL, new RegExp(`^version:\\s*"?${globalEntry.version.replace(/\./g, '\\.')}"?`, 'm'));
+  assert.match(GLOBAL_SKILL, new RegExp(`^version:\\s*"?${globalEntry.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"?`, 'm'));
   assert.match(GLOBAL_SKILL, new RegExp(`^last_verified:\\s*"?${globalEntry.last_verified}"?`, 'm'));
   assert.match(globalEntry.description, /Naukri/i);
   assert.ok(globalEntry.triggers.some(t => /naukri/i.test(t)), 'manifest triggers must include naukri');

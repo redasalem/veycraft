@@ -1098,8 +1098,10 @@ test('7. Stage 2 (T5): Local analytics dashboard is read-only, XSS-safe, offline
     assert.match(html, /const MIN_SAMPLE_SIZE = 5;/);
 
     // M1 & M2: Execute extracted dashboard script in a sandboxed VM with mock DOM to verify actual runtime parity
-    const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
-    assert.ok(scriptMatch, 'Expected inline <script> block in dashboard.html');
+    const scriptOpen = html.indexOf('<script>');
+    const scriptClose = scriptOpen >= 0 ? html.indexOf('</script>', scriptOpen + '<script>'.length) : -1;
+    const scriptBody = scriptOpen >= 0 && scriptClose > scriptOpen ? html.slice(scriptOpen + '<script>'.length, scriptClose) : null;
+    assert.ok(scriptBody, 'Expected inline <script> block in dashboard.html');
     const elements = new Map();
     const makeEl = id => {
       const el = {
@@ -1144,7 +1146,7 @@ test('7. Stage 2 (T5): Local analytics dashboard is read-only, XSS-safe, offline
       FileReader: function FileReader() {},
     };
     vm.runInNewContext(
-      `${scriptMatch[1]}\nthis.__exports = { canonicalStatus, classifyBucket, hasPositiveCallback, formatRateDisplay, safeHref, computeClientAnalytics };`,
+      `${scriptBody}\nthis.__exports = { canonicalStatus, classifyBucket, hasPositiveCallback, formatRateDisplay, safeHref, computeClientAnalytics };`,
       sandbox,
     );
     const { canonicalStatus, classifyBucket, formatRateDisplay, safeHref, computeClientAnalytics } = sandbox.__exports;

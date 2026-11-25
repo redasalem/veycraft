@@ -74,7 +74,7 @@ test('1. Offline regional board fixtures exist under evals/fixtures/boards/ with
     assert.doesNotMatch(html, /<(?:script|link|img|iframe)\b[^>]*\b(?:src|href)\s*=\s*["']https?:\/\//i, `${name} must not load external assets`);
     assert.doesNotMatch(html, /<form\b[^>]*\baction\s*=\s*["']https?:\/\//i, `${name} must not submit to a remote URL`);
     assert.doesNotMatch(html, /https?:\/\/[^"'\s]*(?:bayt\.com|gulftalent\.com|myworkdayjobs\.com|greenhouse\.io)/i, `${name} must never reference live portal URLs`);
-    assert.match(html, new RegExp(`data-synthetic-host="${expectedHost.replace(/\./g, '\\.')}"`), `${name} must declare synthetic host ${expectedHost}`);
+    assert.ok(html.includes(`data-synthetic-host="${expectedHost}"`), `${name} must declare synthetic host ${expectedHost}`);
 
     const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/i);
     assert.ok(scriptMatch, `${name} must include local deterministic inline script`);
@@ -280,7 +280,7 @@ test('7. Config, manifest, registry, guardrails, docs & Profile Intelligence ada
   const menaEntry = manifest.skills.find(s => s.name === 'mena-boards');
   assert.ok(menaEntry, 'mena-boards entry missing in skills/skills-manifest.json');
   assert.equal(menaEntry.path, 'skills/platforms/mena-boards.md');
-  assert.match(MENA_SKILL, new RegExp(`^version:\\s*"?${menaEntry.version.replace(/\./g, '\\.')}"?`, 'm'));
+  assert.match(MENA_SKILL, new RegExp(`^version:\\s*"?${menaEntry.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"?`, 'm'));
   assert.match(MENA_SKILL, new RegExp(`^last_verified:\\s*"?${menaEntry.last_verified}"?`, 'm'));
   assert.match(menaEntry.description, /GulfTalent/i);
   assert.match(menaEntry.description, /Bayt/i);

@@ -29,6 +29,9 @@ import {
   DOCX_LIMITS,
   readFileBoundedSync,
   extractDocxText,
+  decodeXmlHtmlEntities,
+  stripHtmlBlocks,
+  stripMarkupTags,
 } from './fs-safety.mjs';
 
 export const PINNED_SIGNING_PRINCIPAL = '192090175+redasalem@users.noreply.github.com';
@@ -511,11 +514,11 @@ export async function evaluateDoctorSnapshot({
           missingOrTampered.push('PROVENANCE.json (verified_noreply_email mismatch)');
         }
       } else if (rel === 'NOTICE') {
-        if (!txt.includes('Copyright (c) 2026 Reda Salem (@redasalem)') || !txt.includes('https://github.com/redasalem/veycraft')) {
+        if (!txt.includes('Copyright (c) 2026 Reda Salem (@redasalem)') || !hasCanonicalGitHubUrl(txt, '/redasalem/veycraft')) {
           missingOrTampered.push('NOTICE (canonical copyright or repository URL missing/tampered)');
         }
       } else if (rel === 'AUTHORS.md') {
-        if (!txt.includes('Reda Salem') || !txt.includes('https://github.com/redasalem')) {
+        if (!txt.includes('Reda Salem') || !hasCanonicalGitHubUrl(txt, '/redasalem', { allowSubpath: true })) {
           missingOrTampered.push('AUTHORS.md (canonical author attribution missing/tampered)');
         }
       }
@@ -739,32 +742,30 @@ export async function evaluateDoctorSnapshot({
   };
 }
 
+function hasCanonicalGitHubUrl(text, expectedPath, { allowSubpath = false } = {}) {
+  const matches = String(text || '').match(/https:\/\/[^\s)"'>\],]+/gi) || [];
+  for (const raw of matches) {
+    const cleaned = raw.replace(/[.;:]+$/, '');
+    try {
+      const parsed = new URL(cleaned);
+      if (parsed.origin !== 'https://github.com') continue;
+      const normPath = parsed.pathname.replace(/\/+$/, '');
+      if (normPath === expectedPath || (allowSubpath && normPath.startsWith(`${expectedPath}/`))) {
+        return true;
+      }
+    } catch { /* ignore invalid URL */ }
+  }
+  return false;
+}
+
 export function decodeHtmlEntities(str) {
-  return String(str || '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_, n) => {
-      const code = Number(n);
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
-      const code = parseInt(hex, 16);
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
-    });
+  return decodeXmlHtmlEntities(str);
 }
 
 export function extractHtmlText(html) {
-  return decodeHtmlEntities(
-    String(html || '')
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<\/?(?:p|div|li|tr|h[1-6]|br|section|header|main|article)\b[^>]*>/gi, '\n')
-      .replace(/<[^>]+>/g, ' '),
-  )
+  const withoutBlocks = stripHtmlBlocks(String(html || ''), ['style', 'script']);
+  const withNewlines = withoutBlocks.replace(/<\/?(?:p|div|li|tr|h[1-6]|br|section|header|main|article)\b[^>]*>/gi, '\n');
+  return decodeHtmlEntities(stripMarkupTags(withNewlines, ' '))
     .split(/\r?\n/)
     .map(l => l.replace(/[ \t]+/g, ' ').trim())
     .filter(Boolean)
@@ -903,7 +904,7 @@ export function auditCvFile(targetArg, { root, source, home = os.homedir(), cwd 
 export const ROUTE_RULES = [
   {
     intent: 'sandbox-demo',
-    match: q => /(^|\s)\/demo\b|\bsandbox demo\b/i.test(q),
+    matches: q => /(^|\s)\/demo\b|\bsandbox demo\b/i.test(q),
     skills: ['02-discover-and-triage', '03-tailor-resume-and-verify', '13-company-due-diligence', '14-privacy-pii-shield', '21-ats-keyword-heatmap'],
     workflow: '.agent/workflows/demo.md',
     readiness: 'none (zero personal data or browser login required)',
@@ -914,7 +915,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'setup-full-career-os',
-    match: q => /(^|\s)\/setup\b|\bcheck my folder\b|\b5 readiness gates\b/i.test(q),
+    matches: q => /(^|\s)\/setup\b|\bcheck my folder\b|\b5 readiness gates\b/i.test(q),
     skills: ['00-interrogate-and-onboard', '01-resume-ingestion', '11-portfolio-and-github-auditor'],
     workflow: '.agent/workflows/setup.md',
     readiness: 'full-5-gate-onboarding',
@@ -925,7 +926,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'daily-run',
-    match: q => /(^|\s)\/daily-run\b|\brun today'?s job run\b|\bstart applying\b/i.test(q),
+    matches: q => /(^|\s)\/daily-run\b|\brun today'?s job run\b|\bstart applying\b/i.test(q),
     skills: ['00-daily-run', '00-interrogate-and-onboard', '02-discover-and-triage', '03-tailor-resume-and-verify', '04-fill-and-apply', '05-outreach-and-interview-prep', '06-log-and-insights'],
     workflow: '.agent/workflows/daily-run.md',
     readiness: 'full-5-gate-readiness + launch consent + browser auth',
@@ -936,7 +937,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'linkedin-profile',
-    match: q =>
+    matches: q =>
       /(^|\s)\/linkedin-growth\b/i.test(q) ||
       (
         /\blinkedin\b/i.test(q) &&
@@ -954,7 +955,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'profile-intelligence',
-    match: q =>
+    matches: q =>
       /(^|\s)\/profile-update\b/i.test(q) ||
       /(?:بروفايل|ملفي المهني|الملف المهني)/i.test(q) ||
       (
@@ -972,7 +973,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'portfolio-design-qa',
-    match: q =>
+    matches: q =>
       /(^|\s)\/portfolio-design\b/i.test(q) ||
       (
         /\bportfolio\b/i.test(q) &&
@@ -989,7 +990,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'build-portfolio',
-    match: q =>
+    matches: q =>
       /(^|\s)\/build-portfolio\b/i.test(q) ||
       (/\bportfolio\b/i.test(q) && /\b(build|create|generate|design|scaffold|make|deploy|host|publish|launch|vercel|wrangler|cloudflare|netlify|firebase|surge)\b/i.test(q) && !/\b(audit|check)\b/i.test(q)) ||
       (/\b(update|edit|customize|redesign)\b/i.test(q) && /\bportfolio\s+(?:site|website|page|theme|layout)\b/i.test(q)),
@@ -1003,7 +1004,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'github-portfolio-audit',
-    match: q =>
+    matches: q =>
       /(^|\s)\/github-audit\b/i.test(q) ||
       /\b(github audit|portfolio audit|audit (?:my )?(?:github|portfolio)|check (?:my )?portfolio links?|clean\s?up (?:my )?github|delete (?:junk|old|unused) repos?|archive (?:old|unused) repos?|extract (?:real )?projects from github|github readme|profile readme)\b/i.test(q) ||
       (/\bgithub\b/i.test(q) && /\b(repos?|repositories|readme|topics?|pinned|archive|private|delete|clean\s?up|extract|audit|optimize|polish)\b/i.test(q)),
@@ -1017,7 +1018,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'interview-prep',
-    match: q => /\b(interview|take-home|coding challenge|system design)\b/i.test(q) && !/\b(rejected|rejection|rate|offer|history)\b/i.test(q),
+    matches: q => /\b(interview|take-home|coding challenge|system design)\b/i.test(q) && !/\b(rejected|rejection|rate|offer|history)\b/i.test(q),
     skills: ['05-outreach-and-interview-prep', '22-technical-assessment-architect'],
     workflow: null,
     readiness: 'task-specific (target JD/prompt + CV facts; no prior application submission required)',
@@ -1028,7 +1029,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'offer-and-contract',
-    match: q => /\b(job offer|negotiate|salary expectation|rate check|contract|nda|msa|sow|agreement)\b/i.test(q),
+    matches: q => /\b(job offer|negotiate|salary expectation|rate check|contract|nda|msa|sow|agreement)\b/i.test(q),
     skills: ['09-offer-negotiator', '23-contract-and-nda-auditor'],
     workflow: null,
     readiness: 'task-specific (offer/contract text + verified compensation/notice floor; no /setup required)',
@@ -1039,7 +1040,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'application-prep-and-fill',
-    match: q => /(^|\s)\/apply-url\b|\b(prepare (?:my |an )?application|upload (?:my |the tailored )?resume to|answer (?:this |these )?application question|ats form|easy apply)\b/i.test(q),
+    matches: q => /(^|\s)\/apply-url\b|\b(prepare (?:my |an )?application|upload (?:my |the tailored )?resume to|answer (?:this |these )?application question|ats form|easy apply)\b/i.test(q),
     skills: ['03-tailor-resume-and-verify', '04-fill-and-apply', '05-outreach-and-interview-prep', '06-log-and-insights', 'meta-self-verification'],
     workflow: '.agent/workflows/apply-url.md',
     readiness: 'task-specific for prep (CV + JD + relevant answers); full gate + DOM Read-Back + explicit APPROVE for live ATS Submit',
@@ -1050,7 +1051,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'tracking-and-insights',
-    match: q => /(^|\s)\/weekly-report\b|\b(track (?:my )?applications|application history|analy[sz]e (?:my )?rejections|why am i getting rejected|ghosted|export (?:my )?application report|update (?:an )?existing application|follow-?up|calibrate|recruiter (?:email|message|replied))\b/i.test(q),
+    matches: q => /(^|\s)\/weekly-report\b|\b(track (?:my )?applications|application history|analy[sz]e (?:my )?rejections|why am i getting rejected|ghosted|export (?:my )?application report|update (?:an )?existing application|follow-?up|calibrate|recruiter (?:email|message|replied))\b/i.test(q),
     skills: ['06-log-and-insights', '08-follow-up-radar', '12-recruiter-inbox-triage', '16-rejection-pattern-analyzer', '17-score-calibration'],
     workflow: '.agent/workflows/weekly-report.md',
     readiness: 'task-specific (logs/applications-log.json; no Playwright or Notion required)',
@@ -1061,7 +1062,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'job-discovery-and-triage',
-    match: q => /\b(find .*jobs?|jobs? in |remote .*jobs?|analy[sz]e this .*job|should i apply|compare these jobs|rank them|discover jobs)\b/i.test(q),
+    matches: q => /\b(find .*jobs?|jobs? in |remote .*jobs?|analy[sz]e this .*job|should i apply|compare these jobs|rank them|discover jobs)\b/i.test(q),
     skills: ['02-discover-and-triage', '25-prompt-injection-defense', '26-deduplication-and-blacklist-guard', '28-recruiter-brand-and-domain-intelligence', 'platforms/linkedin'],
     workflow: null,
     readiness: 'task-specific (verified CV facts + query or URLs/JDs/screenshots; no /setup wall for read-only analysis)',
@@ -1072,7 +1073,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'tailor-cv',
-    match: q => /(^|\s)\/(?:quick-tailor|tailor-cv)\b|\b(tailor (?:my )?cv|compare (?:my )?cv against)\b/i.test(q),
+    matches: q => /(^|\s)\/(?:quick-tailor|tailor-cv)\b|\b(tailor (?:my )?cv|compare (?:my )?cv against)\b/i.test(q),
     skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '21-ats-keyword-heatmap', '28-recruiter-brand-and-domain-intelligence'],
     workflow: '.agent/workflows/quick-tailor.md',
     readiness: 'task-specific (CV + 1 JD; zero browser login or /setup required)',
@@ -1083,7 +1084,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'cv-translate',
-    match: q => /\b(arabic|english|german|french|spanish|rtl|translate)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
+    matches: q => /\b(arabic|english|german|french|spanish|rtl|translate)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
     skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '15-multilingual-adaptation'],
     workflow: null,
     readiness: 'task-specific (source CV + target language; preserves original file)',
@@ -1094,7 +1095,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'cv-convert',
-    match: q => /\b(convert|export|make|create)\b/i.test(q) && /\b(pdf|word|word-compatible|docx|doc|html|txt)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
+    matches: q => /\b(convert|export|make|create)\b/i.test(q) && /\b(pdf|word|word-compatible|docx|doc|html|txt)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
     skills: ['01-resume-ingestion', '03-tailor-resume-and-verify'],
     workflow: null,
     readiness: 'task-specific (source CV; no /setup required)',
@@ -1105,7 +1106,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'cv-create',
-    match: q => /\b(create|build|write|make)\b/i.test(q) && /\b(new cv|cv from scratch|resume from scratch|from scratch)\b/i.test(q),
+    matches: q => /\b(create|build|write|make)\b/i.test(q) && /\b(new cv|cv from scratch|resume from scratch|from scratch)\b/i.test(q),
     skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence'],
     workflow: null,
     readiness: 'task-specific (guided interview; zero /setup or browser login required)',
@@ -1116,7 +1117,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'cv-edit',
-    match: q => /\b(improve|edit|update|rewrite|strengthen|shorten|reorder|remove|add .*project|change .*summary|summary|bullet)\b/i.test(q) && /\b(cv|resume|summary|project|skills|bullets|section|page)\b/i.test(q),
+    matches: q => /\b(improve|edit|update|rewrite|strengthen|shorten|reorder|remove|add .*project|change .*summary|summary|bullet)\b/i.test(q) && /\b(cv|resume|summary|project|skills|bullets|section|page)\b/i.test(q),
     skills: ['01-resume-ingestion', '03-tailor-resume-and-verify', '28-recruiter-brand-and-domain-intelligence', 'meta-self-verification'],
     workflow: null,
     readiness: 'task-specific (existing CV or session CV + requested edit; preserves original)',
@@ -1127,7 +1128,7 @@ export const ROUTE_RULES = [
   },
   {
     intent: 'cv-review-import',
-    match: q => /\b(upload|import|review|audit|check|read|parse)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
+    matches: q => /\b(upload|import|review|audit|check|read|parse)\b/i.test(q) && /\b(cv|resume)\b/i.test(q),
     skills: ['01-resume-ingestion', '14-privacy-pii-shield'],
     workflow: null,
     readiness: 'task-specific (CV file or pasted text; no /setup or browser login required)',
@@ -1143,7 +1144,7 @@ export function matchNaturalLanguageRoute(query) {
   if (!q) {
     throw new Error('Usage: veycraft route "<natural-language request>" [--json]');
   }
-  const hit = ROUTE_RULES.find(r => r.match(q)) || {
+  const hit = ROUTE_RULES.find(r => r.matches(q)) || {
     intent: 'general-career-assistant',
     skills: ['01-resume-ingestion', '03-tailor-resume-and-verify'],
     workflow: null,

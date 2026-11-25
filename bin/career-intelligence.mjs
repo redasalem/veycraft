@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { isObj, isWithinDir, refuseSymlink, writeAtomic } from './fs-safety.mjs';
+import { isObj, isWithinDir, refuseSymlink, writeAtomic, stripHtmlBlocks, stripMarkupTags } from './fs-safety.mjs';
 
 export const MIN_SAMPLE_SIZE = 5;
 
@@ -6293,10 +6293,7 @@ export const BANNED_AI_CLICHES = Object.freeze([
 const PREP_BANNED_AI_CLICHES = BANNED_AI_CLICHES;
 
 function stripHtmlTagsForVerify(html) {
-  return String(html || '')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
+  return stripMarkupTags(stripHtmlBlocks(String(html || ''), ['style', 'script']), ' ')
     .replace(/&mdash;|&#8212;|&#x2014;/gi, '—')
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')

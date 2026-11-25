@@ -613,7 +613,7 @@ export function validateProfileVault(profileData) {
 }
 
 export function formatConsolidatedReview(plan) {
-  const escapeCell = v => String(v ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  const escapeCell = v => String(v ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
   const lines = [
     `# Consolidated Profile Update Review — ${plan.platform} (${plan.target_role})`,
     '',

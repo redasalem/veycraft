@@ -603,22 +603,91 @@ export function readFileBoundedSync(filePath, maxBytes, label = 'file') {
   }
 }
 
-function decodeDocxXmlEntities(str) {
-  return String(str || '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_, n) => {
-      const code = Number(n);
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
-      const code = parseInt(hex, 16);
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
-    });
+const NAMED_XML_HTML_ENTITIES = Object.freeze({
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+});
+const XML_HTML_ENTITY_RE = /&(?:(nbsp|amp|lt|gt|quot|apos)|#(\d+)|#x([0-9a-f]+));/gi;
+
+export function decodeXmlHtmlEntities(str) {
+  return String(str || '').replace(XML_HTML_ENTITY_RE, (full, named, dec, hex) => {
+    if (named) return NAMED_XML_HTML_ENTITIES[named.toLowerCase()] ?? full;
+    const code = dec !== undefined ? Number(dec) : parseInt(hex, 16);
+    return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
+  });
+}
+
+export function stripHtmlBlocks(input, tagNames = ['script', 'style']) {
+  let text = String(input || '');
+  for (const rawTag of tagNames) {
+    const tag = String(rawTag || '').toLowerCase();
+    if (!tag) continue;
+    const openNeedle = `<${tag}`;
+    const closeNeedle = `</${tag}`;
+    const lower = text.toLowerCase();
+    let out = '';
+    let pos = 0;
+    while (pos < text.length) {
+      const start = lower.indexOf(openNeedle, pos);
+      if (start === -1) {
+        out += text.slice(pos);
+        break;
+      }
+      const afterOpen = lower[start + openNeedle.length];
+      if (afterOpen !== undefined && afterOpen !== '>' && afterOpen !== '/' && !/\s/.test(afterOpen)) {
+        out += text.slice(pos, start + openNeedle.length);
+        pos = start + openNeedle.length;
+        continue;
+      }
+      out += text.slice(pos, start);
+      const openEnd = text.indexOf('>', start + openNeedle.length);
+      if (openEnd === -1) break;
+      let closeIdx = lower.indexOf(closeNeedle, openEnd + 1);
+      while (closeIdx !== -1) {
+        const afterClose = lower[closeIdx + closeNeedle.length];
+        if (afterClose === '>' || (afterClose !== undefined && /\s/.test(afterClose))) {
+          break;
+        }
+        closeIdx = lower.indexOf(closeNeedle, closeIdx + closeNeedle.length);
+      }
+      if (closeIdx === -1) {
+        out += ' ';
+        break;
+      }
+      const closeEnd = text.indexOf('>', closeIdx + closeNeedle.length);
+      out += ' ';
+      if (closeEnd === -1) break;
+      pos = closeEnd + 1;
+    }
+    text = out;
+  }
+  return text;
+}
+
+export function stripMarkupTags(input, replacement = '') {
+  const text = String(input || '');
+  let out = '';
+  let pos = 0;
+  while (pos < text.length) {
+    const start = text.indexOf('<', pos);
+    if (start === -1) {
+      out += text.slice(pos);
+      break;
+    }
+    const end = text.indexOf('>', start + 1);
+    if (end === -1) {
+      out += text.slice(pos);
+      break;
+    }
+    out += text.slice(pos, start);
+    if (replacement) out += replacement;
+    pos = end + 1;
+  }
+  return out;
 }
 
 export function extractDocxText(rawBuf, limits = {}) {
@@ -809,13 +878,15 @@ export function extractDocxText(rawBuf, limits = {}) {
   const combined = xmlParts
     .sort((a, b) => (a.name === 'word/document.xml' ? -1 : b.name === 'word/document.xml' ? 1 : a.name.localeCompare(b.name)))
     .map(p =>
-      decodeDocxXmlEntities(
-        p.xml
-          .replace(/<\/w:p>/gi, '\n')
-          .replace(/<\/w:tr>/gi, '\n')
-          .replace(/<w:br\b[^>]*\/>/gi, '\n')
-          .replace(/<w:tab\b[^>]*\/>/gi, ' ')
-          .replace(/<[^>]+>/g, ''),
+      decodeXmlHtmlEntities(
+        stripMarkupTags(
+          p.xml
+            .replace(/<\/w:p>/gi, '\n')
+            .replace(/<\/w:tr>/gi, '\n')
+            .replace(/<w:br\b[^>]*\/>/gi, '\n')
+            .replace(/<w:tab\b[^>]*\/>/gi, ' '),
+          '',
+        ),
       ),
     )
     .join('\n')
