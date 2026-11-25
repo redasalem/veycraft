@@ -124,7 +124,7 @@ test('UI server binds strictly to 127.0.0.1, serves static assets with CSP, and 
   assert.equal(overview.summary.funnel.total_tracked, 0);
 
   const skills = JSON.parse((await rawHttpRequest(handle.port, '/api/skills')).body);
-  assert.equal(skills.skills_count, 54);
+  assert.equal(skills.skills_count, 56);
 
   const skillDetail = JSON.parse((await rawHttpRequest(handle.port, '/api/skills/daily-run')).body);
   assert.equal(skillDetail.uri, 'veycraft://skill/daily-run');
@@ -133,6 +133,14 @@ test('UI server binds strictly to 127.0.0.1, serves static assets with CSP, and 
   const remoteSkillDetail = JSON.parse((await rawHttpRequest(handle.port, '/api/skills/github-cli-remote-manager')).body);
   assert.equal(remoteSkillDetail.uri, 'veycraft://skill/github-cli-remote-manager');
   assert.ok(remoteSkillDetail.content.includes('## Deterministic Step-by-Step Execution'));
+
+  const s55Detail = JSON.parse((await rawHttpRequest(handle.port, '/api/skills/freelance-profile-and-service-publisher')).body);
+  assert.equal(s55Detail.uri, 'veycraft://skill/freelance-profile-and-service-publisher');
+  assert.ok(s55Detail.content.includes('APPROVE PUBLISH'));
+
+  const s56Detail = JSON.parse((await rawHttpRequest(handle.port, '/api/skills/freelance-offer-radar-and-batch-bidder')).body);
+  assert.equal(s56Detail.uri, 'veycraft://skill/freelance-offer-radar-and-batch-bidder');
+  assert.ok(s56Detail.content.includes('Fit Score'));
 
   // Empty workspace remains 100% empty on disk (read-only guarantee)
   assert.deepEqual(fs.readdirSync(emptyDir), []);

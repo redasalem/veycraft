@@ -457,6 +457,41 @@ test('MCP tools/list, all 8 read-only offline tools, and resources read/template
     assert.equal(ghRemoteRouteData.intent, 'github-remote-ops');
     assert.ok(ghRemoteRouteData.skills.includes('54-github-cli-remote-manager'));
 
+    // 9b. veycraft_get_skill + veycraft_route for Skills 55 & 56
+    const s55Res = await client.request('tools/call', {
+      name: 'veycraft_get_skill',
+      arguments: { name: 'freelance-profile-and-service-publisher' },
+    });
+    const s55Data = JSON.parse(s55Res.result.content[0].text);
+    assert.equal(s55Data.skill.name, 'freelance-profile-and-service-publisher');
+    assert.equal(s55Data.uri, 'veycraft://skill/freelance-profile-and-service-publisher');
+    assert.ok(s55Data.content.includes('APPROVE PUBLISH'));
+
+    const s56Res = await client.request('tools/call', {
+      name: 'veycraft_get_skill',
+      arguments: { name: 'freelance-offer-radar-and-batch-bidder' },
+    });
+    const s56Data = JSON.parse(s56Res.result.content[0].text);
+    assert.equal(s56Data.skill.name, 'freelance-offer-radar-and-batch-bidder');
+    assert.equal(s56Data.uri, 'veycraft://skill/freelance-offer-radar-and-batch-bidder');
+    assert.ok(s56Data.content.includes('tracker/freelance-proposals.md'));
+
+    const flServiceRouteRes = await client.request('tools/call', {
+      name: 'veycraft_route',
+      arguments: { query: 'Publish an SEO Fiverr and Khamsat service package with custom cover image' },
+    });
+    const flServiceRouteData = JSON.parse(flServiceRouteRes.result.content[0].text);
+    assert.equal(flServiceRouteData.intent, 'freelance-service-publisher');
+    assert.ok(flServiceRouteData.skills.includes('55-freelance-profile-and-service-publisher'));
+
+    const flBidRouteRes = await client.request('tools/call', {
+      name: 'veycraft_route',
+      arguments: { query: 'Scan open projects on Upwork and Mostaql, filter freelance offers, and draft concise proposals' },
+    });
+    const flBidRouteData = JSON.parse(flBidRouteRes.result.content[0].text);
+    assert.equal(flBidRouteData.intent, 'freelance-offer-radar');
+    assert.ok(flBidRouteData.skills.includes('56-freelance-offer-radar-and-batch-bidder'));
+
     // 10. resources/list + resources/templates/list + resources/read
     const resList = await client.request('resources/list');
     assert.deepEqual(
@@ -468,7 +503,7 @@ test('MCP tools/list, all 8 read-only offline tools, and resources read/template
 
     const manifestRead = await client.request('resources/read', { uri: 'veycraft://manifest' });
     assert.equal(manifestRead.result.contents[0].mimeType, 'application/json');
-    assert.equal(JSON.parse(manifestRead.result.contents[0].text).skills.length, 54);
+    assert.equal(JSON.parse(manifestRead.result.contents[0].text).skills.length, 56);
 
     const registryRead = await client.request('resources/read', { uri: 'veycraft://registry' });
     assert.equal(registryRead.result.contents[0].mimeType, 'text/markdown');

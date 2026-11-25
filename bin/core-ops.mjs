@@ -1052,6 +1052,42 @@ export const ROUTE_RULES = [
     outputs: ['5-tier GitHub Inventory Scorecard', 'context/github-projects.md verified CV project dossier', 'DRAFT_ONLY Before/After marketing diff & tiered cleanup matrix'],
   },
   {
+    intent: 'freelance-service-publisher',
+    matches: q =>
+      /(^|\s)\/freelance-service\b/i.test(q) ||
+      (
+        !/\blinkedin\b/i.test(q) &&
+        (/\b(fiverr|khamsat|upwork|mostaql|freelancer(?:\.com)?|malt)\b/i.test(q) || /\b(?:freelance|gig)\b/i.test(q) || /(?:خمسات|مستقل|فريلانس|خدمة\s+فريلانس)/i.test(q)) &&
+        (/\b(publish|create|launch|build|write|setup|set up|list|listing|gig|service|package|cover image|pricing tiers?)\b/i.test(q) || /(?:انشر|نشر|انشاء|إنشاء|اضافة|إضافة|خدمة|باقات|غلاف)/i.test(q)) &&
+        !/\b(bid|bids|bidding|proposal|proposals|open projects?|offers?|radar|filter|rank|batch)\b/i.test(q) &&
+        !/(?:عروض|تقديم\s+عرض|فلترة|مشاريع\s+مفتوحة)/i.test(q)
+      ),
+    skills: ['55-freelance-profile-and-service-publisher', '14-privacy-pii-shield', '18-condition-based-browser-waiting', '24-circuit-breaker-and-antiban', 'meta-self-verification'],
+    workflow: null,
+    readiness: 'task-specific (service description + target freelance platform URL + verified CV/project facts; no /setup required)',
+    required_inputs: ['plain-language service description', 'target freelance marketplace URL or platform name', 'verified CV/project facts'],
+    optional_tools: ['playwright (optional for live profile audit, cover upload, and form filling)', 'native image generator (optional for cover artwork)'],
+    fallback: 'Generates complete SEO service copy, pricing tiers, FAQs, and cover visual prompt/HTML asset locally as DRAFT_ONLY',
+    outputs: ['SEO service package + pricing tiers + FAQs', 'Custom cover image asset', 'Live DOM Read-Back Table paused for APPROVE PUBLISH'],
+  },
+  {
+    intent: 'freelance-offer-radar',
+    matches: q =>
+      /(^|\s)\/freelance-bid\b/i.test(q) ||
+      (
+        !/\blinkedin\b/i.test(q) &&
+        (/\b(fiverr|khamsat|upwork|mostaql|freelancer(?:\.com)?|malt|freelance)\b/i.test(q) || /(?:مستقل|خمسات|فريلانس|عروض\s+المشاريع|تقديم\s+عرض)/i.test(q)) &&
+        (/\b(bid|bids|bidding|proposal|proposals|open projects?|offers?|radar|filter|rank|batch)\b/i.test(q) || /(?:عروض|عرض|تقديم|فلترة|مشاريع\s+مفتوحة)/i.test(q))
+      ),
+    skills: ['56-freelance-offer-radar-and-batch-bidder', '14-privacy-pii-shield', '18-condition-based-browser-waiting', '24-circuit-breaker-and-antiban', '25-prompt-injection-defense', 'meta-self-verification'],
+    workflow: null,
+    readiness: 'task-specific (target freelance feed URL or pasted listings + verified stack/rate floor; no /setup required)',
+    required_inputs: ['target marketplace open-projects URL or pasted listings', 'verified stack & minimum rate/budget floor'],
+    optional_tools: ['playwright (optional for live feed scanning and APPROVE-gated batch bidding)'],
+    fallback: 'Scores pasted open projects offline and produces concise DRAFT_ONLY proposals + tracker/freelance-proposals.md rows',
+    outputs: ['Numbered Freelance Offer Radar Table (Fit Score 0-100%)', 'Concise IP-safe proposal drafts', 'tracker/freelance-proposals.md log after APPROVE <numbers>'],
+  },
+  {
     intent: 'interview-prep',
     matches: q => /\b(interview|take-home|coding challenge|system design)\b/i.test(q) && !/\b(rejected|rejection|rate|offer|history)\b/i.test(q),
     skills: ['05-outreach-and-interview-prep', '22-technical-assessment-architect'],

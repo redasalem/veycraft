@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-26 — Universal Freelance Service Publisher & Global Offer Radar Batch Bidder
+
+### Added
+- **Universal Freelance Profile & Service Publisher (`skills/55-freelance-profile-and-service-publisher.md` v1.0.0, `.agents/skills/freelance-profile-and-service-publisher/SKILL.md`, `/freelance-service`):** Added a model-agnostic playbook to audit freelance marketplace profiles, draft SEO-optimized gig/service listings grounded in `context/cv.md` and `context/github-projects.md`, generate custom cover images (native image tool -> HTML/Canvas/SVG render -> visual prompt fallback), fill forms in the browser via semantic locators, pause for manual login/OAuth/2FA if signed out, present a Live DOM Read-Back Table, and gate final Publish/Save strictly behind explicit fresh `APPROVE PUBLISH` + post-publish snapshot verification (`54 -> 55` skills, `15 -> 16` `.agents/skills/` wrappers).
+- **Global Freelance Offer Radar & Approved Batch Bidder (`skills/56-freelance-offer-radar-and-batch-bidder.md` v1.0.0, `.agents/skills/freelance-offer-radar-and-batch-bidder/SKILL.md`, `/freelance-bid`):** Added a global open-project feed scanner across Upwork, Fiverr, Freelancer, Malt, Mostaql, Khamsat, and custom URLs treating scraped listings strictly as `UNTRUSTED_EXTERNAL_DATA`, filtering across 4 signals (tech-stack fit, budget floor, client hire quality, freshness), ranking offers (`Fit Score 0-100%`), drafting concise IP-safe proposals (holding back full architectures/external links unless required or approved), gating submission behind explicit `APPROVE <numbers>` confirmation, executing human-paced batch submissions with `3-9 s` delays, verifying receipts, and logging outcomes to `tracker/freelance-proposals.md` (`55 -> 56` skills, `16 -> 17` `.agents/skills/` wrappers).
+- **Deterministic Freelance Routing & Integration Coverage (`bin/core-ops.mjs`, `evals/`):** Added collision-free `freelance-service-publisher` and `freelance-offer-radar` intents ahead of generic job/interview routes while keeping the strict 8-tool MCP contract intact, added `FL01`-`FL04` journey cases and `Test 16` (`123/123 -> 124/124` journey tests), and verified MCP/UI `/api/skills` discovery across all 56 skills.
+
+### Changed
+- **Cross-Model Bridges, Docs & CI Validator Sync (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/workflows/validate-repo.yml`, `README.md`, `README.ar.md`, `docs/`, `ui/app.js`, `llms.txt`, `assets/`):** Indexed `/freelance-service` and `/freelance-bid` across all major agent entry points and synced `56`-skill, `17`-wrapper, and `124/124`-test metrics repo-wide with `0/0` npm dependencies.
+
 ## [2.5.0] - 2026-11-26 — Universal No-Clone GitHub CLI Skill & Cross-Model Agent Bridges
 
 ### Added

@@ -772,9 +772,9 @@ test('11. GitHub CLI Audit, Marketing Polish, Tiered Cleanup & CV Extraction (Sk
   assert.ok(piText.includes('skills/11-portfolio-and-github-auditor.md'), 'profile-intelligence-engine missing delegation note to skills/11');
 });
 
-test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 54 Skills)', () => {
+test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portfolio, 56 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
-  assert.equal(manifest.skills.length, 54, `Expected 54 skills in manifest, got ${manifest.skills.length}`);
+  assert.equal(manifest.skills.length, 56, `Expected 56 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
   // 1. Manifest parity & zero 5-gate /daily-run coupling
@@ -837,7 +837,7 @@ test('12. Isolated Portfolio Builder & Multi-CLI Deployer (Skill 29 /build-portf
   }
 });
 
-test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Healing QA (Skill 30 /portfolio-design, 54 Skills)', () => {
+test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Healing QA (Skill 30 /portfolio-design, 56 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
@@ -937,9 +937,9 @@ test('13. Portfolio Design System Studio, Automated Testing & Bounded Self-Heali
   }
 });
 
-test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Services Funnel (linkedin-growth v3.1.0, 54 Skills)', () => {
+test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Services Funnel (linkedin-growth v3.1.0, 56 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
-  assert.equal(manifest.skills.length, 54, `Expected 54 skills in manifest, got ${manifest.skills.length}`);
+  assert.equal(manifest.skills.length, 56, `Expected 56 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
   // 1. Manifest parity & zero 5-gate /setup coupling
@@ -1042,9 +1042,9 @@ test('14. Dual-Engine LinkedIn Growth, Recruiter Search, Feed Algorithm & Servic
   }
 });
 
-test('15. Universal No-Clone GitHub CLI Remote Manager & Cross-Model Agent Bridges (Skill 54, 54 Skills)', () => {
+test('15. Universal No-Clone GitHub CLI Remote Manager & Cross-Model Agent Bridges (Skill 54, 56 Skills)', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
-  assert.equal(manifest.skills.length, 54, `Expected 54 skills in manifest, got ${manifest.skills.length}`);
+  assert.equal(manifest.skills.length, 56, `Expected 56 skills in manifest, got ${manifest.skills.length}`);
   const byName = new Map(manifest.skills.map(s => [s.name, s]));
 
   const s54 = byName.get('github-cli-remote-manager');
@@ -1096,5 +1096,106 @@ test('15. Universal No-Clone GitHub CLI Remote Manager & Cross-Model Agent Bridg
     const parsed = JSON.parse(res.stdout);
     assert.equal(parsed.intent, expectedIntent, `Intent mismatch for "${prompt}"`);
     assert.ok(parsed.skills.includes(expectedSkill), `Missing ${expectedSkill} for "${prompt}"`);
+  }
+});
+
+test('16. Universal Freelance Service Publisher & Offer Radar Batch Bidder (Skills 55-56, 56 Skills)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'skills', 'skills-manifest.json'), 'utf8'));
+  assert.equal(manifest.skills.length, 56, `Expected 56 skills in manifest, got ${manifest.skills.length}`);
+  const byName = new Map(manifest.skills.map(s => [s.name, s]));
+
+  // 1. Manifest parity & acyclic DAG (zero /setup interrogate-and-onboard coupling)
+  const s55 = byName.get('freelance-profile-and-service-publisher');
+  assert.ok(s55, 'freelance-profile-and-service-publisher missing from skills-manifest.json');
+  assert.equal(s55.version, '1.0.0');
+  assert.equal(s55.path, 'skills/55-freelance-profile-and-service-publisher.md');
+  assert.deepEqual(s55.requires_mcp, ['none']);
+  assert.deepEqual(s55.optional_mcp, ['playwright']);
+  assert.ok(!s55.requires_skills.includes('interrogate-and-onboard'));
+
+  const s56 = byName.get('freelance-offer-radar-and-batch-bidder');
+  assert.ok(s56, 'freelance-offer-radar-and-batch-bidder missing from skills-manifest.json');
+  assert.equal(s56.version, '1.0.0');
+  assert.equal(s56.path, 'skills/56-freelance-offer-radar-and-batch-bidder.md');
+  assert.deepEqual(s56.requires_mcp, ['none']);
+  assert.deepEqual(s56.optional_mcp, ['playwright']);
+  assert.ok(!s56.requires_skills.includes('interrogate-and-onboard'));
+
+  for (const rootSkill of ['freelance-profile-and-service-publisher', 'freelance-offer-radar-and-batch-bidder']) {
+    const seen = new Set();
+    const queue = [...(byName.get(rootSkill)?.requires_skills || [])];
+    while (queue.length) {
+      const cur = queue.shift();
+      assert.notEqual(cur, rootSkill, `Circular requires_skills dependency detected involving ${rootSkill}`);
+      if (!seen.has(cur)) {
+        seen.add(cur);
+        for (const nxt of byName.get(cur)?.requires_skills || []) queue.push(nxt);
+      }
+    }
+  }
+
+  // 2. Skill content, line-count (< 250 lines), H2 structure, and safety gate clauses
+  const s55Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '55-freelance-profile-and-service-publisher.md'), 'utf8');
+  assert.ok(s55Text.split(/\r?\n/).length < 250, 'skills/55 must stay under 250 lines');
+  for (const clause of [
+    '## When to Use & Preconditions',
+    '## Deterministic Step-by-Step Execution',
+    '## Anti-Patterns (What NEVER To Do) & Self-Verification Check',
+    'context/cv.md',
+    'context/github-projects.md',
+    'APPROVE PUBLISH',
+    'Live DOM Read-Back Table',
+    'browser_snapshot',
+  ]) {
+    assert.ok(s55Text.includes(clause), `skills/55 missing required clause: ${clause}`);
+  }
+
+  const s56Text = fs.readFileSync(path.join(REPO_ROOT, 'skills', '56-freelance-offer-radar-and-batch-bidder.md'), 'utf8');
+  assert.ok(s56Text.split(/\r?\n/).length < 250, 'skills/56 must stay under 250 lines');
+  for (const clause of [
+    '## When to Use & Preconditions',
+    '## Deterministic Step-by-Step Execution',
+    '## Anti-Patterns (What NEVER To Do) & Self-Verification Check',
+    'UNTRUSTED_EXTERNAL_DATA',
+    'Fit Score',
+    'APPROVE 1, 3, 4',
+    'tracker/freelance-proposals.md',
+    'browser_snapshot',
+  ]) {
+    assert.ok(s56Text.includes(clause), `skills/56 missing required clause: ${clause}`);
+  }
+
+  // 3. Wrappers & cross-model bridges verify Skills 55 & 56
+  const w55 = fs.readFileSync(path.join(REPO_ROOT, '.agents', 'skills', 'freelance-profile-and-service-publisher', 'SKILL.md'), 'utf8');
+  assert.ok(w55.includes('name: freelance-profile-and-service-publisher'));
+  assert.ok(w55.includes('skills/55-freelance-profile-and-service-publisher.md'));
+
+  const w56 = fs.readFileSync(path.join(REPO_ROOT, '.agents', 'skills', 'freelance-offer-radar-and-batch-bidder', 'SKILL.md'), 'utf8');
+  assert.ok(w56.includes('name: freelance-offer-radar-and-batch-bidder'));
+  assert.ok(w56.includes('skills/56-freelance-offer-radar-and-batch-bidder.md'));
+
+  for (const bridgePath of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', path.join('.github', 'copilot-instructions.md')]) {
+    const bText = fs.readFileSync(path.join(REPO_ROOT, bridgePath), 'utf8');
+    assert.ok(bText.includes('55-freelance-profile-and-service-publisher.md'), `${bridgePath} missing Skill 55 reference`);
+    assert.ok(bText.includes('56-freelance-offer-radar-and-batch-bidder.md'), `${bridgePath} missing Skill 56 reference`);
+  }
+
+  // 4. Collision-free routing across Skill 55, Skill 56, linkedin-growth & github-remote-ops
+  for (const [prompt, expectedIntent, expectedSkill] of [
+    ['/freelance-service', 'freelance-service-publisher', '55-freelance-profile-and-service-publisher'],
+    ['Publish an SEO Fiverr and Khamsat service package with custom cover image', 'freelance-service-publisher', '55-freelance-profile-and-service-publisher'],
+    ['انشر خدمة فريلانس على خمسات مع صورة غلاف', 'freelance-service-publisher', '55-freelance-profile-and-service-publisher'],
+    ['/freelance-bid', 'freelance-offer-radar', '56-freelance-offer-radar-and-batch-bidder'],
+    ['Scan open projects on Upwork and Mostaql, filter freelance offers, and draft concise proposals', 'freelance-offer-radar', '56-freelance-offer-radar-and-batch-bidder'],
+    ['فلتر عروض المشاريع المفتوحة على مستقل واكتب عروض تقديم', 'freelance-offer-radar', '56-freelance-offer-radar-and-batch-bidder'],
+    ['set up my LinkedIn Services page for freelance clients', 'linkedin-profile', 'linkedin-growth'],
+    ['/github-remote', 'github-remote-ops', '54-github-cli-remote-manager'],
+  ]) {
+    const res = runCli(['route', prompt, '--json']);
+    assert.equal(res.status, 0, `route failed for "${prompt}": ${res.stderr}`);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.intent, expectedIntent, `Intent mismatch for "${prompt}"`);
+    assert.ok(parsed.skills.includes(expectedSkill), `Missing ${expectedSkill} for "${prompt}"`);
+    assert.ok(parsed.skills.length <= 7, `Skill count > 7 for "${prompt}": ${parsed.skills.length}`);
   }
 });

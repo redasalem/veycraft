@@ -90,6 +90,8 @@ jobs:
           agent_skills = sorted(pathlib.Path(".agents/skills").glob("*/SKILL.md"))
           expected_wrappers = {
               "apply-url", "contract-and-nda-auditor", "daily-run", "demo",
+              "freelance-offer-radar-and-batch-bidder",
+              "freelance-profile-and-service-publisher",
               "github-cli-remote-manager", "linkedin-growth", "offer-negotiator",
               "profile-intelligence-engine", "quick-tailor", "recruiter-inbox-triage",
               "rejection-pattern-analyzer", "score-calibration", "setup", "tailor-cv",

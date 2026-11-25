@@ -300,6 +300,34 @@
       "expected_intent": "github-remote-ops",
       "required_skills": ["54-github-cli-remote-manager", "14-privacy-pii-shield", "meta-self-verification"],
       "requires_full_setup": false
+    },
+    {
+      "id": "FL01",
+      "prompt": "/freelance-service",
+      "expected_intent": "freelance-service-publisher",
+      "required_skills": ["55-freelance-profile-and-service-publisher", "14-privacy-pii-shield", "18-condition-based-browser-waiting", "24-circuit-breaker-and-antiban", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "FL02",
+      "prompt": "Publish an SEO Fiverr and Khamsat service package with custom cover image.",
+      "expected_intent": "freelance-service-publisher",
+      "required_skills": ["55-freelance-profile-and-service-publisher", "14-privacy-pii-shield", "18-condition-based-browser-waiting", "24-circuit-breaker-and-antiban", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "FL03",
+      "prompt": "/freelance-bid",
+      "expected_intent": "freelance-offer-radar",
+      "required_skills": ["56-freelance-offer-radar-and-batch-bidder", "14-privacy-pii-shield", "18-condition-based-browser-waiting", "24-circuit-breaker-and-antiban", "25-prompt-injection-defense", "meta-self-verification"],
+      "requires_full_setup": false
+    },
+    {
+      "id": "FL04",
+      "prompt": "Scan open projects on Upwork and Mostaql, filter freelance offers, and draft concise proposals.",
+      "expected_intent": "freelance-offer-radar",
+      "required_skills": ["56-freelance-offer-radar-and-batch-bidder", "14-privacy-pii-shield", "18-condition-based-browser-waiting", "24-circuit-breaker-and-antiban", "25-prompt-injection-defense", "meta-self-verification"],
+      "requires_full_setup": false
     }
   ]
 }

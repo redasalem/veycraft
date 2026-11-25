@@ -270,7 +270,7 @@ function renderOverview() {
         h('div', { className: 'filter-bar' },
           h('button', { className: 'btn btn-primary btn-sm', text: 'Copy: npx veycraft init --global', onClick: () => copyText('npx veycraft init --global', 'Copied init --global command') }),
           h('button', { className: 'btn btn-sm', text: 'Try Verification Studio', onClick: () => switchTab('studio') }),
-          h('button', { className: 'btn btn-sm', text: 'Browse 54 Skills', onClick: () => switchTab('skills') }),
+          h('button', { className: 'btn btn-sm', text: 'Browse 56 Skills', onClick: () => switchTab('skills') }),
         ),
       ),
     );
@@ -300,7 +300,7 @@ function renderOverview() {
       h('div', { className: 'kpi-card' },
         h('div', { className: 'kpi-value', text: String(summary?.overdue_follow_ups_count || 0) }),
         h('div', { className: 'kpi-label', text: 'Overdue Follow-Ups' }),
-        h('div', { className: 'kpi-sub', text: `${docPayload.skills_count || 54} Markdown skills loaded` }),
+        h('div', { className: 'kpi-sub', text: `${docPayload.skills_count || 56} Markdown skills loaded` }),
       ),
     ),
   );
@@ -948,7 +948,7 @@ function renderStudio() {
 async function loadSkills() {
   const panel = document.getElementById('view-skills');
   if (!panel) return;
-  panel.replaceChildren(h('div', { className: 'card', text: 'Loading 54 Markdown skill playbooks...' }));
+  panel.replaceChildren(h('div', { className: 'card', text: 'Loading 56 Markdown skill playbooks...' }));
   try {
     state.skillsManifest = await apiGet('/api/skills');
     const initialSkill = state.selectedSkillName || state.skillsManifest.skills[0]?.name;
@@ -1006,7 +1006,7 @@ function renderSkillsShell() {
     h('input', {
       className: 'input',
       type: 'text',
-      placeholder: 'Search 54 skills by name, trigger, or keyword...',
+      placeholder: 'Search 56 skills by name, trigger, or keyword...',
       value: state.skillsQuery,
       onInput: (e) => {
         state.skillsQuery = e.target.value;

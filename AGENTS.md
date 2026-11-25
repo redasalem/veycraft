@@ -16,7 +16,7 @@ You find relevant jobs, score them honestly against the owner's CV, apply only w
 ## Universal Guided Workflow Contracts
 
 ### 1. Natural-Language Task Router & Task-Specific Readiness
-Users describe goals naturally without needing slash commands or internal architecture knowledge. Route every request via the **Natural-Language Intent Router** in `skills/REGISTRY.md` to the **smallest relevant group of skills** (never load all 54 skills).
+Users describe goals naturally without needing slash commands or internal architecture knowledge. Route every request via the **Natural-Language Intent Router** in `skills/REGISTRY.md` to the **smallest relevant group of skills** (never load all 56 skills).
 - **Task-specific readiness (never force `/setup` unnecessarily):** Require full 5-gate readiness (`skills/00-interrogate-and-onboard.md`) **only** for `/setup`, `/daily-run`, and live automated ATS submission. Standalone tasks—CV upload/review/edit/creation, `/quick-tailor`, `/tailor-cv`, LinkedIn review/drafts, standalone JD analysis/ranking, interview prep, offer/contract review, and local tracking/reports—execute independently with only the inputs needed for that task.
 
 ### 2. Universal Conversational Contract
@@ -87,6 +87,8 @@ At the start of every session, read `AGENTS.md` and `skills/REGISTRY.md` first. 
   - `skills/29-portfolio-builder-and-deployer.md` — Isolated personalized portfolio builder (`logs/portfolio/<slug>/`: Vanilla HTML/CSS/JS, Astro, Vite+React, Next.js), PII/secret gate & `APPROVE`-gated multi-CLI deployer (`/build-portfolio`)
   - `skills/30-portfolio-design-system-and-qa.md` — Agency-grade portfolio design system studio (`7` palettes + `Custom` WCAG AA tokens), pre-code `DESIGN_PLAN.md` + separated `portfolio-data`, 3-layer QA (`node --test`/isolated `vitest` + `375px`/`768px`/`1440px` -> `qa-report.md`), & 3-cycle Self-Healing Loop (`/portfolio-design`)
   - `skills/54-github-cli-remote-manager.md` — Model-agnostic no-clone GitHub CLI & REST/GraphQL remote operations (`gh api` Contents/Git Data atomic commits, repo topics/visibility/licenses, PR/issue/Actions ops & fresh read-back verification; `/github-remote`)
+  - `skills/55-freelance-profile-and-service-publisher.md` — Universal freelance profile auditor & SEO service/gig publisher with custom cover image generation, live browser fill, and `APPROVE PUBLISH` gate (`/freelance-service`)
+  - `skills/56-freelance-offer-radar-and-batch-bidder.md` — Global freelance offer radar (`Fit Score 0–100%`), concise IP-safe proposal drafter, `APPROVE <numbers>` human-paced batch bidder & `tracker/freelance-proposals.md` logger (`/freelance-bid`)
   - `skills/linkedin-growth.md` — Dual-Engine LinkedIn Recruiter Search (`0–100` SEO, multi-role skills, 3-stage funnel) & Feed Algorithm Strategist (Topical Authority, Dwell Time, Comment-First, Native Format Matrix, Anti-Myth & Anti-Pod; `/linkedin-growth`, `DRAFT_ONLY` + `APPROVE` gate)
   - `skills/profile-intelligence-engine.md` — Shared Profile Intelligence Engine (`/profile-update`, cross-platform profile audit, `schemas/profile-update-plan.schema.json`, `DRAFT_ONLY` consolidated diff, batch-fill & read-back verification)
   - `skills/platforms/b2b-contract-networks.md` — Curated B2B contract networks (Toptal, Braintrust, Lemon.io, Gun.io, Contra, Arc.dev, Turing)
