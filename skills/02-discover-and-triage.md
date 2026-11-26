@@ -42,6 +42,10 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
 
 ### Phase 1 — Multi-Source Search, Expand, Ghost-Check & Evidence-Backed Score (No Apply Clicks)
 
+0. **Proactive Browser MCP Pre-Flight Check (Before Opening Any Job Board):**
+   - Before attempting to open any job board or URL, inspect whether browser MCP tools are active (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`).
+   - **If browser MCP tools are missing or disabled:** Immediately notify the owner BEFORE starting with a crisp, 1-step setup box explaining how to enable `chrome_devtools` (or `playwright`) MCP in their IDE MCP settings so browsing and CV upload never stall mid-flow — AND immediately offer to continue seamlessly via public feeds, pasted JD text, or screenshots if they prefer to proceed right away.
+
 1. **Multi-Source Search & Capability Check (Never Assume LinkedIn Auth or Single Source):**
    - For `/daily-run`: read enabled targets in `context/targets.yaml` and their platform playbooks (`skills/platforms/*`).
    - For standalone requests (*"Find suitable remote React jobs"*, *"Find Full-Stack JavaScript jobs in Egypt"*): search across **multiple legitimate sources** permitted by active tools (`skills/platforms/remote-boards.md`, `skills/platforms/mena-boards.md`, `skills/platforms/global-boards.md`, `skills/platforms/wellfound.md`, `skills/platforms/linkedin.md`, plus public Greenhouse/Lever/Ashby endpoints)—never rely solely on LinkedIn or assume Playwright availability guarantees LinkedIn login/permission.
@@ -90,7 +94,8 @@ Show **ONLY genuinely eligible, high-fit roles** (Tier A and eligible Tier B tha
 
 Directly below the table, include a **1-line pre-filter exclusion summary** reporting how many ineligible roles were automatically filtered out and logged to `logs/skipped-jobs.json` (e.g., `Filtered out 6 ineligible jobs before Mission Control: 3 country-locked (EU/UK/US only), 2 unsupported language (German/French), 1 seniority mismatch (8+ yrs Staff).`).
 
-Ask: **"I evaluated N jobs, filtered out Z ineligible roles, and surfaced X 🟢 Ready + Y 🟡 Stretch eligible matches. Reply `APPLY ALL GREEN`, `APPLY 1,2`, or tell me which role to tailor/compare next before I open any form."**
+Always close the Mission Control briefing with a clear **Next-Step Guidance Box** so the owner knows the exact next command:
+> **الخطوة التالية (Next Step):** تم تقييم N وظيفة، واستبعاد Z وظيفة غير مؤهلة، وعرض X وظيفة 🟢 Ready وY وظيفة 🟡 Stretch. اختر رقم الوظيفة (مثلاً: **`ابدأ بـ 1`** أو **`APPLY 1`** أو **`APPLY ALL GREEN`**) لنجهّز لك الـ CV المفصّل بصيغة PDF ونملأ الاستمارة تلقائياً (مع التوقف قبل الإرسال للمراجعة النهائية و`APPROVE`).
 
 - Only open forms for valid Tier A/B rows explicitly chosen in `APPLY ALL GREEN` or `APPLY <numbers>`. Reject Tier C numbers. Record the owner's batch selection into the session checkpoint queue via `node ./bin/cli.mjs career run-enqueue --job-ids <csv> --batch-selection "<owner_reply>" [--json]` (`submission_authorized: false` — batch selection never authorizes final submission; every application still stops before Submit in `skills/04-fill-and-apply.md` for the Live DOM Read-Back Table and explicit per-job `APPROVE`).
 - If `workflow_mode: direct_auto` is explicitly set in `config/guardrails.yaml`, process one eligible job at a time while still expanding full JDs, filtering ghosts, and running `skills/04-fill-and-apply.md` before any Submit.

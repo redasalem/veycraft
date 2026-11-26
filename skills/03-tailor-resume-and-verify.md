@@ -118,3 +118,8 @@ When generating local HTML/PDF resumes, enforce these ATS + visual polish rules:
 Before generating the final tailored CV:
 1. **Comparison Summary:** Present a concise 3-part breakdown: **Matched Keywords**, **Verified Gaps** (never fabricated), and **Highlighted Strengths & Buyer Pain Alignment**.
 2. **Top-Third Priority Re-ordering:** Apply the **6–10 Second Recruiter Scan Hierarchy** (`skills/28` Step 3): ensure canonical target title alignment, Buyer Pain Point value proposition, and highest-proof domain competencies/deliverables sit in the top third of Page 1.
+
+### Stage-to-Stage Handoff After Tailoring
+Once `<Candidate-Name>-<Target-Role>.pdf` (and matching `.html`, `.txt`, `.doc`, `tailoring-notes.md`) passes post-write verification:
+1. **If the owner already selected this job to apply (`APPLY <n>` / `"ابدأ بـ <n>"`):** Proceed directly into non-submitting form preparation in `skills/04-fill-and-apply.md` (open form, upload the verified role-named PDF, fill verified fields, and stop before final Submit for the Live DOM Read-Back Table and explicit `APPROVE`).
+2. **If standalone tailoring (`/tailor-cv` or `/quick-tailor`):** Display a clear **Next-Step Handoff** showing the exact absolute PDF path (`logs/resumes/<folder>/<Candidate-Name>-<Target-Role>.pdf`) and explicitly ask: **"تم تجهيز الـ CV المفصّل بصيغة PDF — هل تريد أن أبدأ ملء استمارة التقديم الآن (مع التوقف قبل الإرسال للمراجعة و`APPROVE`) أم تعديل أي قسم في الـ CV أولاً؟"**

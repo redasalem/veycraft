@@ -42,6 +42,10 @@ Use for every internal Easy Apply modal and external ATS redirect (Greenhouse, L
 
 ## Deterministic Step-by-Step Execution
 
+### 0. Proactive Browser MCP Pre-Flight Check (Before Opening Any Form)
+- Before opening or filling any application form, verify whether browser MCP tools are enabled in the active session (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `fill`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`).
+- **If browser MCP tools are unavailable or disabled:** Stop before attempting broken clicks and immediately present a clear, 1-step setup guide showing how to enable `chrome_devtools` (`npx -y chrome-devtools-mcp@latest` or the Chrome DevTools plugin) or `playwright` MCP in IDE settings so autonomous navigation and CV upload work end-to-end — while also providing the ready-to-paste absolute path to `<Candidate-Name>-<Target-Role>.pdf` and verified answers (`skills/fallback-no-mcp.md`) if the owner prefers manual submission right now.
+
 ### 1. Redirect, Iframe & Portal Check
 - If clicking Apply opens a new tab, switch to it (`browser_tabs`), take a `browser_snapshot`, verify HTTPS hostname and that company + role match the original posting.
 - **Embedded ATS Iframes (e.g., Greenhouse `#grnhse_iframe`):** If the employer embeds the ATS inside an `<iframe>`, verify the frame tree in `browser_snapshot` and switch/target inside that frame (`skills/meta-dom-recovery.md`) before filling fields or uploading files.
