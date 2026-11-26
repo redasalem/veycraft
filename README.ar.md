@@ -2,26 +2,118 @@
 
 # Veycraft
 
-**عمليات مهنية أصيلة لوكلاء الذكاء الاصطناعي، تفصيل سيرة ذاتية موثّق بالحقائق، ومحرك ذكاء البروفايل داخل محرّر البرمجة الذي تستخدمه بالفعل.**
+**أداة CLI بصفر تبعيات، خادم MCP أصيل، و56 مهارة ذكاء اصطناعي للبحث عن الوظائف، العمل الحر العالمي، وإدارة مستودعات GitHub بدون `git clone` — داخل محرّر البرمجة الذي تستخدمه بالفعل.**
 
-[![Zero Core Dependencies](https://img.shields.io/badge/Core_CLI-0_NPM_Dependencies-2ea44f)](package.json)
-[![Node >= 18](https://img.shields.io/badge/Node-%3E%3D18-339933)](package.json)
-[![56 Markdown Skills](https://img.shields.io/badge/Skills-56_Markdown_Skills-167d60)](skills/REGISTRY.md)
-[![Cross-Platform](https://img.shields.io/badge/OS-Windows_%7C_macOS_%7C_Linux-0969da)](.github/workflows/validate-repo.yml)
+تُخفّض استهلاك التوكنز للمتصفح والسياق بنسبة **85%–95%** عبر المسار المحلي السريع بصفر توكنز (`brief`، `feed-scan`، مستخلص DOM الآمن، والتعبئة الفردية `batch-fill`) مع فرض **صفر خبرات مختلقة** و**بوابات موافقة بشرية صارمة (`APPROVE`)**.
+
+[![npm version](https://img.shields.io/npm/v/veycraft?color=cb3837&logo=npm)](https://www.npmjs.com/package/veycraft)
+[![npm downloads](https://img.shields.io/npm/dm/veycraft?color=0969da)](https://www.npmjs.com/package/veycraft)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-0_runtime_%2F_0_dev-2ea44f)](package.json)
+[![CI](https://github.com/redasalem/veycraft/actions/workflows/validate-repo.yml/badge.svg)](https://github.com/redasalem/veycraft/actions/workflows/validate-repo.yml)
+[![CodeQL](https://img.shields.io/badge/CodeQL-0_Open_Alerts-2ea44f)](https://github.com/redasalem/veycraft/security/code-scanning)
+[![56 Skills](https://img.shields.io/badge/Skills-56_Markdown_Skills-167d60)](skills/REGISTRY.md)
+[![8 MCP Tools](https://img.shields.io/badge/MCP-8_Read--Only_Tools-7c3aed)](mcp/README.md)
 [![MIT License](https://img.shields.io/badge/License-MIT-2ea44f)](LICENSE)
 [![Veycraft MCP server](https://glama.ai/mcp/servers/redasalem/veycraft/badges/score.svg)](https://glama.ai/mcp/servers/redasalem/veycraft)
 
-**[معاينة تفاعلية ↗](https://redasalem.github.io/veycraft/)** · **[البداية السريعة](#البداية-السريعة)** · **[توجيه وكلاء الذكاء الاصطناعي](#تثبيت-وتشغيل-Veycraft-عبر-وكلاء-الذكاء-الاصطناعي)** · **[مرجع CLI](#أوامر-cli)** · **[التحديث والإزالة](#التحديث-والإزالة)** · **[English](README.md)**
+**[الحزمة على npm ↗](https://www.npmjs.com/package/veycraft)** · **[معاينة تفاعلية ↗](https://redasalem.github.io/veycraft/)** · **[التشغيل في 60 ثانية](#التشغيل-في-60-ثانية)** · **[كيف يعمل](#كيف-يعمل)** · **[3 مسارات عملية](#3-مسارات-عمل-واقعية-للمطورين)** · **[ملخص الأوامر](#ملخص-أوامر-cli-والمسارات)** · **[الأمان والخصوصية](#ضمانات-الأمان-والخصوصية)** · **[English](README.md)**
 
-> *(سابقًا `job-hunter-os` — تحويلات GitHub التلقائية ومجلدات `~/.job-hunter-os` السابقة وأوامر `job-hunter` و`job-hunter-os` ما زالت مدعومة بالكامل دون فقدان أي بيانات.)*
+> *(سابقًا `job-hunter-os` — تحويلات GitHub، ومجلدات `~/.job-hunter-os` القديمة، وأوامر `job-hunter` و`job-hunter-os` ما زالت مدعومة بالكامل.)*
 
-- **صفر خبرات مختلقة:** كل رقم ومهارة وشركة وتاريخ يرتبط بحقائق مؤكدة من ملفك المحلي فقط، مع عزل المتطلبات غير المؤكدة في **الفجوات الحقيقية (`True Gaps`)**.
-- **صفر إرسال أعمى:** وضع `dry_run: true` مفعّل افتراضيًا، وأي تقديم حي أو حفظ بروفايل أو نشر منشور أو بورتفوليو يتطلب موافقة بشرية صريحة (`APPROVE`).
-- **صفر تبعيات npm:** أداة CLI مبنية بـ Node.js القياسي فقط (`>= 18.0.0`، `dependencies: {}`, `devDependencies: {}`) مع **56 مهارة Markdown محمولة (`agentskills.io`)** دون مفاتيح API خارجية أو خوادم سحابية.
+![عرض طرفية متحرك لأداة Veycraft v2.8.2: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
-جميع الأسماء والشركات والأرقام في المعاينة أدناه هي بيانات عرض اصطناعية من [`evals/fixtures/`](evals/fixtures/candidate-profile.md):
+---
 
-![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.8.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+## التشغيل في 60 ثانية
+
+يتطلب **Node.js `>= 18.0.0`** (Windows وmacOS وLinux · `0` تبعيات تشغيل / `0` تبعيات تطوير · Playwright وNotion MCP اختياريان تمامًا).
+
+<div dir="ltr" align="left">
+
+```bash
+# 1. تهيئة مساحة العمل وربط محرّر الذكاء الاصطناعي بأمان دون حذف إعداداتك
+npx veycraft init
+
+# 2. معالج الإعداد في 60 ثانية (ينشئ ملخص context/brief.json بأقل من 400 توكن)
+npx veycraft onboard
+
+# 3. مسح خلاصات الوظائف والفريلانس (RSS/JSON) محليًا بصفر توكنز للـ LLM
+npx veycraft feed-scan --all
+```
+
+</div>
+
+لتشغيل الواجهة المحلية للقراءة فقط (`127.0.0.1`) أو ربط خادم MCP الأصيل ذي الـ 8 أدوات بأمر واحد:
+
+<div dir="ltr" align="left">
+
+```bash
+npx veycraft ui                          # واجهة ويب محلية من 5 تبويبات (Kanban، التحليلات، الاستوديو، 56 مهارة)
+npx veycraft sync-mcp --with-veycraft    # ربط خادم Veycraft MCP مع نسخ احتياطية .veycraft.bak تلقائيًا
+```
+
+</div>
+
+<details>
+<summary>خيارات التثبيت البديلة (تثبيت عالمي، GitHub، الاستنساخ المصدري، ومسارات البيانات)</summary>
+
+<div dir="ltr" align="left">
+
+```bash
+# تثبيت عالمي من npm
+npm install -g veycraft
+veycraft init --global && veycraft doctor --global
+
+# أحدث نسخة من فرع main على GitHub
+npx --yes github:redasalem/veycraft doctor
+
+# تشغيل مباشر من المصدر (بدون خطوة build)
+git clone https://github.com/redasalem/veycraft.git && cd veycraft
+node bin/cli.mjs doctor
+```
+
+</div>
+
+سكربتات التثبيت القابلة للفحص (`--dry-run` / `--uninstall`): [`scripts/install.sh`](scripts/install.sh) (macOS/Linux) و[`scripts/install.ps1`](scripts/install.ps1) (Windows PowerShell).
+
+| البيئة | المسار الافتراضي لبيانات المستخدم (محفوظة عند التحديث) |
+|---|---|
+| **Windows (PowerShell / CMD)** | `%USERPROFILE%\.veycraft` (يحتفظ بـ `%USERPROFILE%\.job-hunter-os`) |
+| **macOS** | `~/.veycraft` (يحتفظ بـ `~/.job-hunter-os`) |
+| **Linux** | `~/.veycraft` أو `$XDG_DATA_HOME/veycraft` |
+| **مسار مخصص / الوضع المحلي** | `VEYCRAFT_HOME=/custom/path` أو المجلد الحالي عبر `veycraft init` |
+
+</details>
+
+---
+
+## كيف يعمل
+
+ينفّذ Veycraft عمليات القراءة ومنع التكرار وتحليل الخلاصات المحمي ضد SSRF واستخراج DOM محليًا بـ Node.js الصافي حتى يستهلك نموذج الذكاء الاصطناعي التوكنز **في التقييم والتفصيل والكتابة الموثّقة فقط**:
+
+<div dir="ltr" align="left">
+
+```mermaid
+flowchart LR
+    L0["Layer 0 · Zero-Token CLI<br/>veycraft brief (&lt;400 tok)<br/>veycraft feed-scan --all"] --> L1["Layer 1 · Safe DOM Distiller<br/>browser-script distill-feed / distill-form<br/>(&lt;600 tok · honeypot + CAPTCHA guard)"]
+    L1 --> L2["Layer 2 · Any AI Agent<br/>Scores, tailors &amp; drafts from verified facts<br/>(0 hallucinations · True Gaps isolated)"]
+    L2 --> L3["Layer 3 · Single-Shot Fill + Gate<br/>browser-script batch-fill (never submits)<br/>Live Read-Back → Human APPROVE Gate"]
+```
+
+</div>
+
+### مقارنة استهلاك التوكنز (قبل وبعد)
+
+*قياسات محلية على بيانات الاختبار وملفات مساحة العمل داخل المستودع (مقارنة محلية توضيحية وليست معيارًا خارجيًا):*
+
+| مرحلة العمل | الأسلوب التقليدي لوكلاء المتصفح | المسار السريع في Veycraft | نسبة التوفير المقاسة |
+|---|---|---|---|
+| **تحميل سياق المرشّح المتكرر** | إعادة قراءة `cv.md` + `profile.md` + `github-projects.md` (`~3,500–5,500` توكن/دورة) | ملخص `context/brief.json` خالٍ من PII عبر `veycraft brief` (`< 400` توكن، `<= 1,550` بايت) | **توفير ~86%–92%** |
+| **اكتشاف وفرز فرص الوظائف والفريلانس** | قراءة شجرة `browser_snapshot` كاملة لعدة صفحات (`~25,000–40,000` توكن/مسح) | رادار `veycraft feed-scan --all` محليًا (`~150` توكن/فرصة + تقرير `logs/radar/YYYY-MM-DD.md`) | **توفير ~90%–95%** |
+| **فحص وتعبئة النماذج متعددة الحقول** | شجرة DOM كاملة + تعبئة حقل بحقل (`~15,000–25,000` توكن/نموذج) | `browser-script distill-form` + تعبئة موحدة `batch-fill` (`~600–1,200` توكن/نموذج، `0` إرسال) | **توفير ~85%–93%** |
+
+<details>
+<summary>مثال تفصيل موثّق بالحقائق (من بيانات العرض الاصطناعية <code>evals/fixtures/candidate-profile.md</code>)</summary>
 
 <div dir="ltr" align="left">
 
@@ -36,83 +128,77 @@
 
 </div>
 
+</details>
+
 ---
 
-## البداية السريعة
+## 3 مسارات عمل واقعية للمطورين
 
-يتطلب **Node.js `>= 18.0.0`** (Windows PowerShell/CMD وmacOS وLinux؛ **0 تبعيات تشغيل / 0 تبعيات تطوير**؛ Playwright وNotion MCP اختياريان تمامًا).
+### 1. البحث عن الوظائف وتفصيل الـ CV لـ ATS بصدق
+- **الأوامر:** `npx veycraft feed-scan --all` · `/quick-tailor` · `/tailor-cv` · `/apply-url <url>` · `/daily-run`
+- يمسح الخلاصات محليًا بتقييم `Fit Score (0–100)`، ويُنتج سيرة ذاتية أحادية العمود (`HTML` + `TXT` + `.doc` متوافق مع Word بدون تزوير `.docx`) مع **خريطة أدلة** ومقارنة كلمات ATS وعزل المهارات الناقصة في **`True Gaps`**، ثم يتوقف عند جدول قراءة DOM الحي بانتظار موافقة بشرية صريحة `APPROVE`.
 
-<div dir="ltr" align="left">
+### 2. العمل الحر العالمي عبر المتصفح الحقيقي
+- **الأوامر:** `/freelance-service` ([المهارة 55](skills/55-freelance-profile-and-service-publisher.md)) · `/freelance-bid` ([المهارة 56](skills/56-freelance-offer-radar-and-batch-bidder.md))
+- يعمل عبر **Upwork وFiverr وFreelancer وMalt ومستقل وخمسات** أو أي منصة مخصصة: يكتب باقات خدمات محسّنة لـ SEO مع صورة غلاف مخصصة مبنية على `context/cv.md` و`context/github-projects.md`، ويصفّي المشاريع المفتوحة حسب المهارات والميزانية وجودة العميل، ويصيغ عروضًا موجزة تحفظ ملكيتك الفكرية مع تسجيلها في `tracker/freelance-proposals.md` (معزول عن Git)، ولا ينشر أو يقدّم إلا بعد **`APPROVE PUBLISH`** أو **`APPROVE <numbers>`**.
 
-```bash
-# الخطوة 1 — تشغيل فوري أو تثبيت عالمي عبر npm
-npx --yes veycraft doctor        # أو: npm install -g veycraft
+### 3. إدارة مستودعات GitHub عن بُعد بدون `git clone`
+- **الأوامر:** `/github-remote` ([المهارة 54](skills/54-github-cli-remote-manager.md)) · `/github-audit` ([المهارة 11](skills/11-portfolio-and-github-auditor.md))
+- يتصفح بنية المستودعات، ويعدّل الملفات عبر REST Contents API، وينفّذ commits ذرّية متعددة الملفات عبر Git Data API، ويحدّث المواضيع والإعدادات والـ PRs وActions عبر `gh` CLI دون الحاجة لاستنساخ محلي، ويستخرج مشاريع موثّقة بالكود إلى `context/github-projects.md`.
 
-# الخطوة 2 — ربط محرّر الذكاء الاصطناعي بأمان دون حذف قواعدك (~/.veycraft)
-veycraft init --global
+*مسارات مستقلة إضافية (لا تفرض `/setup`):* **`/demo`** (محاكاة 15 ثانية) · **`/profile-update`** · **`/linkedin-growth`** · **`/build-portfolio`** · **`/portfolio-design`** · **`/weekly-report`** — راجع [`docs/SKILL_CATALOG.md`](docs/SKILL_CATALOG.md) و[`docs/chat-commands.md`](docs/chat-commands.md).
 
-# الخطوة 3 — شغّل الواجهة المحلية للقراءة فقط (127.0.0.1) أو افحص سيرتك محليًا
-npx --yes veycraft ui            # واجهة ويب محلية من 5 تبويبات (Kanban، التحليلات، الاستوديو، 56 مهارة)
-veycraft audit ./resume.docx --share
-```
+---
 
-</div>
+## ملخص أوامر CLI والمسارات
 
-داخل محرّر الذكاء الاصطناعي، ابدأ فورًا بـ:
-- **`/demo`** — محاكاة اصطناعية في 15 ثانية ([`examples/sandbox-demo/`](examples/sandbox-demo/sample-jds.md)) دون أي بيانات شخصية أو تسجيل دخول.
-- **`/quick-tailor`** — تفصيل سيرتك لوظيفة واحدة (`HTML / TXT / .doc` متوافق مع Word + `True Gaps`) بدون متصفح.
-- **`/profile-update`** · **`/github-audit`** · **`/build-portfolio`** · **`/portfolio-design`** · **`/linkedin-growth`** — مسارات مستقلة للبروفايل وGitHub وبناء/تصميم البورتفوليو ونمو لينكدإن.
-- **`/setup` ← `/daily-run`** — النظام الكامل الاختياري عند الحاجة لأتمتة المتصفح وتجهيز التقديمات.
+الأدلة الكاملة: **[فهرس الـ 56 مهارة](docs/SKILL_CATALOG.md)** · **[أوامر المحادثة](docs/chat-commands.md)** · **[دليل خادم MCP](mcp/README.md)**
+
+| الأمر | الوظيفة |
+|---|---|
+| `veycraft init [--global] [--ide <name>]` | تهيئة مساحة العمل (`~/.veycraft` أو محليًا) وربط مهارات المحررات وMCP بأمان |
+| `veycraft onboard [--non-interactive \| --stdin]` | معالج إعداد في 60 ثانية ينشئ ملفات `context/` وملخص `context/brief.json` (`< 400` توكن) |
+| `veycraft brief [--refresh] [--json]` | بناء/قراءة ملخص المرشّح الخالي من PII مع كاش ذكي عبر `mtimeMs + sha256` |
+| `veycraft feed-scan --all [--json]` | مسح خلاصات RSS/Atom/JSON (`حد أقصى 4` متزامنة، محمي من SSRF) ← `logs/radar/YYYY-MM-DD.md` |
+| `veycraft browser-script distill-feed\|distill-form\|batch-fill` | توليد سكربتات استخراج DOM أو تعبئة نماذج موحدة آمنة بلا أي إرسال تلقائي |
+| `veycraft ui [--port <n>] [--no-open]` | تشغيل الواجهة المحلية للقراءة فقط على `127.0.0.1` (الجاهزية، Kanban، التحليلات، الاستوديو، 56 مهارة) |
+| `veycraft mcp [--global]` | تشغيل خادم MCP أصيل عبر `stdio` (`8` أدوات قراءة فقط بلا شبكة + موارد `veycraft://`) |
+| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 56 مهارة والبوابات الـ 5 وخطاف الخصوصية وإعدادات MCP |
+| `veycraft eval [--baseline \| --journeys]` | تشغيل اختبارات التقييم الحتمية (`20/20`) ومصفوفة الرحلات (`132/132`) |
+| `veycraft route` / `audit` / `verify` / `pre-submit` | توجيه الطلبات الطبيعية، تدقيق الـ CV محليًا، التحقق من المخرجات، وفرض الحدود ومنع الكليشيهات |
 
 <details>
-<summary>خيارات التثبيت البديلة (أحدث نسخة من GitHub، الاستنساخ المصدري، سكربتات التثبيت، ومسارات البيانات)</summary>
+<summary>الأوامر المتقدمة (محرك الجلسات، السجل الذرّي، مزامنة Notion، والصيانة)</summary>
 
-<div dir="ltr" align="left">
-
-```bash
-# أحدث نسخة من فرع main مباشرة عبر GitHub
-npx --yes github:redasalem/veycraft doctor
-npm install -g github:redasalem/veycraft
-
-# للمطورين والمساهمين (تشغيل مباشر من المصدر بلا خطوة build)
-git clone https://github.com/redasalem/veycraft.git && cd veycraft
-node bin/cli.mjs doctor
-npm link   # اختياري لربط الأمر محليًا
-```
-
-</div>
-
-تتوفر سكربتات تثبيت قابلة للفحص (`--dry-run` / `--uninstall`) في [`scripts/install.sh`](scripts/install.sh) لأنظمة macOS/Linux و[`scripts/install.ps1`](scripts/install.ps1) لـ Windows PowerShell — افحص السكربت دائمًا قبل تشغيله.
-
-| البيئة | المسار الافتراضي لبيانات المستخدم (محفوظة عند التحديث) |
+| الأمر | الوظيفة |
 |---|---|
-| **Windows (PowerShell / CMD)** | `%USERPROFILE%\.veycraft` (يحتفظ تلقائيًا بأي مجلد سابق في `%USERPROFILE%\.job-hunter-os`) |
-| **macOS** | `~/.veycraft` (يحتفظ تلقائيًا بأي مجلد سابق في `~/.job-hunter-os`) |
-| **Linux** | `~/.veycraft`، أو `$XDG_DATA_HOME/veycraft` عند ضبط `XDG_DATA_HOME` |
-| **مسار مخصص / الوضع المحلي** | `VEYCRAFT_HOME=/custom/path` أو المجلد الحالي عبر `veycraft init` (`.veycraft-install.json`) |
+| `veycraft career summary\|analytics\|dashboard\|next [--json]` | ملخص التقديمات، تحليلات `MIN_N = 5`، لوحة Kanban HTML محلية، وقائمة الأولويات |
+| `veycraft career run-start\|run-triage\|run-enqueue\|prepare\|run-checkpoint\|run-resume\|run-finish` | محرك الجلسة اليومية وفرز `Tier A/B/C` وطابور الموافقة المرحلية ونقاط الحفظ |
+| `veycraft career record\|reserve\|confirm-submit\|transition\|skip\|cv-register` | تعديلات ذرّية محمية بقفل (`logs/.ledger.lock`) على السجل وإصدارات الـ CV |
+| `veycraft career sync <preview\|status\|verify-schema\|approve\|mark-in-flight\|apply-receipt\|reconcile>` | مزامنة أحادية الاتجاه إلى Notion بقاطع أمان حي (`--plan-hash` + صلاحية 24 ساعة؛ بلا كتابة خارجية من CLI) |
+| `veycraft sync-mcp [--with-veycraft] [--dry-run]` / `status` / `proof` / `bundle` / `backup` / `update` | مزامنة MCP (مع نسخ `.veycraft.bak`)، فحص الحدود، توليد بطاقة الإثبات، النسخ الاحتياطي، أو التحديث الموقّع بـ SSH |
+
+*(الأسماء البديلة القديمة `job-hunter` و`job-hunter-os` تعمل بنفس الكفاءة. ضع `--global` قبل `career` عند استخدام الأوامر الفرعية مثل `veycraft --global career sync status`.)*
 
 </details>
 
 ---
 
-## تثبيت وتشغيل Veycraft عبر وكلاء الذكاء الاصطناعي
+## يعمل مع كل وكلاء البرمجة بالذكاء الاصطناعي
 
-يدعم Veycraft بشكل أصيل **OpenAI Codex CLI** و**Claude Code** و**Gemini CLI** و**GitHub Copilot / VS Code** و**Cursor** و**Windsurf** و**Antigravity** و**Devin Desktop** و**Cline** و**Roo Code** و**OpenCode** و**AWS Kiro** و**JetBrains Junie** و**Zed** و**Goose** و**Aider** (راجع [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) و[`docs/chat-commands.md`](docs/chat-commands.md)).
+**Claude Code** · **Gemini CLI** · **OpenAI Codex CLI** · **Cursor** · **Windsurf** · **GitHub Copilot / VS Code** · **Antigravity** · **خوادم MCP** *(بالإضافة إلى Devin Desktop وCline وRoo Code وOpenCode وAWS Kiro وJetBrains Junie وZed وGoose وAider — [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md))*
 
 <div dir="ltr" align="left">
 
-```text
-Install Veycraft, verify it with `veycraft doctor --json`, explain available capabilities,
-and prepare it for this workspace. Do not modify personal data or perform live external
-actions without explicit approval.
+```bash
+# اكتشاف برمجي منظم عبر JSON (صفر تعديلات على الملفات، صفر شبكة)
+veycraft --version --json && veycraft doctor --json && veycraft route "scan freelance bids" --json
 ```
 
 </div>
 
-**اكتشاف برمجي منظم للوكلاء (`JSON`):** الأوامر `veycraft --version --json` و`veycraft doctor --json` و`veycraft status --json` و`veycraft route "<request>" --json` تعيد JSON منظمًا دون تعديل ملفات شخصية أو تنفيذ أي إجراءات خارجية. كما يوفّر `npx -y veycraft mcp` خادم MCP محليًا أصيلًا عبر `stdio` بصفر تبعيات يضم 8 أدوات قراءة فقط بلا شبكة وموارد `veycraft://` المسموحة ([`mcp/README.md`](mcp/README.md))، ويمكن معاينة ربطه أو تفعيله بأمر واحد عبر `veycraft sync-mcp --with-veycraft --dry-run` (مع نسخ احتياطية `.veycraft.bak` تلقائية عند التطبيق).
-
 <details>
-<summary>ربط أداة ذكاء اصطناعي محددة فقط (خيارات <code>--ide</code>)</summary>
+<summary>ربط محرّر محدد (خيارات <code>--ide</code> وإعداد MCP اليدوي)</summary>
 
 <div dir="ltr" align="left">
 
@@ -126,110 +212,52 @@ veycraft init --global --ide windsurf    # ~/.windsurf/rules/ + workflows + mcp_
 veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflows + mcp_config.json
 ```
 
+```json
+{ "mcpServers": { "veycraft": { "command": "npx", "args": ["-y", "veycraft", "mcp"] } } }
+```
+
 </div>
 
 </details>
 
 ---
 
-## القدرات الأساسية
+## ضمانات الأمان والخصوصية
 
-| القدرة | الأمر / التفعيل | أبرز المزايا |
-|---|---|---|
-| **تفصيل سيرة ذاتية موثّق** | `/quick-tailor` أو `/tailor-cv` أو طلب طبيعي | `HTML + TXT + .doc` متوافق مع Word (بدون تزوير `.docx`)، خريطة أدلة، مقارنة كلمات ATS، عزل `True Gaps`، والحفاظ على الملف الأصلي |
-| **محرك ذكاء البروفايل** | `/profile-update` أو *"حسّن ملفي المهني"* | تدقيق من 7 معايير عبر `linkedin` و`wellfound` و`ats` و`job_boards` و`portfolio` ووضع `generic` الاحتياطي، وخطة `DRAFT_ONLY` (`add`/`replace` فقط) والتحقق بالقراءة بعد الحفظ |
-| **تدقيق GitHub واستخراج مشاريع CV** | `/github-audit` أو *"دقّق مستودعات GitHub"* | فحص شامل عبر `gh` CLI، واستخراج مشاريع موثّقة إلى `context/github-projects.md`، وتحسين الـ README بوضع `DRAFT_ONLY`، وتنظيف متدرّج (`private`/`archive` ثم بوابة `DELETE <owner>/<repo>`) |
-| **بناء ونشر موقع البورتفوليو** | `/build-portfolio` أو *"ابنِ موقع بورتفوليو لي"* | بناء معزول داخل `logs/portfolio/<slug>/` (`HTML/CSS/JS` أو `Astro` أو `Vite+React` أو `Next.js`)، فحص الخصوصية والأسرار، معاينة `LOCAL_PREVIEW_ONLY`، ونشر مشروط بـ `APPROVE` عبر `vercel`/`wrangler`/`netlify`/`gh`/`firebase`/`surge` أو البديل الذكي |
-| **استوديو تصميم واختبار البورتفوليو** | `/portfolio-design` أو *"صمّم ألوان واختبر البورتفوليو"* | مخطط `DESIGN_PLAN.md` + فصل `portfolio-data`، 7 لوحات ألوان احترافية + `Custom` بمعيار `WCAG 2.1 AA` (`tokens.css` وخطوط عربية RTL)، 3 طبقات QA (`node --test`/`vitest` معزول + `375px`/`768px`/`1440px` ← `qa-report.md`)، وإصلاح ذاتي حتى 3 دورات |
-| **نمو وSEO لينكدإن** | `/linkedin-growth` | محرك مزدوج لبروز البحث أمام مسؤولي التوظيف (`0–100`، ربط المهارات بالأدوار، قمع التحويل) وخوارزمية الخلاصة (المرجعية الموضوعية، `Comment-First`، مصفوفة الصيغ، منع الخرافات والـ Pods) بوضع `DRAFT_ONLY` ثم `APPROVE` وتواصل `<= 75` كلمة |
-| **اكتشاف متعدد المصادر وتجهيز ATS** | `/daily-run` أو `/apply-url <url>` | LinkedIn وWellfound وIndeed وGlassdoor وGreenhouse وLever وAshby وWorkday وSmartRecruiters وبوابات الشرق الأوسط وشبكات B2B ([`skills/platforms/b2b-contract-networks.md`](skills/platforms/b2b-contract-networks.md)) أو أي رابط وظيفة HTTPS |
-| **المقابلات والعروض والعقود** | طلب باللغة الطبيعية | `interview-dossier.md`، خطط اختبارات تقنية، مسودات تفاوض راتب، وتدقيق بنود عقود وNDA من 6 فئات |
-| **وضع العمل المحلي الكامل** | `veycraft bundle` / مصفوفة البدائل `A–E` | يعمل 100% محليًا بدون Playwright أو Notion مع بدائل جاهزة للنسخ وسجلات JSON محلية |
+يفصل Veycraft بوضوح بين **الإنفاذ الحتمي في الكود** و**قواعد عمل الوكيل** ([`docs/execution-safety.md`](docs/execution-safety.md) · [`SECURITY.md`](SECURITY.md)):
 
----
-
-## أوامر CLI
-
-الأسماء البديلة القديمة `job-hunter` و`job-hunter-os` تشير لنفس الملف التنفيذي `bin/cli.mjs` حفاظًا على التوافق العكسي.
-
-| الأمر | الوظيفة |
-|---|---|
-| `veycraft --help` / `--version [--json]` | عرض دليل الاستخدام (قراءة فقط) أو الإصدار وبيانات الأصل |
-| `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 56 مهارة والبوابات الـ 5 وحداثة الكتيبات وخطاف الخصوصية وإعدادات MCP |
-| `veycraft init [--global] [--force] [--ide <name>]` | تهيئة `~/.veycraft` (أو المجلد الحالي) وربط مهارات المحررات ومزامنة MCP دون حذف القواعد القائمة |
-| `veycraft route "<request>" [--json]` | توجيه أي طلب طبيعي (عربي أو إنجليزي) لأقل مجموعة مهارات مناسبة مع البديل الآمن |
-| `veycraft audit <cv.md\|txt\|docx\|html\|doc> [--share]` | فحص محلي للسيرة الذاتية وكشف `.docx` المزيف والـ PDF المصوّر وروابط SSRF وإنتاج بطاقة خالية من PII |
-| `veycraft verify <dir\|file> [--facts <json\|md>]` | التحقق بعد الكتابة من المخرجات وسجلات التقديم ونقاط حفظ الجلسة وإصدارات الـ CV وخطط Notion و`Profile Update Plan` |
-| `veycraft career summary\|analytics\|dashboard\|next [--json]` | ملخص التقديمات، تحليلات حتمية (`MIN_N = 5`)، لوحة Kanban HTML محلية للقراءة فقط، وقائمة الأولويات |
-| `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | واجهة ويب محلية للقراءة فقط على `127.0.0.1` بلا شبكة (الجاهزية، Kanban، التحليلات، استوديو الفحص بالذاكرة، و56 مهارة) |
-| `veycraft mcp [--global]` | خادم MCP محلي أصيل عبر `stdio` بصفر تبعيات (8 أدوات قراءة فقط بلا شبكة + موارد `veycraft://` — [`mcp/README.md`](mcp/README.md)) |
-| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`132/132` |
-
-<details>
-<summary>مرجع CLI المتقدم (محرك الجلسات، السجل الذرّي المحمي بقفل، مزامنة Notion، والصيانة)</summary>
-
-| الأمر | الوظيفة |
-|---|---|
-| `veycraft career run-start\|run-triage\|run-enqueue\|prepare\|run-checkpoint\|run-resume\|run-finish [--help]` | محرك الجلسة اليومية ونقاط الحفظ وفرز `Tier A/B/C` وطابور الموافقة المرحلية (`submission_authorized: false`) والتحقق من حزمة التقديم |
-| `veycraft career record\|reserve\|confirm-submit\|transition\|skip\|cv-register [--help]` | كتابة ذرّية محمية بقفل (`logs/.ledger.lock`) لسجل التقديمات والمستبعدات وإصدارات الـ CV (+ `lock-status` و`release-stale-lock` و`recover-tx`) |
-| `veycraft career migrate [--dry-run \| --apply]` / `cv-versions [--json]` | ترقية آمنة مع نسخة احتياطية إلى مخطط `v2.0` (`--dry-run` افتراضيًا) وسجل إصدارات السيرة للمالك (مع عزل ملفات الغير) |
-| `veycraft career sync <subcommand> [--help]` | محرك مزامنة أحادي الاتجاه إلى Notion (`preview`، `status`، `verify-schema`، `approve`، `mark-in-flight`، `apply-receipt`، `record-failure`، `expire-stale`، `reconcile`، `reset-permanent`، `release-stale-lock`) بلا كتابة خارجية من الـ CLI |
-| `veycraft status [--global] [--json]` | عرض حالة البوابات والحد اليومي وملخص التقديمات |
-| `veycraft proof` / `dashboard [--global] [--no-open]` / `bundle` | توليد بطاقة الإثبات، فتح لوحة Kanban الكلاسيكية، أو تصدير برومبت ويب شات موحد |
-| `veycraft sync-mcp [--with-veycraft] [--dry-run]` / `login` / `unlock` / `backup` / `update` | مزامنة MCP (مع نسخ `.veycraft.bak` احتياطية)، فتح متصفح دائم، إزالة الأقفال العالقة، النسخ الاحتياطي الشامل، أو التحديث الموقّع بـ SSH |
-
-*(ملاحظة: عند تمرير `--global` أو `-g` مع أوامر `career` مثل `career sync` أو `career record` أو `career next`، ضعه قبل `career`، مثلًا: `veycraft --global career sync status`.)*
-
-</details>
-
----
-
-## الخصوصية والأمان وبوابات الموافقة
-
-يفصل Veycraft بوضوح بين **الفحوصات الحتمية في الكود** و**قواعد عمل الوكيل** ([`docs/execution-safety.md`](docs/execution-safety.md) · [`ACCEPTANCE.md`](ACCEPTANCE.md)):
-
-- **ضوابط CLI الحتمية:** فرض صلاحيات المنصات، التحقق من الحقائق والكليشيهات والمخططات (`verify`، `audit`، `pre-submit`)، كتابة ذرّية محمية بقفل، مزامنة Notion أحادية الاتجاه بقاطع أمان حي وتوقيع `--plan-hash` وصلاحية 24 ساعة، خطاف `.git/hooks/pre-commit` لمنع تسريب PII، والتحديث الموقّع بـ SSH.
-- **بوابات الوكيل:** الحماية من حقن الأوامر في صفحات الويب، قاعدة رفع الـ CV أولًا، جدول قراءة DOM الحي، وضع `DRAFT_ONLY` افتراضيًا، قاطع الحماية 24 ساعة، وموافقة بشرية صريحة (`APPROVE`) قبل أي إرسال أو حفظ.
-- **صفر تسريب للبيانات الخاصة:** مجلدات `context/*` (عدا `*.example`) و`logs/` و`*.pdf` و`browser-profile/` و`.env` محجوبة عن Git ومستبعدة تمامًا من حزمة npm (`npm run pack:check`).
+- **0 / 0 تبعيات npm:** مبني بمكتبة Node.js القياسية فقط (`dependencies: {}`, `devDependencies: {}`) دون خوادم سحابية أو مفاتيح API خارجية.
+- **واجهة ويب محلية على `127.0.0.1` فقط:** لوحة قراءة فقط محمية بسياسات CSP صارمة وفحص `Host`/`Origin` دون أي طلبات خارجية.
+- **خادم MCP خالٍ من PII بـ 8 أدوات قراءة فقط:** اتصال `stdio` محلي بالكامل (`veycraft_doctor`، `veycraft_route`، `veycraft_audit`، `veycraft_verify`، `veycraft_pre_submit`، `veycraft_career_summary`، `veycraft_career_next`، `veycraft_get_skill`) وموارد `veycraft://` المسموحة.
+- **حماية SSRF مع تثبيت DNS (`SEC-01`) ومحلات محصّنة (`SEC-03`/`SEC-04`):** كل طلب وإعادة توجيه في `feed-scan` يفحص عناوين IP المحلولة ضد الشبكات الداخلية مع حد أقصى للحجم، مع حماية صارمة لـ ZIP/DOCX ومسارات العمل.
+- **الدفاع ضد حقن الأوامر وحقول الفخ (Honeypot):** تنقية أوصاف الوظائف وعروض الفريلانس من محارف BiDi/Unicode الخفية ومعاملتها كـ `UNTRUSTED_EXTERNAL_DATA` مع عزل حقول الـ honeypot وتركها فارغة تمامًا.
+- **عزل صارم في Git وحزم npm:** مجلدات `context/*` (عدا `*.example`) و`logs/` و`logs/radar/` و`tracker/` و`*.pdf` و`browser-profile/` و`.env` محجوبة بـ `.gitignore` وخطاف `.git/hooks/pre-commit` وفحص `npm run pack:check`.
+- **بوابات موافقة بشرية غير مشروطة (`APPROVE`):** وضع `dry_run: true` افتراضي، وأداة `batch-fill` لا تستدعي `.submit()` ولا تضغط Submit/Publish أبدًا، وكل إجراء حي ينتظر موافقة بشرية صريحة (`APPROVE` / `APPROVE PUBLISH` / `APPROVE <numbers>`).
 
 ![بطاقة الإثبات القابلة لإعادة الإنتاج لمشروع Veycraft](assets/proof-card.svg)
 
 ---
 
-## التحديث والإزالة
+## التحديث والإزالة والتطوير
 
-التحديث أو إزالة أداة CLI **لا يحذف ولا يستبدل أبدًا** ملفاتك الخاصة في `context/` أو `logs/` أو `config/guardrails.yaml` أو `browser-profile/`.
+التحديث أو إزالة أداة CLI **لا يحذف ولا يستبدل أبدًا** ملفاتك الخاصة في `context/` أو `logs/` أو `tracker/` أو `config/guardrails.yaml` أو `browser-profile/`.
 
 <div dir="ltr" align="left">
 
 ```bash
-# تحديث الأداة عالميًا وتحديث المهارات وروابط المحررات بأمان
+# تحديث الأداة عالميًا وتحديث المهارات بأمان
 npm update -g veycraft && veycraft update --global
 
-# إزالة الأمر العالمي فقط (تبقى بياناتك في ~/.veycraft سليمة)
+# إزالة الأداة العالمية فقط (تبقى بياناتك في ~/.veycraft سليمة)
 npm uninstall -g veycraft
-# اختياري لمسح البيانات نهائيًا: rm -rf ~/.veycraft  (Windows: Remove-Item -Recurse -Force "$HOME\.veycraft")
+
+# تشغيل كامل اختبارات التحقق (20/20 تقييم · 132/132 رحلة · 116/116 اختبار وحدة)
+npm run prepublishOnly && node --test evals/*.test.mjs
 ```
 
 </div>
 
----
-
-## التطوير والاختبار والمساهمة
-
-<div dir="ltr" align="left">
-
-```bash
-git clone https://github.com/redasalem/veycraft.git && cd veycraft
-npm test             # eval --baseline (20/20) و live-agent-eval-run (20/20) و eval --journeys (116/116)
-npm run pack:check   # التحقق من محتويات حزمة npm وخلوها من أي ملفات خاصة
-node bin/cli.mjs doctor
-```
-
-</div>
-
-- **فهرس الوثائق:** [`AGENTS.md`](AGENTS.md) · [`skills/REGISTRY.md`](skills/REGISTRY.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/SKILL_CATALOG.md`](docs/SKILL_CATALOG.md) · [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) · [`docs/chat-commands.md`](docs/chat-commands.md) · [`docs/execution-safety.md`](docs/execution-safety.md) · [`ACCEPTANCE.md`](ACCEPTANCE.md) · [`examples/outputs/sample-tailoring-notes.md`](examples/outputs/sample-tailoring-notes.md) · [`PLATFORMS.md`](PLATFORMS.md) · [`SECURITY.md`](SECURITY.md) · [`CHANGELOG.md`](CHANGELOG.md)
-- **المساهمة:** راجع [`CONTRIBUTING.md`](CONTRIBUTING.md) و[`ACCEPTANCE.md`](ACCEPTANCE.md) و[`HIRED.md`](HIRED.md)، أو شارك نتيجة توظيف عبر [Share Outcome Issue](https://github.com/redasalem/veycraft/issues/new?template=share-success.yml).
+- **فهرس الوثائق:** [`AGENTS.md`](AGENTS.md) · [`skills/REGISTRY.md`](skills/REGISTRY.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/SKILL_CATALOG.md`](docs/SKILL_CATALOG.md) · [`docs/chat-commands.md`](docs/chat-commands.md) · [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) · [`docs/execution-safety.md`](docs/execution-safety.md) · [`PLATFORMS.md`](PLATFORMS.md) · [`ACCEPTANCE.md`](ACCEPTANCE.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`HIRED.md`](HIRED.md)
 
 ## الرخصة والأصل
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-11-26 — Developer-First README, 60-Second Quickstart, Token-Efficiency Table & Idempotent npm Publish Workflow
+
+### Changed
+- **Developer-First Onboarding Docs (`README.md`, `README.ar.md`, `docs/index.html`, `assets/demo.svg`, `assets/proof-card.svg`):** Restructured both English and Arabic READMEs around live npm badges, a copy-pasteable 60-second `npx` quickstart (`init`, `onboard`, `feed-scan --all`, `ui`, `sync-mcp --with-veycraft`), a Mermaid 4-layer architecture flow, a measured local token-footprint table, 3 real-world developer workflows (ATS job hunting, global browser freelancing, no-clone GitHub CLI ops), compact CLI cheat sheet, and Security & Privacy Trust Box; synced GitHub Pages (`docs/index.html`) and SVG badges to `v2.8.2` (`132/132` journeys, `116/116` unit tests, `20/20` evals).
+- **Idempotent npm Release Workflow (`.github/workflows/publish-npm.yml`):** Added a pre-publish registry check (`npm view "${PKG_NAME}@${PKG_VERSION}" version`) so workflow re-runs cleanly skip already-published versions instead of failing with `403`/`409`.
+
+## [2.8.1] - 2026-11-26 — Live npm Package Publication & Normalized Package Metadata
+
+### Fixed
+- **npm 11 Metadata Normalization (`package.json`):** Normalized `"bin"` entries (`"bin/cli.mjs"`) and `"repository.url"` (`"git+https://github.com/redasalem/veycraft.git"`) so `npm publish --access public` completes with `0` warnings and preserves all 3 CLI binaries (`veycraft`, `job-hunter`, `job-hunter-os`) on [`npmjs.com/package/veycraft`](https://www.npmjs.com/package/veycraft).
+
 ## [2.8.0] - 2026-11-26 — 60-Second Onboarding Wizard (`veycraft onboard`), Multi-Feed Opportunity Radar (`feed-scan --all`) & Slash Workflows for Skills 54–56
 
 ### Added
