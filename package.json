@@ -1,6 +1,6 @@
 {
   "name": "veycraft",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "type": "module",
   "description": "Veycraft — Agent-native career operations & Profile Intelligence Engine for the AI agent you already use. Zero-dependency CLI, 56 Markdown skills, truthful CV tailoring, and human APPROVE gates.",
   "license": "MIT",
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/redasalem/veycraft.git"
+    "url": "git+https://github.com/redasalem/veycraft.git"
   },
   "keywords": [
     "veycraft",
@@ -49,9 +49,9 @@
     "prepublishOnly": "node --check bin/fs-safety.mjs && node --check bin/core-ops.mjs && node --check bin/mcp-server.mjs && node --check bin/ui-server.mjs && node --check ui/app.js && node --check bin/career-intelligence.mjs && node --check bin/notion-sync.mjs && node --check bin/cli.mjs && node --check bin/profile-intelligence.mjs && node --check bin/fast-ops.mjs && node --check bin/browser-payloads.mjs && npm test && npm run pack:check"
   },
   "bin": {
-    "veycraft": "./bin/cli.mjs",
-    "job-hunter": "./bin/cli.mjs",
-    "job-hunter-os": "./bin/cli.mjs"
+    "veycraft": "bin/cli.mjs",
+    "job-hunter": "bin/cli.mjs",
+    "job-hunter-os": "bin/cli.mjs"
   },
   "files": [
     "bin/",
