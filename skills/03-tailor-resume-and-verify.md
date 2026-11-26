@@ -42,6 +42,14 @@ Use for job-specific tailoring (`/quick-tailor`, `/tailor-cv`, Tier A pre-genera
 
 ## Deterministic Step-by-Step Execution
 
+### 0. No-Nagging Silent Resolution Order (Before Asking the User for Any Fact)
+Before pausing to ask the user for a project detail, link, stack item, date, or credential while tailoring, ALWAYS silently check all **4 verified sources in strict order**:
+1. `context/form-answers.yaml` & `context/preferences.yaml` (plus `context/resume-data.json` / `context/brief.json`).
+2. `context/cv.md` & `context/profile.md` (plus `context/github-projects.md` if present).
+3. **GitHub profile & repositories via `gh` CLI** (if authenticated, read-only `gh api user` / `gh repo list` — never prompt the user for facts already verified on GitHub).
+4. **LinkedIn profile data** (if cached locally or already open/accessible in the active browser session — read-only inspection only).
+- Only ask the user if a mandatory fact or metric is genuinely missing from **all 4 sources** (never fabricate missing metrics or tools). When the user confirms a missing fact, persist it cleanly to `context/` so future tailoring runs resolve it silently on step 1.
+
 ### 1. Build the Evidence Map & Tailor `templates/ats-resume-template.html`
 - Create folder `logs/resumes/<company-slug>-<role-slug>-<job-id-slug>/` (or `logs/resumes/quick-tailor-<slug>/` / `logs/resumes/cv-<slug>/`).
 - Compute the **Role-Specific CV Base Slug**: `<Candidate-Name>-<Exact-Target-Role-Title>` (Title-Case hyphen-slugified, stripping filesystem-unsafe punctuation, e.g., `Reda-Salem-Full-Stack-Engineer`). Use this exact slug for all matching deliverables in the folder (`<Slug>.html`, `<Slug>.txt`, `<Slug>.doc`, `<Slug>.pdf`).

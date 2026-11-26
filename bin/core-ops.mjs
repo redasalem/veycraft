@@ -315,7 +315,7 @@ export function installGitPreCommitHook(root, home = os.homedir()) {
     'for f in $STAGED; do',
     '  case "$f" in',
     '    context/*.example|context/DROP_YOUR_FILES_HERE.md) ;;',
-    '    context/*|logs/*|browser-profile/*|*.pdf|.env|.env.*|*.veycraft.bak|.mcp.json|.cursor/mcp.json|.codex/config.toml|.gemini/settings.json|.vscode/mcp.json)',
+    '    context/*|logs/*|tracker/*|portfolio/*|workspace/portfolio/*|browser-profile/*|*.pdf|.env|.env.*|*.veycraft.bak|.mcp.json|.cursor/mcp.json|.codex/config.toml|.gemini/settings.json|.vscode/mcp.json)',
     '      echo "[veycraft PII Shield] BLOCKED commit of private file: $f" >&2',
     '      exit 1',
     '      ;;',

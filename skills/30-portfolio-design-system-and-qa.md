@@ -38,13 +38,14 @@ Enforces pre-code information architecture, separated verified data modules, WCA
 - **Load when:** `/portfolio-design`; `portfolio design system`; `redesign my portfolio colors`; `choose portfolio palette`; `unit test my portfolio`; `visual qa on my portfolio`; `fix portfolio layout errors`; or automatically before coding and before previewing any portfolio website.
 - **Preconditions (stop if any is false):**
   - verified candidate facts and target Domain Archetype exist in `context/` or are confirmed in the active chat session (never force full 5-gate `/setup`)
-  - isolated target directory under `logs/portfolio/<site-slug>/` (or `logs/portfolio/third-party-<slug>/` or user-chosen external directory) is writable
+  - isolated target directory under `workspace/portfolio/` or `logs/portfolio/<site-slug>/` (or `logs/portfolio/third-party-<slug>/` or user-chosen external directory) is writable
 - **Requires skills:** `recruiter-brand-and-domain-intelligence`, `tailor-resume-and-verify`, `multilingual-adaptation`, `privacy-pii-shield`, `meta-self-verification`. **MCP:** none (`playwright` optional for live `375px`/`768px`/`1440px` browser viewport, overflow, and console inspection).
 
 ## Deterministic Step-by-Step Execution
 
-### 1. Phase 1 - Pre-Code Architectural Blueprint & Separated Data Layer
-Before writing any HTML template, JSX/TSX component, or stylesheet inside `<portfolio-dir>/`:
+### 1. Phase 1 - Upfront Design Blueprint (Mode A Scratch / Mode B Import) & Separated Data Layer
+Before writing or refactoring any HTML template, JSX/TSX component, or stylesheet inside `<portfolio-dir>/` (`workspace/portfolio/` or `logs/portfolio/<site-slug>/`):
+0. **Present & Confirm the 3-Part Upfront Design Spec:** Tailored to the user's verified profile and selected mode (**Mode A: Build from Scratch** or **Mode B: Import & Upgrade Existing** in `workspace/portfolio/`), display a compact spec covering **(1) Color Palette** (curated WCAG 2.1 AA palette or `Custom` hex), **(2) Design System / Layout** (typography pairing, responsive grid, section flow, LTR/RTL rules), and **(3) Tech Stack** (Tier 1–4 or preserved existing stack). Close with a compact **Next-Step Handoff** (rendered in the user's active conversation language) and obtain owner confirmation before writing code.
 1. **Author `<portfolio-dir>/DESIGN_PLAN.md` with 5 Locked Blueprint Sections:**
    - **Goal & Archetype Narrative Order (`skills/28-recruiter-brand-and-domain-intelligence.md`):** Sequence sections around the owner's Primary Goal (6-10s Recruiter Scan, Freelance/Client Conversion, or Executive Brand) and Domain Archetype (`Engineering/Data/AI`, `Product/Design`, `Sales/Marketing/Growth`, `Finance/Legal/Risk`, `Healthcare/Clinical`, `Operations/Supply Chain/HR`, or `Executive/Generalist`).
    - **Above-the-Fold 6-10s Visual Wireframe:** Define exact hero hierarchy: role/buyer-outcome headline, quantified proof hook, single primary CTA, secondary proof link, and `0` decorative stock clutter.

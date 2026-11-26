@@ -117,6 +117,10 @@ for (let i = 0; i < ARGV.length; i++) {
     careerSyncArgs = ARGV.slice(i);
     break;
   }
+  if (positional[0] === 'notion-sync') {
+    careerSyncArgs = ARGV.slice(i);
+    break;
+  }
   if (positional[0] === 'career' && CAREER_WRITE_SUB_SET.has((positional[1] || '').toLowerCase())) {
     careerWriteArgs = ARGV.slice(i);
     break;
@@ -386,6 +390,9 @@ function ensurePrivateGitignore(root) {
     '!/context/*.example',
     '!/context/DROP_YOUR_FILES_HERE.md',
     '/logs/',
+    '/tracker/',
+    '/portfolio/',
+    '/workspace/portfolio/',
   ].join('\n') + '\n';
   if (!fs.existsSync(ignoreFile)) {
     writeAtomic(ignoreFile, block.trimStart());
@@ -1918,7 +1925,7 @@ Core & Verification Commands:
   veycraft career next [--job-id <id>] [--json]    Read-only prioritized workflow queue, blockers & CV selector
   veycraft career run-start|run-triage|run-enqueue|prepare|run-checkpoint|run-resume|run-finish [--help] Run & prep orchestration
   veycraft career record|reserve|confirm-submit|transition|skip|cv-register [--help] Atomic ledger & CV writes
-  veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery
+  veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery (alias: \`veycraft notion-sync\`)
   veycraft pre-submit [--draft <f> | --text <t>] [--platform <p> --company <c> --title <t> --url <u> --job-id <id>] [--json] Pre-submit cap, dedup, blacklist & word-cap gate
   veycraft onboard [--cv <p>] [--role <t>] [--stack <a,b>] [--min-budget <n>] [--non-interactive] [--json] 60-second setup wizard + context/brief.json compiler
   veycraft brief [--refresh] [--no-write] [--json] Compile or read cached context/brief.json (< 400 tokens, zero PII)
@@ -1979,6 +1986,25 @@ try {
   else if (command === 'route') cmdRoute();
   else if (command === 'verify') cmdVerify();
   else if (command === 'career') cmdCareer();
+  else if (command === 'notion-sync') {
+    const firstSyncArg = careerSyncArgs[0];
+    const syncArgs = (!firstSyncArg || (firstSyncArg.startsWith('-') && firstSyncArg !== '--help' && firstSyncArg !== '-h'))
+      ? ['status', ...careerSyncArgs]
+      : careerSyncArgs;
+    const res = runNotionSyncCli(ROOT, syncArgs, {
+      home: HOME,
+      sourceRoot: SOURCE,
+      loadInputs: loadCareerSyncInputs,
+    });
+    if (res.json) {
+      console.log(JSON.stringify(res.data, null, 2));
+    } else {
+      console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
+      console.log(paint('36', `Veycraft Notion Sync — ${ROOT}\n`));
+      for (const line of res.lines) info(line);
+    }
+    if (res.exitCode !== 0) process.exitCode = res.exitCode;
+  }
   else if (command === 'update') cmdUpdate();
   else if (command === 'doctor') await cmdDoctor();
   else if (command === 'eval') cmdEval();

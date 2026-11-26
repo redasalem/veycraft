@@ -44,15 +44,19 @@ Builds a domain-adaptive, recruiter-ready or client-converting portfolio website
 
 ## Deterministic Step-by-Step Execution
 
-### 1. Phase 1 - Context Ingestion & Isolation Setup (Zero Redundant Questions)
+### 1. Phase 1 - 2-Mode Entry, Context Ingestion & Strict Workspace Isolation
+- **Explicit 2-Mode Portfolio Workflow (Tell the User the Exact Isolated Path First):**
+  Before touching files, confirm which mode the user wants and state the exact gitignored isolated folder path **`workspace/portfolio/`** (while keeping `logs/portfolio/<site-slug>/` supported for multi-site or third-party isolation):
+  - **Mode A — Build from Scratch:** Generate a brand-new portfolio project inside isolated `workspace/portfolio/` (or `logs/portfolio/<site-slug>/`).
+  - **Mode B — Import & Upgrade Existing:** Instruct the user to clone or drop their existing portfolio repository/files into **`workspace/portfolio/`**, inspect its current stack, structure, and assets in place, and upgrade its design system, verified copy, accessibility, and QA without altering the Veycraft repository root.
 - **Read Verified Sources First (`skills/01-resume-ingestion.md`, `skills/11-portfolio-and-github-auditor.md`):** Inspect `context/profile.md`, `context/cv.md`, `context/resume-data.json`, `context/github-projects.md` (if present), and `context/preferences.yaml` before asking any questions. Reuse every confirmed role, project, skill, and link without re-asking.
 - **Dynamic Domain Archetype (`skills/28-recruiter-brand-and-domain-intelligence.md`):** Infer the candidate's target archetype (`Engineering/Data/AI`, `Product/Design`, `Sales/Marketing/Growth`, `Finance/Accounting/Legal/Risk`, `Healthcare/Clinical/Pharma`, `Operations/Supply Chain/HR`, or `Executive/Generalist`). Never default to software-only layouts or terminology for non-tech candidates.
 - **Workspace Isolation & Root Protection Lock:**
-  - **Owner Default Path:** `logs/portfolio/<site-slug>/` (gitignored, blocked from commits by `.git/hooks/pre-commit` and CI security checks, excluded from npm tarballs, and skipped by `veycraft backup`).
+  - **Owner Default Paths:** `workspace/portfolio/` (primary 2-mode isolated workspace) or `logs/portfolio/<site-slug>/` (both gitignored in `.gitignore`, hard-blocked from commits by `.git/hooks/pre-commit` and CI security checks, excluded from npm tarballs, and skipped by `veycraft backup`).
   - **Third-Party Subject Isolation (`SEC-02`):** When building a site for another person, write strictly under `logs/portfolio/third-party-<slug>/` and **NEVER** read from or write to owner `context/` files.
   - **Optional Standalone External Path:** Offer `~/projects/<slug>-portfolio` (or another user-chosen folder outside the Veycraft clone) when scaffolding a Git-backed framework repository (`Astro`, `Vite`, `Next.js`) so nested `.git` metadata and `node_modules/` stay completely outside Veycraft.
   - **Symlink & Root Guard (`SEC-04`):** Refuse symlinked parent paths. **NEVER** run `npm install`, `npm create`, `npx create-*`, `git init`, or deploy CLIs in the Veycraft root, and **NEVER** modify Veycraft's root `package.json` (`dependencies: {}`, `devDependencies: {}`).
-  - **Iterative Update Persistence:** Save `<portfolio-dir>/portfolio-manifest.json` (`site_slug`, `owner_scope`, `archetype`, `stack_tier`, `style_preset`, `locale`, `public_contacts`, `deploy_target`, `live_url`) so follow-up `"update my portfolio"` requests edit in place without re-interviewing.
+  - **Iterative Update Persistence:** Save `<portfolio-dir>/portfolio-manifest.json` (`site_slug`, `mode`, `owner_scope`, `archetype`, `stack_tier`, `style_preset`, `locale`, `public_contacts`, `deploy_target`, `live_url`) so follow-up `"update my portfolio"` requests edit in place without re-interviewing.
 
 ### 2. Phase 2 - Smart Batched Portfolio Interview (3-4 Questions/Batch, Max 2 Batches)
 Ask only what is missing after Phase 1 inspection:
@@ -64,8 +68,9 @@ Ask only what is missing after Phase 1 inspection:
   1. **Tech Stack Selection:** Present the 4-tier stack matrix in Phase 3 (plus custom stack support).
   2. **Hosting Platform & Custom Domain:** Present the CLI-Native matrix + Smart Fallback in Phase 5.
   3. **Public Privacy Filter (`skills/14-privacy-pii-shield.md`):** Because a live website is indexed publicly by search engines, ask explicitly which contact channels to publish (`public email`, `LinkedIn`, `GitHub`, `Calendly`/booking link, or static contact form) and exclude private phone numbers, home street addresses, DOB, salary floors, and unapproved private/NDA client repositories by default.
-- **Pre-Code Hand-Off - Blueprint, Separated Data & Token Lock (`skills/30-portfolio-design-system-and-qa.md` Phases 1-2):**
-  - Before scaffolding any UI components or stylesheets in Phase 3, execute `skills/30-portfolio-design-system-and-qa.md` Phases 1-2 inside `<portfolio-dir>` to author `DESIGN_PLAN.md`, extract verified copy into separated `portfolio-data.json` (or `src/data/portfolio-data.ts`), validate WCAG 2.1 AA contrast + RTL/LTR font pairings, and lock `design-tokens.json` + `tokens.css` with owner confirmation.
+- **Pre-Code Hand-Off - Upfront Design Blueprint, Separated Data & Token Lock (`skills/30-portfolio-design-system-and-qa.md` Phases 1-2):**
+  - Before writing or modifying any UI code in Phase 3 (for both Mode A and Mode B), present and confirm a crisp **Upfront Design Blueprint** tailored to the candidate's verified profile covering: **(1) Color Palette** (WCAG 2.1 AA light/dark tokens), **(2) Design System / Layout** (typography pairing, visual preset, responsive grid, narrative section order, LTR/RTL rules), and **(3) Tech Stack** (Tier 1–4 or preserved Mode B stack).
+  - Execute `skills/30-portfolio-design-system-and-qa.md` Phases 1-2 inside `<portfolio-dir>` to author `DESIGN_PLAN.md`, extract verified copy into separated `portfolio-data.json` (or `src/data/portfolio-data.ts`), validate WCAG 2.1 AA contrast + RTL/LTR font pairings, lock `design-tokens.json` + `tokens.css`, and close with a compact **Next-Step Handoff** (in the user's active conversation language) requesting owner confirmation before coding.
 
 ### 3. Phase 3 - Curated Tech Stack Matrix & Isolated Local Build (`LOCAL_PREVIEW_ONLY`)
 - **Select Stack Tier (or User-Requested Custom Stack such as Vue/Nuxt, SvelteKit, or Hugo under identical isolation):**
@@ -111,15 +116,18 @@ Ask only what is missing after Phase 1 inspection:
   1. **Vercel (`vercel`):** Pre-flight `vercel whoami` -> deploy draft preview (`vercel`) -> production (`vercel --prod`) only after `APPROVE`.
   2. **Cloudflare Pages (`wrangler`):** Pre-flight `wrangler whoami` -> deploy via `wrangler pages deploy <dist-dir> --project-name <slug>`.
   3. **Netlify (`netlify-cli`):** Pre-flight `netlify status` -> draft preview (`netlify deploy --dir=<dist-dir>`) -> production (`netlify deploy --prod --dir=<dist-dir>`); wire `data-netlify="true"` + honeypot attribute when static contact forms are requested.
-  4. **GitHub Pages (`gh` CLI on a SEPARATE Dedicated Repo ONLY):**
-     - **Mandatory Repo-Contamination Guard:** Verify `pwd` is inside `<portfolio-dir>` AND inspect `git rev-parse --show-toplevel` + `git remote -v`. **HARD-BLOCK immediately** if the git root is the Veycraft workspace or if any remote matches `redasalem/veycraft` or `redasalem/job-hunter-os`.
-     - Initialize an independent `.git` repo inside `<portfolio-dir>` and push strictly to a dedicated user repository (`<user>/<user>.github.io` or `<user>/<slug>-portfolio`):
-       ```bash
-       # Run ONLY inside <portfolio-dir> after verifying pwd != Veycraft root:
-       git rev-parse --show-toplevel   # Abort if this resolves to the Veycraft repository!
-       git remote -v                   # Abort if redasalem/veycraft or job-hunter-os appears!
-       gh repo create <user>/<slug>-portfolio --public --source=. --remote=portfolio-origin --push
-       ```
+  4. **GitHub Pages & Separate-Repo Enforcement (`gh` CLI on a Dedicated User Repo ONLY):**
+     - **Hard Repo Isolation Rule:** Strictly forbid committing, staging, or pushing any user portfolio file into the `veycraft` repository (blocked by `.gitignore` and `.git/hooks/pre-commit`). Before any `git` or `gh` command, verify `pwd` is inside `<portfolio-dir>` (e.g., `workspace/portfolio/`) AND inspect `git rev-parse --show-toplevel` + `git remote -v`. **HARD-BLOCK immediately** if the git root resolves to the Veycraft workspace or if any remote matches `redasalem/veycraft` or `redasalem/job-hunter-os`.
+     - **Independent Git Repo + Brand-New User Repository:** Initialize an independent `.git` repo strictly inside `workspace/portfolio/` (or `<portfolio-dir>`) and either:
+       - **(a) Authenticated `gh` CLI path (following `skills/54-github-cli-remote-manager.md` after explicit `APPROVE`):** Create a brand-new repository on the user's own GitHub account via `gh repo create`:
+         ```bash
+         # Run ONLY inside workspace/portfolio/ (or <portfolio-dir>) after verifying pwd != Veycraft root:
+         git init
+         git rev-parse --show-toplevel   # Abort if this resolves to the Veycraft repository!
+         git remote -v                   # Abort if redasalem/veycraft or job-hunter-os appears!
+         gh repo create <user>/<slug>-portfolio --public --source=. --remote=portfolio-origin --push
+         ```
+       - **(b) No `gh` CLI / Unauthenticated Fallback:** Instruct the user to create a brand-new empty repository on their own GitHub account and paste its HTTPS/SSH URL, then configure `git remote add portfolio-origin <user-repo-url>` strictly inside `workspace/portfolio/` and push only after explicit `APPROVE`.
   5. **Firebase Hosting (`firebase-tools`) & Surge (`surge`):** Pre-flight `firebase projects:list` or `surge whoami`; keep `firebase.json`/`.firebaserc` strictly inside `<portfolio-dir>` -> `firebase deploy --only hosting` or `surge <dist-dir> <slug>.surge.sh`.
 - **Canonical CLI Reference (Execute Only After `APPROVE` Inside `<portfolio-dir>`):**
   ```bash

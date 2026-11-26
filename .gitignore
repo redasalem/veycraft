@@ -49,7 +49,9 @@ context/*
 logs/
 tracker/
 
-# Explicit personal generated artifacts (also covered by logs/)
+# User local portfolio workspaces & generated personal artifacts (never commit to veycraft)
+portfolio/
+workspace/portfolio/
 logs/resumes/
 logs/exports/
 logs/portfolio/
