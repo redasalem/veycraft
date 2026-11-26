@@ -26,6 +26,8 @@ import {
   evaluateDoctorSnapshot,
   runDoctorFix,
   detectHeadlessBrowser,
+  detectChromeDevtoolsMcp,
+  buildChromeDevtoolsMcpServer,
   extractHtmlText,
   auditCvFile,
   matchNaturalLanguageRoute,
@@ -617,6 +619,8 @@ function syncMcp({
   dryRun = false,
   json = false,
 } = {}) {
+  const cdpPath = detectChromeDevtoolsMcp({ home: HOME, env: process.env, platform: process.platform });
+  const cdpServer = buildChromeDevtoolsMcpServer(cdpPath, { platform: process.platform });
   const res = syncMcpConfigs({
     root,
     isGlobal,
@@ -625,6 +629,7 @@ function syncMcp({
     env: process.env,
     platform: process.platform,
     withVeycraft,
+    chromeDevtoolsBinary: cdpServer,
     dryRun,
     backup: true,
   });

@@ -87,6 +87,8 @@
     ".rules",
     ".aider.conf.yml",
     ".cursor/",
+    "!.cursor/mcp.json",
+    "!**/*.veycraft.bak",
     ".trae/",
     ".roo/",
     ".continue/",

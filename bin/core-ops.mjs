@@ -535,11 +535,115 @@ export function detectHeadlessBrowser({
   return null;
 }
 
+export function resolveChromeDevtoolsJsEntrypoint(binaryPath, {
+  platform = process.platform,
+  existsSync = fs.existsSync,
+  readFileSync = fs.readFileSync,
+  realpathSync = null,
+} = {}) {
+  if (typeof binaryPath !== 'string' || !binaryPath.trim()) return null;
+  const trimmed = binaryPath.trim();
+  const pathMod = platform === 'win32' ? path.win32 : path.posix;
+  const toPosix = p => String(p).replace(/\\/g, '/');
+
+  if (/\.(?:m|c)?js$/i.test(trimmed)) {
+    try {
+      if (existsSync(trimmed)) return toPosix(trimmed);
+    } catch { /* ignore */ }
+  }
+
+  // On Unix/macOS (or real symlinks), a global bin symlink may directly target the .js entrypoint.
+  const effectiveRealpath = typeof realpathSync === 'function'
+    ? realpathSync
+    : (existsSync === fs.existsSync ? fs.realpathSync : null);
+  if (effectiveRealpath) {
+    try {
+      const real = effectiveRealpath(trimmed);
+      if (typeof real === 'string' && /\.(?:m|c)?js$/i.test(real) && existsSync(real)) {
+        return toPosix(real);
+      }
+    } catch { /* ignore */ }
+  }
+
+  const binDir = pathMod.dirname(trimmed);
+  const parentDir = pathMod.dirname(binDir);
+  const candidatePkgDirs = [
+    pathMod.join(binDir, 'node_modules', 'chrome-devtools-mcp'),
+    pathMod.join(parentDir, 'lib', 'node_modules', 'chrome-devtools-mcp'),
+    pathMod.join(parentDir, 'node_modules', 'chrome-devtools-mcp'),
+  ];
+
+  for (const pkgDir of candidatePkgDirs) {
+    const pkgJsonPath = pathMod.join(pkgDir, 'package.json');
+    try {
+      if (!existsSync(pkgJsonPath)) continue;
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
+      let relBin = null;
+      if (typeof pkg?.bin === 'string' && pkg.bin.trim()) {
+        relBin = pkg.bin.trim();
+      } else if (isObj(pkg?.bin)) {
+        relBin = pkg.bin['chrome-devtools-mcp']
+          || pkg.bin['chrome-devtools']
+          || Object.values(pkg.bin).find(v => typeof v === 'string' && v.trim())
+          || null;
+      }
+      if (!relBin) continue;
+      const resolvedEntry = pathMod.resolve(pkgDir, relBin);
+      if (existsSync(resolvedEntry)) {
+        return toPosix(resolvedEntry);
+      }
+    } catch { /* ignore unreadable/malformed package.json */ }
+  }
+
+  return null;
+}
+
+export function resolveNodeCommand({
+  platform = process.platform,
+  nodeExecPath = process.execPath,
+} = {}) {
+  if (typeof nodeExecPath === 'string' && nodeExecPath.trim()) {
+    const trimmed = nodeExecPath.trim();
+    const isWinPath = /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\');
+    const isPosixPath = trimmed.startsWith('/');
+    if (platform === 'win32' && isWinPath) {
+      return trimmed.replace(/\\/g, '/');
+    }
+    if (platform !== 'win32' && isPosixPath) {
+      return trimmed;
+    }
+  }
+  return 'node';
+}
+
+export function buildChromeDevtoolsMcpServer(detectedPath, {
+  platform = process.platform,
+  nodeExecPath = process.execPath,
+  existsSync = fs.existsSync,
+  readFileSync = fs.readFileSync,
+  realpathSync = null,
+} = {}) {
+  if (typeof detectedPath !== 'string' || !detectedPath.trim()) return null;
+  const trimmed = detectedPath.trim();
+  const jsEntry = resolveChromeDevtoolsJsEntrypoint(trimmed, { platform, existsSync, readFileSync, realpathSync });
+  if (jsEntry) {
+    return {
+      command: resolveNodeCommand({ platform, nodeExecPath }),
+      args: [jsEntry],
+    };
+  }
+  return { command: platform === 'win32' ? trimmed.replace(/\\/g, '/') : trimmed, args: [] };
+}
+
 export function detectChromeDevtoolsMcp({
   platform = process.platform,
   env = process.env,
   home = os.homedir(),
+  nodeExecPath = process.execPath,
   existsSync = fs.existsSync,
+  readFileSync = fs.readFileSync,
+  realpathSync = null,
+  readdirSync = fs.readdirSync,
 } = {}) {
   const pathMod = platform === 'win32' ? path.win32 : path.posix;
   const sep = platform === 'win32' ? ';' : ':';
@@ -557,16 +661,45 @@ export function detectChromeDevtoolsMcp({
     const prefix = env.NPM_CONFIG_PREFIX.trim();
     dirs.push(platform === 'win32' ? prefix : pathMod.join(prefix, 'bin'));
   }
+  if (typeof nodeExecPath === 'string' && nodeExecPath.trim()) {
+    const isWinNode = /^[A-Za-z]:[\\/]/.test(nodeExecPath.trim());
+    const isPosixNode = nodeExecPath.trim().startsWith('/');
+    if ((platform === 'win32' && isWinNode) || (platform !== 'win32' && isPosixNode)) {
+      dirs.push(pathMod.dirname(nodeExecPath.trim()));
+    }
+  }
   if (platform === 'win32') {
     const appData = env.APPDATA || pathMod.join(home, 'AppData', 'Roaming');
     dirs.push(pathMod.join(appData, 'npm'));
+    if (env.VOLTA_HOME && env.VOLTA_HOME.trim()) dirs.push(pathMod.join(env.VOLTA_HOME.trim(), 'bin'));
+    dirs.push(pathMod.join(home, '.volta', 'bin'));
   } else {
+    if (env.NVM_BIN && env.NVM_BIN.trim()) dirs.push(env.NVM_BIN.trim());
+    if (env.FNM_MULTISHELL_PATH && env.FNM_MULTISHELL_PATH.trim()) dirs.push(pathMod.join(env.FNM_MULTISHELL_PATH.trim(), 'bin'));
+    if (env.VOLTA_HOME && env.VOLTA_HOME.trim()) dirs.push(pathMod.join(env.VOLTA_HOME.trim(), 'bin'));
     dirs.push(
-      '/usr/local/bin',
       '/opt/homebrew/bin',
+      '/usr/local/bin',
+      pathMod.join(home, '.volta', 'bin'),
+      pathMod.join(home, '.nvm', 'current', 'bin'),
+      pathMod.join(home, '.fnm', 'current', 'bin'),
+      pathMod.join(home, '.local', 'share', 'fnm', 'aliases', 'default', 'bin'),
       pathMod.join(home, '.npm-global', 'bin'),
       pathMod.join(home, '.local', 'bin'),
     );
+    // Probe ~/.nvm/versions/node/<ver>/bin (newest version first) for stripped-PATH GUI IDEs.
+    const nvmVersionsDir = pathMod.join(home, '.nvm', 'versions', 'node');
+    try {
+      if (existsSync(nvmVersionsDir)) {
+        const versions = readdirSync(nvmVersionsDir)
+          .map(v => (typeof v === 'string' ? v : v?.name))
+          .filter(Boolean)
+          .sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
+        for (const ver of versions) {
+          dirs.push(pathMod.join(nvmVersionsDir, ver, 'bin'));
+        }
+      }
+    } catch { /* ignore unreadable nvm directory */ }
   }
 
   const seen = new Set();
@@ -577,7 +710,10 @@ export function detectChromeDevtoolsMcp({
     for (const name of binNames) {
       const candidate = pathMod.join(dir, name);
       try {
-        if (existsSync(candidate)) return candidate;
+        if (existsSync(candidate)) {
+          const jsEntry = resolveChromeDevtoolsJsEntrypoint(candidate, { platform, existsSync, readFileSync, realpathSync });
+          return jsEntry || candidate;
+        }
       } catch { /* ignore */ }
     }
   }
@@ -734,10 +870,13 @@ export async function evaluateDoctorSnapshot({
   }
 
   const chromeDevtoolsMcpPath = detectChromeDevtoolsMcp({ platform, env, home, existsSync });
+  const chromeDevtoolsMcpServer = buildChromeDevtoolsMcpServer(chromeDevtoolsMcpPath, { platform, existsSync });
   const cdpFixCommand = 'npm i -g chrome-devtools-mcp';
-  const cdpConfigTip = chromeDevtoolsMcpPath
-    ? `Point your MCP config "command" directly to "${chromeDevtoolsMcpPath}" instead of npx for <1s startup.`
-    : 'Run `npm i -g chrome-devtools-mcp`, then point your MCP config "command" directly to the installed binary path (e.g. %APPDATA%/npm/chrome-devtools-mcp.cmd on Windows or $(npm prefix -g)/bin/chrome-devtools-mcp on macOS/Linux) instead of npx.';
+  const cdpConfigTip = chromeDevtoolsMcpServer
+    ? (Array.isArray(chromeDevtoolsMcpServer.args) && chromeDevtoolsMcpServer.args.length === 1 && /\.(?:m|c)?js$/i.test(chromeDevtoolsMcpServer.args[0])
+        ? `Configure MCP with "command": ${JSON.stringify(chromeDevtoolsMcpServer.command)} and direct JS entrypoint "args": [${JSON.stringify(chromeDevtoolsMcpServer.args[0])}] instead of npx, bare binaries, or Windows .cmd shims for <1s startup.`
+        : `Point your MCP config "command" directly to "${chromeDevtoolsMcpServer.command}" instead of npx for <1s startup.`)
+    : 'Run `npm i -g chrome-devtools-mcp`, then run `veycraft doctor --fix` to configure the direct JS entrypoint ("command": "<node-path>", "args": ["<path-to-chrome-devtools-mcp.js>"]) instead of npx or Windows .cmd shims.';
   if (chromeDevtoolsMcpPath) {
     logOk(`Browser MCP Binary (chrome-devtools-mcp): ${chromeDevtoolsMcpPath} (fast direct launch ready)`);
   } else {
@@ -1816,7 +1955,7 @@ export function findTomlSectionRange(lines, sectionHeader) {
   return { start, end };
 }
 
-export function upsertTomlMcpServer(tomlText, name, cfg) {
+export function upsertTomlMcpServer(tomlText, name, cfg, { replaceIf = null } = {}) {
   const section = formatTomlMcpSection(name, cfg);
   const lines = tomlText ? tomlText.replace(/\r\n/g, '\n').split('\n') : [];
   const header = `[mcp_servers.${name}]`;
@@ -1828,6 +1967,14 @@ export function upsertTomlMcpServer(tomlText, name, cfg) {
       .join('\n') + '\n';
     const expectedBlock = section.trimEnd() + '\n';
     if (existingBlock === expectedBlock) return { status: 'unchanged', text: tomlText };
+    if (typeof replaceIf === 'function' && replaceIf(existingBlock)) {
+      const before = lines.slice(0, range.start);
+      const after = lines.slice(range.end);
+      const replacementLines = section.trimEnd().split('\n');
+      const merged = [...before, ...replacementLines, ...(after.length && after[0].trim() !== '' ? [''] : []), ...after];
+      const next = merged.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+      return { status: 'updated', text: next };
+    }
     return { status: 'preserved', text: tomlText };
   }
   const trimmed = tomlText.replace(/\r\n/g, '\n').trimEnd();
@@ -1838,11 +1985,45 @@ export function upsertTomlMcpServer(tomlText, name, cfg) {
 export function isSlowNpxChromeDevtoolsServer(cfg) {
   if (!isObj(cfg)) return false;
   const cmd = String(cfg.command || '').trim().toLowerCase();
-  const baseCmd = path.basename(cmd);
+  const baseCmd = path.basename(cmd.replace(/\\/g, '/'));
   const args = Array.isArray(cfg.args) ? cfg.args.map(a => String(a).toLowerCase()) : [];
   const invokesNpx = baseCmd === 'npx' || baseCmd === 'npx.cmd' || baseCmd === 'npx.exe'
     || ((baseCmd === 'cmd' || baseCmd === 'cmd.exe') && args.some(a => a === 'npx' || a === 'npx.cmd'));
   return invokesNpx && args.some(a => a.includes('chrome-devtools-mcp'));
+}
+
+export function isWindowsShimChromeDevtoolsServer(cfg) {
+  if (!isObj(cfg)) return false;
+  const cmd = String(cfg.command || '').trim().toLowerCase().replace(/\\/g, '/');
+  const baseCmd = path.basename(cmd);
+  if (/\.(?:cmd|bat|ps1)$/i.test(baseCmd) && baseCmd.includes('chrome-devtools-mcp')) {
+    return true;
+  }
+  const args = Array.isArray(cfg.args) ? cfg.args.map(a => String(a).toLowerCase()) : [];
+  return (baseCmd === 'cmd' || baseCmd === 'cmd.exe')
+    && args.some(a => a.includes('chrome-devtools-mcp') && /\.(?:cmd|bat)/i.test(a));
+}
+
+export function isBareChromeDevtoolsServer(cfg) {
+  if (!isObj(cfg)) return false;
+  const cmd = String(cfg.command || '').trim().toLowerCase().replace(/\\/g, '/');
+  const baseCmd = path.basename(cmd);
+  const args = Array.isArray(cfg.args) ? cfg.args : [];
+  // Bare binary or direct bin symlink without custom user flags (e.g., "chrome-devtools-mcp" or "/usr/local/bin/chrome-devtools-mcp")
+  if (args.length === 0 && (baseCmd === 'chrome-devtools-mcp' || baseCmd === 'chrome-devtools-mcp.exe' || baseCmd === 'chrome-devtools')) {
+    return true;
+  }
+  // Bare "node" with single chrome-devtools-mcp JS arg (upgradeable to absolute node binary on stripped-PATH GUI IDEs)
+  if ((baseCmd === 'node' || baseCmd === 'node.exe') && cmd === baseCmd && args.length === 1 && /chrome-devtools-mcp.*\.(?:m|c)?js$/i.test(String(args[0] || ''))) {
+    return true;
+  }
+  return false;
+}
+
+export function isUpgradeableChromeDevtoolsServer(cfg) {
+  return isSlowNpxChromeDevtoolsServer(cfg)
+    || isWindowsShimChromeDevtoolsServer(cfg)
+    || isBareChromeDevtoolsServer(cfg);
 }
 
 export function syncMcpConfigs({
@@ -1882,9 +2063,9 @@ export function syncMcpConfigs({
   const notionCfg = isObj(template.mcpServers?.notion) && Array.isArray(template.mcpServers.notion.args)
     ? toPlatformMcpServer(template.mcpServers.notion, platform)
     : null;
-  const cdpCfg = typeof chromeDevtoolsBinary === 'string' && chromeDevtoolsBinary.trim()
-    ? { command: chromeDevtoolsBinary.trim(), args: [] }
-    : null;
+  const cdpCfg = isObj(chromeDevtoolsBinary) && typeof chromeDevtoolsBinary.command === 'string'
+    ? { command: chromeDevtoolsBinary.command, args: Array.isArray(chromeDevtoolsBinary.args) ? [...chromeDevtoolsBinary.args] : [] }
+    : buildChromeDevtoolsMcpServer(chromeDevtoolsBinary, { platform });
 
   let veycraftCfg = null;
   if (withVeycraft) {
@@ -1957,7 +2138,7 @@ export function syncMcpConfigs({
       }
     }
     if (cdpCfg) {
-      if (!servers.chrome_devtools || isSlowNpxChromeDevtoolsServer(servers.chrome_devtools)) {
+      if (!servers.chrome_devtools || isUpgradeableChromeDevtoolsServer(servers.chrome_devtools)) {
         servers.chrome_devtools = cdpCfg;
       } else if (JSON.stringify(servers.chrome_devtools) !== JSON.stringify(cdpCfg)) {
         warnings.push(`Preserved existing custom chrome_devtools MCP server in ${file}`);
@@ -1995,7 +2176,7 @@ export function syncMcpConfigs({
     }
     if (cdpCfg) {
       const vsCdp = { type: 'stdio', ...cdpCfg };
-      if (!servers.chrome_devtools || isSlowNpxChromeDevtoolsServer(servers.chrome_devtools)) {
+      if (!servers.chrome_devtools || isUpgradeableChromeDevtoolsServer(servers.chrome_devtools)) {
         servers.chrome_devtools = vsCdp;
       } else if (JSON.stringify(servers.chrome_devtools) !== JSON.stringify(vsCdp)) {
         warnings.push(`Preserved existing custom chrome_devtools MCP server in ${vscodeMcp}`);
@@ -2038,10 +2219,12 @@ export function syncMcpConfigs({
     }
   }
   if (cdpCfg) {
-    const cdpRes = upsertTomlMcpServer(tomlText, 'chrome_devtools', cdpCfg);
+    const cdpRes = upsertTomlMcpServer(tomlText, 'chrome_devtools', cdpCfg, {
+      replaceIf: block => /chrome-devtools-mcp(?:\.(?:cmd|bat|ps1))?/i.test(block) || /\bnpx(?:\.cmd)?\b/i.test(block),
+    });
     if (cdpRes.status === 'preserved') {
       warnings.push(`Preserved existing custom chrome_devtools MCP server in ${codexToml}`);
-    } else if (cdpRes.status === 'added') {
+    } else if (cdpRes.status === 'added' || cdpRes.status === 'updated') {
       tomlText = cdpRes.text;
       tomlChanged = true;
     }
@@ -2079,7 +2262,8 @@ export function syncMcpConfigs({
     is_global: Boolean(isGlobal),
     dry_run: Boolean(dryRun),
     with_veycraft: Boolean(withVeycraft),
-    chrome_devtools_binary: cdpCfg ? cdpCfg.command : null,
+    chrome_devtools_binary: cdpCfg ? (Array.isArray(cdpCfg.args) && cdpCfg.args[0] && /\.(?:m|c)?js$/i.test(cdpCfg.args[0]) ? cdpCfg.args[0] : cdpCfg.command) : null,
+    chrome_devtools_server: cdpCfg,
     updated,
     operations,
     warnings,
@@ -2095,11 +2279,16 @@ export async function runDoctorFix({
   offline = true,
   env = process.env,
   platform = process.platform,
+  nodeExecPath = process.execPath,
   existsSync = fs.existsSync,
+  readFileSync = fs.readFileSync,
+  realpathSync = null,
+  readdirSync = fs.readdirSync,
 } = {}) {
   const resolvedRoot = path.resolve(root);
   const resolvedSource = path.resolve(source);
-  const chromeDevtoolsBinary = detectChromeDevtoolsMcp({ platform, env, home, existsSync });
+  const chromeDevtoolsBinary = detectChromeDevtoolsMcp({ platform, env, home, nodeExecPath, existsSync, readFileSync, realpathSync, readdirSync });
+  const chromeDevtoolsServer = buildChromeDevtoolsMcpServer(chromeDevtoolsBinary, { platform, nodeExecPath, existsSync, readFileSync, realpathSync });
 
   const fixedItems = [];
   const unchangedItems = [];
@@ -2107,7 +2296,7 @@ export async function runDoctorFix({
   const allWarnings = [];
   const allOperations = [];
 
-  // 1a. Sync workspace/target IDE MCP configs using fast direct chrome-devtools-mcp binary when available.
+  // 1a. Sync workspace/target IDE MCP configs using fast direct chrome-devtools-mcp JS entrypoint (or binary) when available.
   const mcpRes = syncMcpConfigs({
     root: resolvedRoot,
     isGlobal,
@@ -2116,7 +2305,7 @@ export async function runDoctorFix({
     env,
     platform,
     withVeycraft: false,
-    chromeDevtoolsBinary,
+    chromeDevtoolsBinary: chromeDevtoolsServer,
     dryRun: false,
     backup: true,
   });
@@ -2124,9 +2313,9 @@ export async function runDoctorFix({
   allWarnings.push(...mcpRes.warnings);
 
   // 1b. When running locally, also auto-heal detected global IDE MCP configs (e.g., Antigravity, Gemini, Cursor, Claude, Windsurf, Copilot)
-  //     that already exist on disk (or whose Antigravity dir exists), upgrading slow npx chrome_devtools to the direct binary.
-  if (!isGlobal && chromeDevtoolsBinary) {
-    const cdpCfg = { command: chromeDevtoolsBinary, args: [] };
+  //     that already exist on disk (or whose Antigravity dir exists), upgrading slow npx or broken Windows .cmd shims to node + JS entrypoint.
+  if (!isGlobal && chromeDevtoolsServer) {
+    const cdpCfg = chromeDevtoolsServer;
     const globalTargets = mcpTargetFiles(resolvedRoot, true, home);
     const seenPaths = new Set(allOperations.map(op => op.file));
     for (const ideFile of globalTargets) {
@@ -2143,11 +2332,16 @@ export async function runDoctorFix({
           allOperations.push({ file: ideFile, label: 'Detected IDE MCP (chrome_devtools)', action: 'unchanged', backup_path: null });
           continue;
         }
-        if (prevCdp && !isSlowNpxChromeDevtoolsServer(prevCdp)) {
+        if (prevCdp && !isUpgradeableChromeDevtoolsServer(prevCdp)) {
           allWarnings.push(`Preserved existing custom chrome_devtools MCP server in ${ideFile}`);
           allOperations.push({ file: ideFile, label: 'Detected IDE MCP (chrome_devtools)', action: 'preserved', backup_path: null });
           continue;
         }
+        const upgradeReason = prevCdp
+          ? (isWindowsShimChromeDevtoolsServer(prevCdp)
+              ? '.cmd shim -> node JS entrypoint'
+              : (isSlowNpxChromeDevtoolsServer(prevCdp) ? 'npx -> node JS entrypoint' : 'bare binary -> node JS entrypoint'))
+          : null;
         servers.chrome_devtools = cdpCfg;
         const nextText = JSON.stringify({ ...current, mcpServers: servers }, null, 2) + '\n';
         const backupPath = fileExists ? `${ideFile}.veycraft.bak` : null;
@@ -2158,7 +2352,9 @@ export async function runDoctorFix({
         writeAtomicBase(ideFile, nextText, { preserve: false, mode: 0o600, boundary: resolvedRoot, home });
         allOperations.push({
           file: ideFile,
-          label: prevCdp ? 'Upgraded IDE MCP chrome_devtools (npx -> direct binary)' : 'Added IDE MCP chrome_devtools (direct binary)',
+          label: upgradeReason
+            ? `Upgraded IDE MCP chrome_devtools (${upgradeReason})`
+            : 'Added IDE MCP chrome_devtools (direct JS entrypoint)',
           action: fileExists ? 'updated' : 'created',
           backup_path: backupPath,
         });

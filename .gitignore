@@ -41,6 +41,7 @@ browser-profile/
 .codex/config.toml
 .gemini/settings.json
 .vscode/mcp.json
+*.veycraft.bak
 assets/*.pdf
 context/*.pdf
 context/*

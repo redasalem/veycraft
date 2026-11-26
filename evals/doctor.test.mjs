@@ -21,6 +21,9 @@ const {
   evaluateWorkspaceContext,
   detectHeadlessBrowser,
   detectChromeDevtoolsMcp,
+  resolveChromeDevtoolsJsEntrypoint,
+  resolveNodeCommand,
+  buildChromeDevtoolsMcpServer,
   evaluateDoctorSnapshot,
   runDoctorFix,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'core-ops.mjs')).href);
@@ -229,17 +232,19 @@ test('5. runDoctorFix syncs IDE MCP configs to direct chrome-devtools-mcp binary
     assert.equal(res.payload.brief.status, 'rebuilt');
     assert.ok(fs.existsSync(path.join(ws, 'context', 'brief.json')), 'Expected context/brief.json to be rebuilt');
 
+    const expectedWinBin = process.platform === 'win32' ? fakeBinPath.replace(/\\/g, '/') : fakeBinPath;
+
     // Verify Antigravity config upgraded slow npx to direct binary while preserving context7 + creating .veycraft.bak
     const updatedAg = JSON.parse(fs.readFileSync(agConfig, 'utf8'));
     assert.deepEqual(updatedAg.mcpServers.context7, { command: 'npx', args: ['-y', '@upstash/context7-mcp'] });
-    assert.deepEqual(updatedAg.mcpServers.chrome_devtools, { command: fakeBinPath, args: [] });
+    assert.deepEqual(updatedAg.mcpServers.chrome_devtools, { command: expectedWinBin, args: [] });
     assert.ok(fs.existsSync(`${agConfig}.veycraft.bak`), 'Expected atomic backup for updated Antigravity config');
 
     // Verify workspace IDE configs (.gemini/settings.json, .cursor/mcp.json, .vscode/mcp.json) also received direct binary path (never npx)
     const geminiWs = JSON.parse(fs.readFileSync(path.join(ws, '.gemini', 'settings.json'), 'utf8'));
-    assert.deepEqual(geminiWs.mcpServers.chrome_devtools, { command: fakeBinPath, args: [] });
+    assert.deepEqual(geminiWs.mcpServers.chrome_devtools, { command: expectedWinBin, args: [] });
     const vscodeWs = JSON.parse(fs.readFileSync(path.join(ws, '.vscode', 'mcp.json'), 'utf8'));
-    assert.deepEqual(vscodeWs.servers.chrome_devtools, { type: 'stdio', command: fakeBinPath, args: [] });
+    assert.deepEqual(vscodeWs.servers.chrome_devtools, { type: 'stdio', command: expectedWinBin, args: [] });
 
     // Second run must be idempotent: 0 MCP updates, ide_reload_required: false, brief up_to_date
     const second = await runDoctorFix({
@@ -282,6 +287,259 @@ test('6. CLI `veycraft doctor --fix --json` works end-to-end and rejects `--fix`
     const badRes = spawnSync(process.execPath, [CLI_PATH, 'status', '--fix'], { cwd: ws, env, encoding: 'utf8' });
     assert.notEqual(badRes.status, 0);
     assert.match(badRes.stderr, /Option --fix is only supported with `veycraft doctor`/);
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
+  }
+});
+
+test('7. Windows .cmd shim resolves to node + POSIX JS entrypoint and doctor --fix auto-upgrades existing .cmd MCP entries', async () => {
+  const ws = makeTempDir('veycraft-doctor-win-shim-');
+  const fakeHome = makeTempDir('veycraft-doctor-win-home-');
+  try {
+    // 1. Pure cross-platform unit check for Windows .cmd shim -> package.json bin JS entrypoint
+    const winNpmDir = 'C:\\Users\\dev\\AppData\\Roaming\\npm';
+    const winCmd = `${winNpmDir}\\chrome-devtools-mcp.cmd`;
+    const winPkgJson = `${winNpmDir}\\node_modules\\chrome-devtools-mcp\\package.json`;
+    const winJsWinPath = `${winNpmDir}\\node_modules\\chrome-devtools-mcp\\out\\Default\\gen\\src\\bin\\chrome-devtools-mcp.js`;
+    const expectedPosix = 'C:/Users/dev/AppData/Roaming/npm/node_modules/chrome-devtools-mcp/out/Default/gen/src/bin/chrome-devtools-mcp.js';
+    const mockExists = p => p === winCmd || p === winPkgJson || p === winJsWinPath;
+    const mockRead = p => {
+      assert.equal(p, winPkgJson);
+      return JSON.stringify({
+        name: 'chrome-devtools-mcp',
+        bin: { 'chrome-devtools-mcp': './out/Default/gen/src/bin/chrome-devtools-mcp.js' },
+      });
+    };
+
+    assert.equal(
+      resolveChromeDevtoolsJsEntrypoint(winCmd, { platform: 'win32', existsSync: mockExists, readFileSync: mockRead }),
+      expectedPosix,
+    );
+    assert.equal(
+      detectChromeDevtoolsMcp({
+        platform: 'win32',
+        env: { APPDATA: 'C:\\Users\\dev\\AppData\\Roaming', PATH: '' },
+        home: 'C:\\Users\\dev',
+        existsSync: mockExists,
+        readFileSync: mockRead,
+      }),
+      expectedPosix,
+    );
+    assert.deepEqual(
+      buildChromeDevtoolsMcpServer(winCmd, {
+        platform: 'win32',
+        nodeExecPath: 'C:\\Program Files\\nodejs\\node.exe',
+        existsSync: mockExists,
+        readFileSync: mockRead,
+      }),
+      { command: 'C:/Program Files/nodejs/node.exe', args: [expectedPosix] },
+    );
+    assert.deepEqual(
+      buildChromeDevtoolsMcpServer(winCmd, {
+        platform: 'win32',
+        nodeExecPath: '',
+        existsSync: mockExists,
+        readFileSync: mockRead,
+      }),
+      { command: 'node', args: [expectedPosix] },
+    );
+
+    // 2. End-to-end runDoctorFix on real temp filesystem: .cmd shim + node_modules/chrome-devtools-mcp/package.json
+    const fakeBinDir = path.join(fakeHome, 'fake-npm');
+    const fakePkgDir = path.join(fakeBinDir, 'node_modules', 'chrome-devtools-mcp');
+    const fakeJsRel = './out/Default/gen/src/bin/chrome-devtools-mcp.js';
+    const fakeJsAbs = path.resolve(fakePkgDir, fakeJsRel);
+    const fakeJsPosix = fakeJsAbs.replace(/\\/g, '/');
+    fs.mkdirSync(path.dirname(fakeJsAbs), { recursive: true });
+    fs.writeFileSync(fakeJsAbs, '// fake chrome-devtools-mcp entrypoint\n', 'utf8');
+    fs.writeFileSync(path.join(fakePkgDir, 'package.json'), JSON.stringify({
+      name: 'chrome-devtools-mcp',
+      bin: { 'chrome-devtools-mcp': fakeJsRel },
+    }), 'utf8');
+    const fakeBinName = process.platform === 'win32' ? 'chrome-devtools-mcp.cmd' : 'chrome-devtools-mcp';
+    const fakeShimPath = path.join(fakeBinDir, fakeBinName);
+    fs.writeFileSync(fakeShimPath, '@echo off\n', 'utf8');
+
+    // Existing Antigravity mcp_config.json with broken Windows .cmd shim entry + custom servers
+    const agDir = path.join(fakeHome, '.gemini', 'antigravity');
+    fs.mkdirSync(agDir, { recursive: true });
+    const agConfig = path.join(agDir, 'mcp_config.json');
+    fs.writeFileSync(agConfig, JSON.stringify({
+      mcpServers: {
+        context7: { command: 'npx.cmd', args: ['-y', '@upstash/context7-mcp'] },
+        chrome_devtools: { command: 'C:/Users/dev/AppData/Roaming/npm/chrome-devtools-mcp.cmd' },
+      },
+    }, null, 2), 'utf8');
+
+    // Existing workspace .codex/config.toml with broken .cmd shim entry
+    fs.mkdirSync(path.join(ws, '.codex'), { recursive: true });
+    fs.writeFileSync(
+      path.join(ws, '.codex', 'config.toml'),
+      '[mcp_servers.chrome_devtools]\ncommand = "C:\\\\Users\\\\dev\\\\AppData\\\\Roaming\\\\npm\\\\chrome-devtools-mcp.cmd"\nargs = []\n',
+      'utf8',
+    );
+
+    const res = await runDoctorFix({
+      root: ws,
+      source: SOURCE_ROOT,
+      home: fakeHome,
+      isGlobal: false,
+      offline: true,
+      env: { ...process.env, PATH: fakeBinDir },
+      platform: process.platform,
+    });
+
+    const expectedNodeCmd = resolveNodeCommand({ platform: process.platform, nodeExecPath: process.execPath });
+
+    assert.equal(res.exitCode, 0);
+    assert.equal(res.payload.chrome_devtools_binary, fakeJsPosix);
+    assert.equal(res.payload.ide_reload_required, true);
+
+    const upgradedAg = JSON.parse(fs.readFileSync(agConfig, 'utf8'));
+    assert.deepEqual(upgradedAg.mcpServers.context7, { command: 'npx.cmd', args: ['-y', '@upstash/context7-mcp'] });
+    assert.deepEqual(upgradedAg.mcpServers.chrome_devtools, { command: expectedNodeCmd, args: [fakeJsPosix] });
+
+    const wsGemini = JSON.parse(fs.readFileSync(path.join(ws, '.gemini', 'settings.json'), 'utf8'));
+    assert.deepEqual(wsGemini.mcpServers.chrome_devtools, { command: expectedNodeCmd, args: [fakeJsPosix] });
+
+    const wsVscode = JSON.parse(fs.readFileSync(path.join(ws, '.vscode', 'mcp.json'), 'utf8'));
+    assert.deepEqual(wsVscode.servers.chrome_devtools, { type: 'stdio', command: expectedNodeCmd, args: [fakeJsPosix] });
+
+    const wsCodex = fs.readFileSync(path.join(ws, '.codex', 'config.toml'), 'utf8');
+    assert.ok(wsCodex.includes(`command = ${JSON.stringify(expectedNodeCmd)}`), 'Expected Codex TOML to use resolved node command');
+    assert.ok(wsCodex.includes(fakeJsPosix), 'Expected Codex TOML to be upgraded to POSIX JS entrypoint');
+    assert.ok(!wsCodex.includes('chrome-devtools-mcp.cmd'), 'Expected broken .cmd shim to be removed from Codex TOML');
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
+  }
+});
+
+test('8. macOS/Linux symlinked global binary & stripped-PATH nvm/Homebrew resolve to absolute node + JS entrypoint and auto-upgrade slow npx / bare binary', async () => {
+  const ws = makeTempDir('veycraft-doctor-unix-');
+  const fakeHome = makeTempDir('veycraft-doctor-unix-home-');
+  try {
+    // 1. Homebrew symlink resolution on macOS (stripped PATH)
+    const brewBin = '/opt/homebrew/bin/chrome-devtools-mcp';
+    const brewJs = '/opt/homebrew/lib/node_modules/chrome-devtools-mcp/out/Default/gen/src/bin/chrome-devtools-mcp.js';
+    const brewNode = '/opt/homebrew/bin/node';
+    const brewExists = p => p === brewBin || p === brewJs;
+    const brewRealpath = p => (p === brewBin ? brewJs : p);
+
+    assert.equal(
+      resolveChromeDevtoolsJsEntrypoint(brewBin, { platform: 'darwin', existsSync: brewExists, realpathSync: brewRealpath }),
+      brewJs,
+    );
+    assert.equal(
+      detectChromeDevtoolsMcp({
+        platform: 'darwin',
+        env: { PATH: '/usr/bin:/bin' },
+        home: '/Users/dev',
+        nodeExecPath: brewNode,
+        existsSync: brewExists,
+        realpathSync: brewRealpath,
+      }),
+      brewJs,
+    );
+    assert.deepEqual(
+      buildChromeDevtoolsMcpServer(brewBin, {
+        platform: 'darwin',
+        nodeExecPath: brewNode,
+        existsSync: brewExists,
+        realpathSync: brewRealpath,
+      }),
+      { command: brewNode, args: [brewJs] },
+    );
+
+    // 2. Linux nvm installation discovered even when GUI IDE strips PATH completely
+    const nvmDir = '/home/dev/.nvm/versions/node';
+    const nvmBin = '/home/dev/.nvm/versions/node/v22.14.0/bin/chrome-devtools-mcp';
+    const nvmPkg = '/home/dev/.nvm/versions/node/v22.14.0/lib/node_modules/chrome-devtools-mcp/package.json';
+    const nvmJs = '/home/dev/.nvm/versions/node/v22.14.0/lib/node_modules/chrome-devtools-mcp/out/Default/gen/src/bin/chrome-devtools-mcp.js';
+    const nvmNode = '/home/dev/.nvm/versions/node/v22.14.0/bin/node';
+    const nvmExists = p => p === nvmDir || p === nvmBin || p === nvmPkg || p === nvmJs;
+    const nvmReaddir = p => (p === nvmDir ? ['v20.11.0', 'v22.14.0'] : []);
+    const nvmRead = p => {
+      assert.equal(p, nvmPkg);
+      return JSON.stringify({ bin: { 'chrome-devtools-mcp': './out/Default/gen/src/bin/chrome-devtools-mcp.js' } });
+    };
+
+    assert.equal(
+      detectChromeDevtoolsMcp({
+        platform: 'linux',
+        env: { PATH: '' },
+        home: '/home/dev',
+        nodeExecPath: '/usr/bin/node',
+        existsSync: nvmExists,
+        readdirSync: nvmReaddir,
+        readFileSync: nvmRead,
+      }),
+      nvmJs,
+    );
+    assert.deepEqual(
+      buildChromeDevtoolsMcpServer(nvmJs, {
+        platform: 'linux',
+        nodeExecPath: nvmNode,
+        existsSync: nvmExists,
+      }),
+      { command: nvmNode, args: [nvmJs] },
+    );
+
+    // 3. End-to-end runDoctorFix auto-upgrades both slow npx AND bare binary entries on disk
+    const fakeBinDir = path.join(fakeHome, 'unix-prefix', 'bin');
+    const fakePkgDir = path.join(fakeHome, 'unix-prefix', 'lib', 'node_modules', 'chrome-devtools-mcp');
+    const fakeJsAbs = path.join(fakePkgDir, 'out', 'Default', 'gen', 'src', 'bin', 'chrome-devtools-mcp.js');
+    const fakeJsPosix = fakeJsAbs.replace(/\\/g, '/');
+    fs.mkdirSync(fakeBinDir, { recursive: true });
+    fs.mkdirSync(path.dirname(fakeJsAbs), { recursive: true });
+    fs.writeFileSync(fakeJsAbs, '// fake unix chrome-devtools-mcp\n', 'utf8');
+    fs.writeFileSync(path.join(fakePkgDir, 'package.json'), JSON.stringify({
+      name: 'chrome-devtools-mcp',
+      bin: './out/Default/gen/src/bin/chrome-devtools-mcp.js',
+    }), 'utf8');
+    const binName = process.platform === 'win32' ? 'chrome-devtools-mcp.cmd' : 'chrome-devtools-mcp';
+    fs.writeFileSync(path.join(fakeBinDir, binName), '#!/usr/bin/env node\n', 'utf8');
+
+    // Antigravity config with slow npx + Cursor global config with bare binary
+    const agDir = path.join(fakeHome, '.gemini', 'antigravity');
+    const cursorDir = path.join(fakeHome, '.cursor');
+    fs.mkdirSync(agDir, { recursive: true });
+    fs.mkdirSync(cursorDir, { recursive: true });
+    const agConfig = path.join(agDir, 'mcp_config.json');
+    const cursorConfig = path.join(cursorDir, 'mcp.json');
+    fs.writeFileSync(agConfig, JSON.stringify({
+      mcpServers: {
+        chrome_devtools: { command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] },
+      },
+    }, null, 2), 'utf8');
+    fs.writeFileSync(cursorConfig, JSON.stringify({
+      mcpServers: {
+        chrome_devtools: { command: '/usr/local/bin/chrome-devtools-mcp', args: [] },
+      },
+    }, null, 2), 'utf8');
+
+    const res = await runDoctorFix({
+      root: ws,
+      source: SOURCE_ROOT,
+      home: fakeHome,
+      isGlobal: false,
+      offline: true,
+      env: { ...process.env, PATH: fakeBinDir },
+      platform: process.platform,
+    });
+
+    const expectedNode = resolveNodeCommand({ platform: process.platform, nodeExecPath: process.execPath });
+    assert.equal(res.exitCode, 0);
+    assert.equal(res.payload.ide_reload_required, true);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(agConfig, 'utf8')).mcpServers.chrome_devtools,
+      { command: expectedNode, args: [fakeJsPosix] },
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(cursorConfig, 'utf8')).mcpServers.chrome_devtools,
+      { command: expectedNode, args: [fakeJsPosix] },
+    );
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
     fs.rmSync(fakeHome, { recursive: true, force: true });
