@@ -42,10 +42,10 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
 
 ### Phase 1 — Multi-Source Search, Expand, Ghost-Check & Evidence-Backed Score (No Apply Clicks)
 
-0. **Proactive Browser MCP Pre-Flight Check & Self-Healing ("Do, Don't Tell"):**
-   - Before attempting to open any job board or URL, check whether browser MCP tools are active (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`).
-   - **Hard "Do, Don't Tell" Rule:** If browser MCP tools are missing, disabled, or timing out (or `context/brief.json` is missing/stale) and you have shell access, **NEVER** tell the user to run terminal commands (`sync-mcp`, `doctor`, `brief`, etc.) — **immediately run `node ./bin/cli.mjs doctor --fix` yourself** to auto-configure detected IDE MCP files with the fast direct `chrome-devtools-mcp` binary and rebuild `context/brief.json`.
-   - **Zero-Stall Handoff (< 30 s value):** Only ask the user for UI-only actions you cannot perform (e.g., clicking **Reload Window** once if `ide_reload_required: true`, or logging into a site), AND immediately offer a live fallback via `veycraft feed-scan`, public ATS JSON endpoints, pasted JD text, or screenshots so the owner gets ranked results right away.
+0. **Proactive Browser MCP Pre-Flight Check & Automatic Native CDP Fallback (`veycraft cdp`):**
+   - Before attempting to open any job board or URL, check whether `chrome_devtools` MCP navigation/read tools (`navigate_page`, `take_snapshot`) or `playwright` MCP tools (`browser_navigate`, `browser_snapshot`) are active in the current session.
+   - **Immediate Native CDP Fallback (Zero MCP Lock-In):** If `chrome_devtools` MCP navigation/read tools (`navigate_page`, `take_snapshot`) are missing, disabled, timing out, or restricted in the current session, **immediately use `node ./bin/cli.mjs cdp ...` (`status`, `open <url>`, `snapshot`, `eval`, `click`, `fill`) directly via terminal** (persisted in `workspace/.chrome-profile/` on `127.0.0.1`) — **NEVER** stall, **NEVER** fall back to restricted browser subagents, and **NEVER** ask the user to reload MCP or paste JDs manually.
+   - **Hard "Do, Don't Tell" Rule:** If `context/brief.json` is missing/stale, **immediately run `node ./bin/cli.mjs doctor --fix` yourself** (never tell the user to run CLI setup commands). Only ask the user for genuinely human-only actions (signing into a private account if a login wall appears, or solving a visible CAPTCHA/2FA), while continuing immediately via `node ./bin/cli.mjs cdp ...`, `veycraft feed-scan`, and public ATS JSON endpoints.
 
 1. **Multi-Source Search & Capability Check (Never Assume LinkedIn Auth or Single Source):**
    - For `/daily-run`: read enabled targets in `context/targets.yaml` and their platform playbooks (`skills/platforms/*`).

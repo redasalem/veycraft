@@ -57,6 +57,9 @@ import {
   runFastOpsCli,
 } from './fast-ops.mjs';
 import {
+  runCdpCli,
+} from './cdp-ops.mjs';
+import {
   normalizePathForCompare,
   isSamePath,
   isObj,
@@ -115,6 +118,7 @@ let careerSyncArgs = [];
 let careerWriteArgs = [];
 let preSubmitArgs = [];
 let fastOpsArgs = [];
+let cdpArgs = [];
 
 for (let i = 0; i < ARGV.length; i++) {
   if (positional[0] === 'career' && (positional[1] || '').toLowerCase() === 'sync') {
@@ -135,6 +139,10 @@ for (let i = 0; i < ARGV.length; i++) {
   }
   if (positional[0] === 'brief' || positional[0] === 'feed-scan' || positional[0] === 'browser-script' || positional[0] === 'onboard') {
     fastOpsArgs = ARGV.slice(i);
+    break;
+  }
+  if (positional[0] === 'cdp') {
+    cdpArgs = ARGV.slice(i);
     break;
   }
   const a = ARGV[i];
@@ -398,6 +406,7 @@ function ensurePrivateGitignore(root) {
     '/tracker/',
     '/portfolio/',
     '/workspace/portfolio/',
+    '/workspace/.chrome-profile/',
   ].join('\n') + '\n';
   if (!fs.existsSync(ignoreFile)) {
     writeAtomic(ignoreFile, block.trimStart());
@@ -1969,6 +1978,7 @@ Core & Verification Commands:
   veycraft brief [--refresh] [--no-write] [--json] Compile or read cached context/brief.json (< 400 tokens, zero PII)
   veycraft feed-scan (--all | --url <u> | --file <p>) [--top <n>] [--min-budget <n>] [--json] Zero-token SSRF-safe RSS/Atom/JSON radar & daily digest
   veycraft browser-script <distill-feed|distill-form|batch-fill> [--json] Output read-only DOM distiller or non-submitting batch-fill payload
+  veycraft cdp <status|open|snapshot|eval|click|fill> [--port 9222] [--json] Native 127.0.0.1 Chrome DevTools Protocol browser CLI (zero MCP lock-in)
   veycraft eval [--baseline | --file <json> | --journeys] Run deterministic safety assertions & journey tests
   veycraft proof [--global | -g]                   Generate reproducible proof-card.svg & proof-card.md
   veycraft status [--global | -g] [--json]         Print readiness gates, warm-up cap & pipeline funnel summary
@@ -2057,6 +2067,18 @@ try {
       console.log(JSON.stringify(res.data, null, 2));
     } else {
       for (const line of res.lines) info(line);
+    }
+    if (res.exitCode !== 0) process.exitCode = res.exitCode;
+  }
+  else if (command === 'cdp') {
+    const res = await runCdpCli(ROOT, cdpArgs, { defaultJson: opts.json, home: HOME });
+    if (res.json) {
+      console.log(JSON.stringify(res.data, null, 2));
+    } else {
+      for (const line of res.lines) {
+        if (res.exitCode !== 0) fail(line);
+        else console.log(line);
+      }
     }
     if (res.exitCode !== 0) process.exitCode = res.exitCode;
   }

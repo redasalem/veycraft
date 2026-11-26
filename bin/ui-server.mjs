@@ -55,6 +55,7 @@ const EXCLUDED_DIR_NAMES = new Set([
   '.git',
   'node_modules',
   'browser-profile',
+  '.chrome-profile',
   '.cursor',
   '.gemini',
   '.vscode',
@@ -86,7 +87,7 @@ class HttpApiError extends Error {
 function isExcludedFileName(name) {
   const lower = name.toLowerCase();
   if (lower === '.env' || lower.startsWith('.env.')) return true;
-  if (lower.startsWith('browser-profile')) return true;
+  if (lower.startsWith('browser-profile') || lower.startsWith('.chrome-profile')) return true;
   if (lower.endsWith('.veycraft.bak') || lower.endsWith('.bak')) return true;
   if (lower === '.mcp.json' || lower === '.ledger.lock' || lower === '.ledger-tx.json') return true;
   return false;

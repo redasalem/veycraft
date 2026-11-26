@@ -53,6 +53,7 @@ tracker/
 # User local portfolio workspaces & generated personal artifacts (never commit to veycraft)
 portfolio/
 workspace/portfolio/
+workspace/.chrome-profile/
 logs/resumes/
 logs/exports/
 logs/portfolio/
