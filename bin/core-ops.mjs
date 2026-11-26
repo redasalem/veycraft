@@ -18,6 +18,9 @@ import {
   verifySyncStateIntegrity,
 } from './notion-sync.mjs';
 import {
+  compileCandidateBrief,
+} from './fast-ops.mjs';
+import {
   isSamePath,
   isObj,
   isWithinDir,
@@ -1832,6 +1835,16 @@ export function upsertTomlMcpServer(tomlText, name, cfg) {
   return { status: 'added', text: next };
 }
 
+export function isSlowNpxChromeDevtoolsServer(cfg) {
+  if (!isObj(cfg)) return false;
+  const cmd = String(cfg.command || '').trim().toLowerCase();
+  const baseCmd = path.basename(cmd);
+  const args = Array.isArray(cfg.args) ? cfg.args.map(a => String(a).toLowerCase()) : [];
+  const invokesNpx = baseCmd === 'npx' || baseCmd === 'npx.cmd' || baseCmd === 'npx.exe'
+    || ((baseCmd === 'cmd' || baseCmd === 'cmd.exe') && args.some(a => a === 'npx' || a === 'npx.cmd'));
+  return invokesNpx && args.some(a => a.includes('chrome-devtools-mcp'));
+}
+
 export function syncMcpConfigs({
   root,
   isGlobal = false,
@@ -1840,6 +1853,7 @@ export function syncMcpConfigs({
   env = process.env,
   platform = process.platform,
   withVeycraft = false,
+  chromeDevtoolsBinary = null,
   dryRun = false,
   backup = true,
 } = {}) {
@@ -1867,6 +1881,9 @@ export function syncMcpConfigs({
   const playwrightCfg = toPlatformMcpServer(rawPlaywrightCfg, platform);
   const notionCfg = isObj(template.mcpServers?.notion) && Array.isArray(template.mcpServers.notion.args)
     ? toPlatformMcpServer(template.mcpServers.notion, platform)
+    : null;
+  const cdpCfg = typeof chromeDevtoolsBinary === 'string' && chromeDevtoolsBinary.trim()
+    ? { command: chromeDevtoolsBinary.trim(), args: [] }
     : null;
 
   let veycraftCfg = null;
@@ -1928,7 +1945,7 @@ export function syncMcpConfigs({
     if (servers.playwright && JSON.stringify(servers.playwright) !== JSON.stringify(playwrightCfg)) {
       warnings.push(`Preserved existing custom playwright MCP server in ${file}`);
       allowPlaywrightMerge = false;
-      if (!withVeycraft) {
+      if (!withVeycraft && !cdpCfg) {
         operations.push({ file, label: 'Playwright MCP', action: 'preserved', backup_path: null });
         continue;
       }
@@ -1939,6 +1956,13 @@ export function syncMcpConfigs({
         servers.notion = notionCfg;
       }
     }
+    if (cdpCfg) {
+      if (!servers.chrome_devtools || isSlowNpxChromeDevtoolsServer(servers.chrome_devtools)) {
+        servers.chrome_devtools = cdpCfg;
+      } else if (JSON.stringify(servers.chrome_devtools) !== JSON.stringify(cdpCfg)) {
+        warnings.push(`Preserved existing custom chrome_devtools MCP server in ${file}`);
+      }
+    }
     if (withVeycraft && veycraftCfg) {
       if (servers.veycraft && JSON.stringify(servers.veycraft) !== JSON.stringify(veycraftCfg)) {
         warnings.push(`Preserved existing custom veycraft MCP server in ${file}`);
@@ -1947,7 +1971,10 @@ export function syncMcpConfigs({
       }
     }
     const nextText = JSON.stringify({ ...current, mcpServers: servers }, null, 2) + '\n';
-    writeTargetSafe(file, nextText, withVeycraft ? 'Playwright + Veycraft MCP' : 'Playwright MCP');
+    const labelParts = ['Playwright'];
+    if (cdpCfg) labelParts.push('Chrome DevTools');
+    if (withVeycraft) labelParts.push('Veycraft');
+    writeTargetSafe(file, nextText, `${labelParts.join(' + ')} MCP`);
   }
 
   if (!isGlobal) {
@@ -1966,6 +1993,14 @@ export function syncMcpConfigs({
         servers.notion = { type: 'stdio', ...notionCfg };
       }
     }
+    if (cdpCfg) {
+      const vsCdp = { type: 'stdio', ...cdpCfg };
+      if (!servers.chrome_devtools || isSlowNpxChromeDevtoolsServer(servers.chrome_devtools)) {
+        servers.chrome_devtools = vsCdp;
+      } else if (JSON.stringify(servers.chrome_devtools) !== JSON.stringify(vsCdp)) {
+        warnings.push(`Preserved existing custom chrome_devtools MCP server in ${vscodeMcp}`);
+      }
+    }
     if (withVeycraft && veycraftCfg) {
       const vsVeycraft = { type: 'stdio', ...veycraftCfg };
       if (servers.veycraft && JSON.stringify(servers.veycraft) !== JSON.stringify(vsVeycraft)) {
@@ -1974,7 +2009,7 @@ export function syncMcpConfigs({
         servers.veycraft = vsVeycraft;
       }
     }
-    if (allowVsPlaywright || withVeycraft) {
+    if (allowVsPlaywright || withVeycraft || cdpCfg) {
       const nextText = JSON.stringify({ ...current, servers }, null, 2) + '\n';
       writeTargetSafe(vscodeMcp, nextText, 'VS Code MCP');
     } else {
@@ -2000,6 +2035,15 @@ export function syncMcpConfigs({
         tomlText = notionRes.text;
         tomlChanged = true;
       }
+    }
+  }
+  if (cdpCfg) {
+    const cdpRes = upsertTomlMcpServer(tomlText, 'chrome_devtools', cdpCfg);
+    if (cdpRes.status === 'preserved') {
+      warnings.push(`Preserved existing custom chrome_devtools MCP server in ${codexToml}`);
+    } else if (cdpRes.status === 'added') {
+      tomlText = cdpRes.text;
+      tomlChanged = true;
     }
   }
   if (withVeycraft && veycraftCfg) {
@@ -2035,8 +2079,176 @@ export function syncMcpConfigs({
     is_global: Boolean(isGlobal),
     dry_run: Boolean(dryRun),
     with_veycraft: Boolean(withVeycraft),
+    chrome_devtools_binary: cdpCfg ? cdpCfg.command : null,
     updated,
     operations,
     warnings,
+  };
+}
+
+export async function runDoctorFix({
+  root,
+  source = root,
+  home = os.homedir(),
+  isGlobal = false,
+  strict = false,
+  offline = true,
+  env = process.env,
+  platform = process.platform,
+  existsSync = fs.existsSync,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  const resolvedSource = path.resolve(source);
+  const chromeDevtoolsBinary = detectChromeDevtoolsMcp({ platform, env, home, existsSync });
+
+  const fixedItems = [];
+  const unchangedItems = [];
+  const remainingActions = [];
+  const allWarnings = [];
+  const allOperations = [];
+
+  // 1a. Sync workspace/target IDE MCP configs using fast direct chrome-devtools-mcp binary when available.
+  const mcpRes = syncMcpConfigs({
+    root: resolvedRoot,
+    isGlobal,
+    source: resolvedSource,
+    home,
+    env,
+    platform,
+    withVeycraft: false,
+    chromeDevtoolsBinary,
+    dryRun: false,
+    backup: true,
+  });
+  allOperations.push(...mcpRes.operations);
+  allWarnings.push(...mcpRes.warnings);
+
+  // 1b. When running locally, also auto-heal detected global IDE MCP configs (e.g., Antigravity, Gemini, Cursor, Claude, Windsurf, Copilot)
+  //     that already exist on disk (or whose Antigravity dir exists), upgrading slow npx chrome_devtools to the direct binary.
+  if (!isGlobal && chromeDevtoolsBinary) {
+    const cdpCfg = { command: chromeDevtoolsBinary, args: [] };
+    const globalTargets = mcpTargetFiles(resolvedRoot, true, home);
+    const seenPaths = new Set(allOperations.map(op => op.file));
+    for (const ideFile of globalTargets) {
+      if (seenPaths.has(ideFile)) continue;
+      const fileExists = fs.existsSync(ideFile);
+      const isAntigravityDir = ideFile.toLowerCase().includes('antigravity') && fs.existsSync(path.dirname(ideFile));
+      if (!fileExists && !isAntigravityDir) continue;
+      try {
+        refuseSymlinkBase(ideFile, resolvedRoot, home);
+        const current = fileExists ? readJsonSafeBase(ideFile, { boundary: resolvedRoot, home }) : {};
+        const servers = isObj(current.mcpServers) ? { ...current.mcpServers } : {};
+        const prevCdp = servers.chrome_devtools;
+        if (prevCdp && JSON.stringify(prevCdp) === JSON.stringify(cdpCfg)) {
+          allOperations.push({ file: ideFile, label: 'Detected IDE MCP (chrome_devtools)', action: 'unchanged', backup_path: null });
+          continue;
+        }
+        if (prevCdp && !isSlowNpxChromeDevtoolsServer(prevCdp)) {
+          allWarnings.push(`Preserved existing custom chrome_devtools MCP server in ${ideFile}`);
+          allOperations.push({ file: ideFile, label: 'Detected IDE MCP (chrome_devtools)', action: 'preserved', backup_path: null });
+          continue;
+        }
+        servers.chrome_devtools = cdpCfg;
+        const nextText = JSON.stringify({ ...current, mcpServers: servers }, null, 2) + '\n';
+        const backupPath = fileExists ? `${ideFile}.veycraft.bak` : null;
+        if (fileExists && backupPath) {
+          refuseSymlinkBase(backupPath, resolvedRoot, home);
+          writeAtomicBase(backupPath, fs.readFileSync(ideFile, 'utf8'), { preserve: false, mode: 0o600, boundary: resolvedRoot, home });
+        }
+        writeAtomicBase(ideFile, nextText, { preserve: false, mode: 0o600, boundary: resolvedRoot, home });
+        allOperations.push({
+          file: ideFile,
+          label: prevCdp ? 'Upgraded IDE MCP chrome_devtools (npx -> direct binary)' : 'Added IDE MCP chrome_devtools (direct binary)',
+          action: fileExists ? 'updated' : 'created',
+          backup_path: backupPath,
+        });
+      } catch (err) {
+        allWarnings.push(`Skipped IDE MCP config ${ideFile}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  for (const op of allOperations) {
+    if (op.action === 'created' || op.action === 'updated') {
+      fixedItems.push(`${op.label} -> ${op.file}`);
+    } else if (op.action === 'unchanged') {
+      unchangedItems.push(`${op.label} already up to date (${op.file})`);
+    }
+  }
+
+  // 2. Rebuild context/brief.json automatically if context/ files exist and brief.json is missing or stale.
+  let briefSummary;
+  const briefRes = compileCandidateBrief(resolvedRoot, { refresh: false, write: true, home });
+  if (briefRes.brief_ready && !briefRes.cached) {
+    briefSummary = {
+      status: 'rebuilt',
+      path: briefRes.path,
+      bytes: briefRes.bytes,
+      est_tokens: briefRes.est_tokens,
+    };
+    fixedItems.push(`Rebuilt context/brief.json (${briefRes.bytes} bytes, ~${briefRes.est_tokens} tokens)`);
+  } else if (briefRes.brief_ready && briefRes.cached) {
+    briefSummary = {
+      status: 'up_to_date',
+      path: briefRes.path,
+      bytes: briefRes.bytes,
+      est_tokens: briefRes.est_tokens,
+    };
+    unchangedItems.push(`context/brief.json already up to date (${briefRes.bytes} bytes, ~${briefRes.est_tokens} tokens)`);
+  } else {
+    briefSummary = {
+      status: 'skipped',
+      path: briefRes.path,
+      reason: briefRes.reason || 'No verified context/ sources found.',
+    };
+  }
+
+  const mcpChangedCount = allOperations.filter(op => op.action === 'created' || op.action === 'updated').length;
+  const ideReloadRequired = mcpChangedCount > 0;
+
+  if (!chromeDevtoolsBinary) {
+    remainingActions.push('Install `chrome-devtools-mcp` globally (`npm i -g chrome-devtools-mcp`), then re-run `veycraft doctor --fix` so MCP configs use the direct binary path instead of slow `npx`.');
+  }
+  if (ideReloadRequired) {
+    remainingActions.push('Reload your IDE window (or reload MCP servers) once so the updated MCP config(s) take effect.');
+  }
+
+  // 3. Re-evaluate doctor snapshot after fixes.
+  const postSnap = await evaluateDoctorSnapshot({
+    root: resolvedRoot,
+    source: resolvedSource,
+    home,
+    isGlobal,
+    strict,
+    offline,
+    readOnly: false,
+    env,
+    platform,
+    existsSync,
+  });
+
+  const payload = {
+    ...postSnap.payload,
+    fix_applied: true,
+    chrome_devtools_binary: chromeDevtoolsBinary,
+    fixed_count: fixedItems.length,
+    fixed_items: fixedItems,
+    unchanged_items: unchangedItems,
+    ide_reload_required: ideReloadRequired,
+    remaining_actions: remainingActions,
+    mcp_sync: {
+      updated: mcpChangedCount,
+      operations: allOperations,
+      warnings: allWarnings,
+    },
+    brief: briefSummary,
+  };
+
+  return {
+    payload,
+    events: postSnap.events,
+    installed: postSnap.installed,
+    readinessPending: postSnap.readinessPending,
+    exitCode: postSnap.exitCode,
   };
 }

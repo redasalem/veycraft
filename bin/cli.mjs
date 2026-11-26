@@ -24,6 +24,7 @@ import {
   installGitPreCommitHook as installGitPreCommitHookBase,
   evaluateGates,
   evaluateDoctorSnapshot,
+  runDoctorFix,
   detectHeadlessBrowser,
   extractHtmlText,
   auditCvFile,
@@ -78,7 +79,7 @@ const fail = msg => console.error(paint('31', `[✗] ${msg}`));
 const ATTRIBUTION_BANNER = 'Veycraft — Created by Reda Salem (@redasalem) | https://github.com/redasalem/veycraft';
 const PINNED_SIGNING_PRINCIPAL = CORE_PINNED_SIGNING_PRINCIPAL;
 const PINNED_SIGNING_PUBKEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7t6GfNExgWOy+djcVZlb62BD9DKRrz81Xk++LTZTSo';
-const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys', '--dry-run', '--apply', '--write', '--with-veycraft']);
+const BOOLEAN_FLAGS = new Set(['--global', '-g', '--help', '-h', '--version', '-v', '--strict', '--yes', '-y', '--no-open', '--baseline', '--force', '--share', '--json', '--journeys', '--dry-run', '--apply', '--write', '--with-veycraft', '--fix']);
 const positional = [];
 const opts = {
   global: false,
@@ -96,6 +97,7 @@ const opts = {
   apply: false,
   write: false,
   withVeycraft: false,
+  fix: false,
   port: null,
   workspace: null,
   period: null,
@@ -149,6 +151,7 @@ for (let i = 0; i < ARGV.length; i++) {
   else if (a === '--apply') opts.apply = true;
   else if (a === '--write') opts.write = true;
   else if (a === '--with-veycraft') opts.withVeycraft = true;
+  else if (a === '--fix') opts.fix = true;
   else if (a === '--port') {
     const rawPort = ARGV[++i];
     const val = rawPort !== undefined && /^\d+$/.test(rawPort) ? Number(rawPort) : NaN;
@@ -812,21 +815,51 @@ function cmdUpdate() {
 async function cmdDoctor() {
   const isGlobal = opts.global || isGlobalRoot(ROOT);
   const jsonMode = Boolean(opts.json);
-  const snap = await evaluateDoctorSnapshot({
-    root: ROOT,
-    source: SOURCE,
-    home: HOME,
-    isGlobal,
-    strict: opts.strict,
-    offline: true,
-    readOnly: false,
-  });
+  const fixMode = Boolean(opts.fix);
+  const snap = fixMode
+    ? await runDoctorFix({
+        root: ROOT,
+        source: SOURCE,
+        home: HOME,
+        isGlobal,
+        strict: opts.strict,
+        offline: true,
+      })
+    : await evaluateDoctorSnapshot({
+        root: ROOT,
+        source: SOURCE,
+        home: HOME,
+        isGlobal,
+        strict: opts.strict,
+        offline: true,
+        readOnly: false,
+      });
 
   if (jsonMode) {
     console.log(JSON.stringify(snap.payload, null, 2));
   } else {
     console.log(paint('36', `\n${ATTRIBUTION_BANNER}`));
-    console.log(paint('36', `Veycraft Doctor — ${ROOT}\n`));
+    console.log(paint('36', `Veycraft Doctor${fixMode ? ' (--fix)' : ''} — ${ROOT}\n`));
+    if (fixMode) {
+      if (snap.payload.fixed_items.length > 0) {
+        for (const item of snap.payload.fixed_items) ok(`Fixed: ${item}`);
+      } else {
+        info('Auto-fix: all detected MCP configs and context brief are already up to date (0 changes).');
+      }
+      for (const w of snap.payload.mcp_sync.warnings) warn(w);
+      if (snap.payload.brief?.status === 'skipped') {
+        info(`Brief rebuild skipped: ${snap.payload.brief.reason}`);
+      }
+      if (snap.payload.ide_reload_required) {
+        warn('IDE Reload Required: YES — reload your IDE window (or reload MCP servers) once for updated MCP configs to take effect.');
+      } else {
+        ok('IDE Reload Required: NO — MCP configs did not change.');
+      }
+      for (const action of snap.payload.remaining_actions) {
+        if (!action.toLowerCase().includes('reload your ide')) warn(`Remaining action: ${action}`);
+      }
+      console.log('');
+    }
     for (const ev of snap.events) {
       if (ev.level === 'ok') ok(ev.message);
       else if (ev.level === 'warn') warn(ev.message);
@@ -1909,7 +1942,7 @@ veycraft v${version} — Agent-Native Career Operations & Profile Intelligence E
 Legacy CLI aliases \`job-hunter\` and \`job-hunter-os\` remain supported for backwards compatibility.
 
 Quick Start:
-  veycraft doctor [--json]                         Fast (<1s) pre-flight check: context/, Headless Chrome/Edge PDF & chrome-devtools-mcp
+  veycraft doctor [--json] [--fix]                 Fast (<1s) pre-flight check & auto-fix: context/, brief, Headless Chrome/Edge PDF & chrome-devtools-mcp
   veycraft init [--global | -g] [--ide <name>]     Scaffold agent home & sync AI IDE skills/MCP (non-destructive)
   veycraft ui [--port <n>] [--no-open] [--workspace <dir> | -g] Launch local read-only Web UI on 127.0.0.1
   veycraft route "<request>" [--json]              Route natural-language career task to minimal skills
@@ -1967,6 +2000,9 @@ try {
   }
   if (opts.withVeycraft && command !== 'sync-mcp') {
     throw new Error('Option --with-veycraft is only supported with `veycraft sync-mcp`.');
+  }
+  if (opts.fix && command !== 'doctor') {
+    throw new Error('Option --fix is only supported with `veycraft doctor`.');
   }
   if ((opts.port !== null || opts.workspace !== null) && command !== 'ui') {
     const used = [opts.port !== null ? '--port' : null, opts.workspace !== null ? '--workspace' : null].filter(Boolean).join(', ');

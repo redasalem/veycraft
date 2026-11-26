@@ -42,8 +42,9 @@ Use for `/daily-run` (multi-job discovery and batch triage) or `/apply-url <url>
 
 Follow this exact sequence. Never reorder steps 0–3.
 
-0. **Readiness Gatekeeper (`skills/00-interrogate-and-onboard.md`) & Pre-Flight (`veycraft doctor`):**
-   - Run `node ./bin/cli.mjs doctor` (<1 s) to verify `context/` readiness (`cv.md`, `profile.md`, `preferences.yaml`, `brief.json`), local Chrome/Edge Headless PDF availability, and global `chrome-devtools-mcp` binary status. If browser MCP is unavailable, immediately offer the 1-line `npm i -g chrome-devtools-mcp` fix + direct binary config tip OR proceed immediately via CLI/draft fallback (`skills/fallback-no-mcp.md`) so the user never stalls.
+0. **Readiness Gatekeeper (`skills/00-interrogate-and-onboard.md`) & Self-Healing Pre-Flight (`veycraft doctor --fix`):**
+   - Run `node ./bin/cli.mjs doctor --json` (<1 s) to verify `context/` readiness (`cv.md`, `profile.md`, `preferences.yaml`, `brief.json`), local Chrome/Edge Headless PDF availability, and global `chrome-devtools-mcp` binary status.
+   - **Hard "Do, Don't Tell" Self-Healing Rule:** If `brief.json` is missing/stale or any detected IDE MCP config is missing or using slow `npx`, **NEVER** ask the user to run CLI setup commands (`sync-mcp`, `doctor`, `brief`, etc.) when you have terminal access — **immediately run `node ./bin/cli.mjs doctor --fix` yourself**. Only ask the user for UI-only actions you cannot execute (clicking **Reload Window** once if `ide_reload_required: true`, logging into a site, or replying `APPROVE`), or proceed immediately via CLI/draft fallback (`skills/fallback-no-mcp.md`) so the user never stalls.
    - Inspect `context/profile.md`, `context/cv.md`, `context/preferences.yaml`, `context/form-answers.yaml`, `context/targets.yaml`, `config/guardrails.yaml`, and `assets/resume.pdf` (or `context/resume.pdf`).
    - If any file is missing, unverified, or still contains `.example` placeholders, STOP and interview the user in chat (3–4 questions at a time).
    - Once all 5 gates pass, show a concise **Mission Briefing** (roles, regions, platforms, warm-up daily cap, minimum score, `dry_run` vs live) and end with a compact **Next-Step Handoff** (rendered in the user's active conversation language) requesting explicit owner launch confirmation.

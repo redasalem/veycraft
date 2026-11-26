@@ -42,9 +42,10 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
 
 ### Phase 1 — Multi-Source Search, Expand, Ghost-Check & Evidence-Backed Score (No Apply Clicks)
 
-0. **Proactive Browser MCP Pre-Flight Check (Before Opening Any Job Board):**
-   - Before attempting to open any job board or URL, check whether browser MCP tools are active (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`) and run `node ./bin/cli.mjs doctor` (<1 s) when workspace or browser readiness is uncertain.
-   - **Zero-Stall Fallback (< 30 s value):** If browser MCP tools are missing, disabled, or timing out, NEVER stall: immediately present **(1) the 1-line fast fix** (`npm i -g chrome-devtools-mcp`, then point MCP config `"command"` directly to the installed binary path instead of `npx`, verified via `veycraft doctor`) **AND (2) an immediate fallback** via `veycraft feed-scan`, public ATS JSON endpoints, pasted JD text, or screenshots so the owner gets ranked results right away.
+0. **Proactive Browser MCP Pre-Flight Check & Self-Healing ("Do, Don't Tell"):**
+   - Before attempting to open any job board or URL, check whether browser MCP tools are active (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`).
+   - **Hard "Do, Don't Tell" Rule:** If browser MCP tools are missing, disabled, or timing out (or `context/brief.json` is missing/stale) and you have shell access, **NEVER** tell the user to run terminal commands (`sync-mcp`, `doctor`, `brief`, etc.) — **immediately run `node ./bin/cli.mjs doctor --fix` yourself** to auto-configure detected IDE MCP files with the fast direct `chrome-devtools-mcp` binary and rebuild `context/brief.json`.
+   - **Zero-Stall Handoff (< 30 s value):** Only ask the user for UI-only actions you cannot perform (e.g., clicking **Reload Window** once if `ide_reload_required: true`, or logging into a site), AND immediately offer a live fallback via `veycraft feed-scan`, public ATS JSON endpoints, pasted JD text, or screenshots so the owner gets ranked results right away.
 
 1. **Multi-Source Search & Capability Check (Never Assume LinkedIn Auth or Single Source):**
    - For `/daily-run`: read enabled targets in `context/targets.yaml` and their platform playbooks (`skills/platforms/*`).
