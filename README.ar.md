@@ -20,7 +20,7 @@
 
 > *(سابقًا `job-hunter-os` — تحويلات GitHub، ومجلدات `~/.job-hunter-os` القديمة، وأوامر `job-hunter` و`job-hunter-os` ما زالت مدعومة بالكامل.)*
 
-![عرض طرفية متحرك لأداة Veycraft v2.8.4: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لأداة Veycraft v2.8.5: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 ---
 
@@ -168,7 +168,7 @@ flowchart LR
 | `veycraft ui [--port <n>] [--no-open]` | تشغيل الواجهة المحلية للقراءة فقط على `127.0.0.1` (الجاهزية، Kanban، التحليلات، الاستوديو، 56 مهارة) |
 | `veycraft mcp [--global]` | تشغيل خادم MCP أصيل عبر `stdio` (`8` أدوات قراءة فقط بلا شبكة + موارد `veycraft://`) |
 | `veycraft doctor [--global] [--strict] [--json]` | فحص Node والأصل والـ 56 مهارة والبوابات الـ 5 وخطاف الخصوصية وإعدادات MCP |
-| `veycraft eval [--baseline \| --journeys]` | تشغيل اختبارات التقييم الحتمية (`20/20`) ومصفوفة الرحلات (`132/132`) |
+| `veycraft eval [--baseline \| --journeys]` | تشغيل اختبارات التقييم الحتمية (`20/20`) ومصفوفة الرحلات (`133/133`) |
 | `veycraft route` / `audit` / `verify` / `pre-submit` | توجيه الطلبات الطبيعية، تدقيق الـ CV محليًا، التحقق من المخرجات، وفرض الحدود ومنع الكليشيهات |
 
 <details>
@@ -255,7 +255,7 @@ npm update -g veycraft && veycraft update --global
 # إزالة الأداة العالمية فقط (تبقى بياناتك في ~/.veycraft سليمة)
 npm uninstall -g veycraft
 
-# تشغيل كامل اختبارات التحقق (20/20 تقييم · 132/132 رحلة · 116/116 اختبار وحدة)
+# تشغيل كامل اختبارات التحقق (20/20 تقييم · 133/133 رحلة · 117/117 اختبار وحدة)
 npm run prepublishOnly && node --test evals/*.test.mjs
 ```
 

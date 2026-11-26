@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.5] - 2026-11-26 — Cold-Start Quickstart Fix (`init` → `onboard` → `feed-scan --all`), Canonical SPDX MIT & Launch Hygiene
+
+### Fixed & Changed
+- **Cold-Start `init` → `onboard` Starter Detection (`bin/fast-ops.mjs`, `evals/fast-ops.test.mjs`):** Added `isUntouchedStarterFile()` so `veycraft onboard` cleanly replaces untouched `.example` scaffold files copied by `veycraft init` (while still preserving genuinely customized user `context/` files when re-run without `--force`), strips `your-site.dev` placeholder links from `brief.json`, enables 2 ready-to-run public remote developer JSON feeds (`Remotive` + `Arbeitnow`) in `context/feeds.yaml` during fresh onboarding, and prints an actionable CLI hint whenever `feed-scan --all` sees `0` enabled sources (`116/116 -> 117/117` unit tests, `132/132 -> 133/133` journey tests).
+- **Canonical SPDX MIT License & Launch Hygiene (`LICENSE`, `roadmap.md`, `.gitignore`):** Normalized `LICENSE` to pure SPDX MIT text so GitHub detects `MIT License` natively (keeping full provenance enforcement in `NOTICE`, `AUTHORS.md`, and `PROVENANCE.json`), updated `roadmap.md` to `v2.8.5` (`Track A & B` complete, `Track C & D` next), and removed stale `.lovable/` prototype files from Git tracking.
+
 ## [2.8.4] - 2026-11-26 — Animated CLI Fast-Path & Local Web UI GIF Demos in English & Arabic READMEs
 
 ### Added & Changed

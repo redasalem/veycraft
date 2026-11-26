@@ -18,7 +18,7 @@ Cuts browser and context token usage by **85%–95%** via a local zero-token fas
 
 > *(Formerly `job-hunter-os` — GitHub redirects, existing `~/.job-hunter-os` homes, and `job-hunter` / `job-hunter-os` CLI aliases remain supported.)*
 
-![Veycraft v2.8.4 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.8.5 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
 
 ---
 
@@ -146,7 +146,7 @@ Full catalogs: **[56-Skill Catalog](docs/SKILL_CATALOG.md)** · **[Chat &amp; Sl
 | `veycraft ui [--port <n>] [--no-open]` | Launches read-only `127.0.0.1` Web UI (Overview, Kanban, Analytics, Studio, 56 Skills) |
 | `veycraft mcp [--global]` | Starts zero-dependency `stdio` MCP server (`8` read-only offline tools + `veycraft://` resources) |
 | `veycraft doctor [--global] [--strict] [--json]` | Verifies Node runtime, provenance, 56 skills, 5 gates, PII pre-commit hook &amp; MCP configs |
-| `veycraft eval [--baseline \| --journeys]` | Runs deterministic `20/20` eval assertions and `132/132` synthetic task-journey suites |
+| `veycraft eval [--baseline \| --journeys]` | Runs deterministic `20/20` eval assertions and `133/133` synthetic task-journey suites |
 | `veycraft route` / `audit` / `verify` / `pre-submit` | Routes natural-language intents, audits CVs offline, verifies outputs, and enforces caps/anti-slop |
 
 <details>
@@ -224,7 +224,7 @@ npm update -g veycraft && veycraft update --global
 # Uninstall CLI only (keeps ~/.veycraft data intact)
 npm uninstall -g veycraft
 
-# Local verification suite (20/20 evals · 132/132 journeys · 116/116 unit tests)
+# Local verification suite (20/20 evals · 133/133 journeys · 117/117 unit tests)
 npm run prepublishOnly && node --test evals/*.test.mjs
 ```
 

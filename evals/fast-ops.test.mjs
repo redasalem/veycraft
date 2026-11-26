@@ -612,3 +612,85 @@ test('8. Track A workflow & slash-command parity for Skills 54, 55, and 56', () 
     assert.equal(routed.workflow, `.agent/workflows/${slug}.md`);
   }
 });
+
+test('9. Cold-start init -> onboard -> brief replaces untouched .example starter files, enables Option 2A feeds, and preserves customized user files', () => {
+  const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'veycraft-coldstart-'));
+  const isoHome = path.join(tmpBase, 'home');
+  const isoProj = path.join(tmpBase, 'proj');
+  fs.mkdirSync(isoHome, { recursive: true });
+  fs.mkdirSync(isoProj, { recursive: true });
+  const env = { ...process.env, HOME: isoHome, USERPROFILE: isoHome };
+  try {
+    // Step 1: `veycraft init` copies `.example` starter files into `context/`
+    const initRes = spawnSync(process.execPath, [CLI_PATH, 'init'], { cwd: isoProj, env, encoding: 'utf8', timeout: 15000 });
+    assert.equal(initRes.status, 0, initRes.stderr);
+    assert.ok(fs.existsSync(path.join(isoProj, 'context', 'profile.md')));
+    assert.ok(fs.existsSync(path.join(isoProj, 'context', 'feeds.yaml')));
+
+    // Untouched starter files must NOT be mistaken for a verified brief before onboarding
+    const preBriefRes = spawnSync(process.execPath, [CLI_PATH, 'brief', '--json'], { cwd: isoProj, env, encoding: 'utf8', timeout: 10000 });
+    assert.equal(preBriefRes.status, 0, preBriefRes.stderr);
+    const preBrief = JSON.parse(preBriefRes.stdout);
+    assert.equal(preBrief.brief_ready, false, 'Untouched .example copies from init must not produce a fake brief');
+
+    // Step 2: `veycraft onboard` replaces untouched starter files without needing --force
+    const onboardRes = spawnSync(
+      process.execPath,
+      [
+        CLI_PATH, 'onboard',
+        '--non-interactive',
+        '--role', 'Staff Distributed Systems Engineer',
+        '--stack', 'Go,TypeScript,PostgreSQL,Kafka',
+        '--min-budget', '1800',
+        '--min-hourly', '75',
+        '--currency', 'USD',
+        '--work-mode', 'remote',
+        '--github', 'dist-eng',
+        '--json',
+      ],
+      { cwd: isoProj, env, encoding: 'utf8', timeout: 10000 },
+    );
+    assert.equal(onboardRes.status, 0, onboardRes.stderr);
+    const onboardOut = JSON.parse(onboardRes.stdout);
+    assert.equal(onboardOut.skipped_existing.length, 0, 'Untouched .example copies should be overwritten cleanly');
+    assert.ok(onboardOut.written_files.includes('context/cv.md'));
+    assert.ok(onboardOut.written_files.includes('context/profile.md'));
+    assert.ok(onboardOut.written_files.includes('context/preferences.yaml'));
+    assert.ok(onboardOut.written_files.includes('context/feeds.yaml'));
+    assert.ok(onboardOut.written_files.includes('context/brief.json'));
+
+    // Verify brief.json reflects user inputs with zero starter leaks
+    const briefRes = spawnSync(process.execPath, [CLI_PATH, 'brief', '--json'], { cwd: isoProj, env, encoding: 'utf8', timeout: 10000 });
+    assert.equal(briefRes.status, 0, briefRes.stderr);
+    const briefOut = JSON.parse(briefRes.stdout);
+    assert.equal(briefOut.brief_ready, true);
+    assert.equal(briefOut.brief.headline, 'Staff Distributed Systems Engineer');
+    assert.deepEqual(briefOut.brief.core_stack, ['Go', 'TypeScript', 'PostgreSQL', 'Kafka']);
+    assert.equal(briefOut.brief.verified_links.github, 'https://github.com/dist-eng');
+    assert.equal(briefOut.brief.verified_links.portfolio, undefined);
+    assert.ok(!JSON.stringify(briefOut.brief).includes('Acme Fintech'));
+
+    // Verify Option 2A enabled starter feeds in context/feeds.yaml
+    const feedsParsed = parseFeedsConfigYaml(fs.readFileSync(path.join(isoProj, 'context', 'feeds.yaml'), 'utf8'));
+    assert.equal(feedsParsed.filter(f => f.enabled).length, 2, 'Remotive + Arbeitnow should be enabled after fresh onboard');
+
+    // Verify 0-enabled-source CLI hint when all feeds are disabled
+    fs.writeFileSync(path.join(isoProj, 'context', 'feeds-none.yaml'), 'feeds:\n  - name: Off\n    enabled: false\n    url: https://example.org/rss\n', 'utf8');
+    const zeroScan = spawnSync(process.execPath, [CLI_PATH, 'feed-scan', '--all', '--config', 'context/feeds-none.yaml'], { cwd: isoProj, env, encoding: 'utf8', timeout: 10000 });
+    assert.equal(zeroScan.status, 0, zeroScan.stderr);
+    assert.ok(zeroScan.stdout.includes('Hint: 0 feeds are enabled'), 'Expected actionable hint when 0 feeds are enabled');
+
+    // Step 3: Re-running onboard WITHOUT --force preserves the user's real customized files
+    const secondOnboard = spawnSync(
+      process.execPath,
+      [CLI_PATH, 'onboard', '--non-interactive', '--role', 'Should Not Overwrite', '--json'],
+      { cwd: isoProj, env, encoding: 'utf8', timeout: 10000 },
+    );
+    assert.equal(secondOnboard.status, 0, secondOnboard.stderr);
+    const secondOut = JSON.parse(secondOnboard.stdout);
+    assert.ok(secondOut.skipped_existing.includes('context/profile.md'));
+    assert.ok(fs.readFileSync(path.join(isoProj, 'context', 'profile.md'), 'utf8').includes('Staff Distributed Systems Engineer'));
+  } finally {
+    fs.rmSync(tmpBase, { recursive: true, force: true });
+  }
+});
