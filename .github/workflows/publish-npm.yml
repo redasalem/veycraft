@@ -27,8 +27,9 @@ jobs:
 
       - name: Ensure npm >= 11.5.1 for OIDC Trusted Publishing
         run: |
-          npm install -g npm@latest
           node --version
+          npm --version
+          node -e "const [M,m,p]=require('node:child_process').execSync('npm --version',{encoding:'utf8'}).trim().split('.').map(Number); if(M<11||(M===11&&(m<5||(m===5&&p<1)))) process.exit(1);" || npm install -g npm@11
           npm --version
 
       - name: Verify zero-dependency CLI, package contents & Skill Eval Harness
