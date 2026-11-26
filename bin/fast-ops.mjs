@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import readline from 'node:readline/promises';
 import {
   isObj,
   isWithinDir,
@@ -680,7 +681,485 @@ export async function scanPublicFeeds(root, {
   };
 }
 
-// ---------------- Scoped CLI Runner for `brief`, `feed-scan`, `browser-script` ----------------
+// ---------------- Multi-Feed Radar (`context/feeds.yaml` + `feed-scan --all`) ----------------
+
+export function parseFeedsConfigYaml(yamlText) {
+  const lines = String(yamlText || '').split(/\r?\n/);
+  const feeds = [];
+  let current = null;
+  let inFeeds = false;
+
+  for (const raw of lines) {
+    const clean = raw.replace(/\s+#.*$/, '');
+    const trimmed = clean.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    if (/^feeds\s*:\s*$/i.test(trimmed)) {
+      inFeeds = true;
+      continue;
+    }
+    if (!inFeeds) continue;
+
+    if (/^-\s+/.test(trimmed)) {
+      if (current && (current.url || current.file)) feeds.push(current);
+      current = { name: 'Unnamed Feed', enabled: true, url: null, file: null, min_budget: null };
+      const rest = trimmed.replace(/^-\s+/, '');
+      const kv = rest.match(/^([A-Za-z0-9_]+)\s*:\s*(.*)$/);
+      if (kv) applyFeedField(current, kv[1], kv[2]);
+      continue;
+    }
+
+    if (current) {
+      const kv = trimmed.match(/^([A-Za-z0-9_]+)\s*:\s*(.*)$/);
+      if (kv) applyFeedField(current, kv[1], kv[2]);
+    }
+  }
+  if (current && (current.url || current.file)) feeds.push(current);
+  return feeds;
+}
+
+function applyFeedField(target, key, rawVal) {
+  const val = String(rawVal || '').trim().replace(/^["']|["']$/g, '');
+  if (key === 'name' && val) target.name = val;
+  else if (key === 'enabled') target.enabled = val.toLowerCase() === 'true';
+  else if (key === 'url' && val) target.url = val;
+  else if (key === 'file' && val) target.file = val;
+  else if (key === 'min_budget' && val && Number.isFinite(Number(val))) target.min_budget = Number(val);
+}
+
+function escapeMdCell(val) {
+  return String(val ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+}
+
+export async function scanAllConfiguredFeeds(root, {
+  configPath = null,
+  top = 15,
+  minBudget = null,
+  concurrency = 4,
+  write = true,
+  fetchImpl = null,
+  lookupImpl = undefined,
+  home = os.homedir(),
+  cwd = null,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  const baseDir = cwd ? path.resolve(cwd) : resolvedRoot;
+  const cfgAbs = configPath
+    ? (path.isAbsolute(configPath) ? path.resolve(configPath) : path.resolve(baseDir, configPath))
+    : path.join(resolvedRoot, 'context', 'feeds.yaml');
+
+  if (!isWithinDir(cfgAbs, resolvedRoot)) {
+    throw new Error(`Refusing feeds config outside workspace boundary: ${configPath}`);
+  }
+  refuseSymlink(cfgAbs, resolvedRoot, home);
+  if (!fs.existsSync(cfgAbs)) {
+    throw new Error(`Feeds config not found at ${cfgAbs}. Copy context/feeds.yaml.example to context/feeds.yaml and enable at least one feed.`);
+  }
+
+  const allConfigured = parseFeedsConfigYaml(readFileBoundedSync(cfgAbs, 256 * 1024, 'feeds.yaml').toString('utf8'));
+  const enabledFeeds = allConfigured.filter(f => f.enabled);
+  const maxWorkers = Math.max(1, Math.min(4, Number.isInteger(concurrency) ? concurrency : 4));
+  const topN = Number.isInteger(top) && top > 0 ? Math.min(top, 50) : 15;
+
+  const briefResult = compileCandidateBrief(resolvedRoot, { write: false, home });
+  const brief = briefResult.brief || null;
+  const { urlKeys, fpKeys } = loadExistingDedupKeys(resolvedRoot, { home });
+  const blacklist = (brief?.constraints?.blacklist || []).map(b => b.toLowerCase());
+  const globalMinBudget = Number.isFinite(minBudget) ? minBudget : (brief?.rate_floor?.min_budget ?? null);
+
+  // Bounded concurrency worker pool (max 4 concurrent sources) with per-source fault isolation
+  let nextIdx = 0;
+  let activeCount = 0;
+  let peakConcurrency = 0;
+  const perSourceResults = new Array(enabledFeeds.length);
+
+  const worker = async () => {
+    while (true) {
+      const idx = nextIdx++;
+      if (idx >= enabledFeeds.length) return;
+      const feed = enabledFeeds[idx];
+      activeCount++;
+      if (activeCount > peakConcurrency) peakConcurrency = activeCount;
+      try {
+        let rawText = '';
+        let sourceLabel = feed.url || feed.file || feed.name;
+        if (feed.file) {
+          const fAbs = path.isAbsolute(feed.file) ? path.resolve(feed.file) : path.resolve(resolvedRoot, feed.file);
+          if (!isWithinDir(fAbs, resolvedRoot)) throw new Error(`Feed file outside workspace: ${feed.file}`);
+          refuseSymlink(fAbs, resolvedRoot, home);
+          rawText = readFileBoundedSync(fAbs, MAX_LOCAL_FEED_BYTES, feed.name).toString('utf8');
+          sourceLabel = path.relative(resolvedRoot, fAbs).replace(/\\/g, '/');
+        } else {
+          const res = await fetchTextWithSafeRedirects(feed.url, { fetchImpl, lookupImpl });
+          if (res.status < 200 || res.status >= 300) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          rawText = res.text;
+          sourceLabel = res.finalUrl;
+        }
+        const parsed = parseFeedText(rawText, { sourceUrl: feed.url || '' });
+        perSourceResults[idx] = {
+          status: 'fulfilled',
+          feed,
+          sourceLabel,
+          items: parsed,
+        };
+      } catch (err) {
+        perSourceResults[idx] = {
+          status: 'rejected',
+          feed,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      } finally {
+        activeCount--;
+      }
+    }
+  };
+
+  await Promise.allSettled(Array.from({ length: Math.min(maxWorkers, enabledFeeds.length) }, () => worker()));
+
+  const sourceStatuses = [];
+  const scored = [];
+  const seenCrossFeedUrls = new Set();
+  const seenCrossFeedFps = new Set();
+  let totalScanned = 0;
+  let filteredDuplicates = 0;
+  let filteredBlacklist = 0;
+  let filteredBudget = 0;
+
+  for (const outcome of perSourceResults) {
+    if (!outcome) continue;
+    if (outcome.status === 'rejected') {
+      sourceStatuses.push({
+        name: outcome.feed.name,
+        ok: false,
+        scanned: 0,
+        kept: 0,
+        error: outcome.error,
+      });
+      continue;
+    }
+
+    const effMin = globalMinBudget !== null ? globalMinBudget : outcome.feed.min_budget;
+    let keptFromSource = 0;
+    totalScanned += outcome.items.length;
+
+    for (const item of outcome.items) {
+      const uKey = canonicalUrlKey(item.url);
+      const fp = item.company ? `${item.company.toLowerCase()}::${item.title.toLowerCase()}` : null;
+      if (
+        (uKey && (urlKeys.has(uKey) || seenCrossFeedUrls.has(uKey))) ||
+        (fp && (fpKeys.has(fp) || seenCrossFeedFps.has(fp)))
+      ) {
+        filteredDuplicates++;
+        continue;
+      }
+      if (uKey) seenCrossFeedUrls.add(uKey);
+      if (fp) seenCrossFeedFps.add(fp);
+
+      const hay = `${item.company || ''} ${item.url || ''} ${item.title}`.toLowerCase();
+      if (blacklist.some(b => b && hay.includes(b))) {
+        filteredBlacklist++;
+        continue;
+      }
+      if (effMin !== null && effMin > 0 && item.budget_num !== null && item.budget_num < effMin) {
+        filteredBudget++;
+        continue;
+      }
+
+      const fit = scoreFeedItem(item, brief);
+      keptFromSource++;
+      scored.push({
+        source_name: outcome.feed.name,
+        title: item.title,
+        url: item.url,
+        company: item.company,
+        budget: item.budget_raw,
+        posted_at: item.posted_at,
+        fit_score: fit.score,
+        matched_skills: fit.matched_skills,
+        ...(fit.unverified_required.length ? { unverified_required: fit.unverified_required } : {}),
+        ...(item.injection_flags.length ? { injection_flags: item.injection_flags } : {}),
+        snippet: item.snippet.slice(0, 160),
+      });
+    }
+
+    sourceStatuses.push({
+      name: outcome.feed.name,
+      ok: true,
+      scanned: outcome.items.length,
+      kept: keptFromSource,
+      error: null,
+    });
+  }
+
+  scored.sort((a, b) => b.fit_score - a.fit_score);
+  const topItems = scored.slice(0, topN).map((it, i) => ({ rank: i + 1, ...it }));
+
+  const today = new Date().toISOString().slice(0, 10);
+  const digestPath = path.join(resolvedRoot, 'logs', 'radar', `${today}.md`);
+  if (write) {
+    const mdLines = [
+      `# Veycraft Daily Opportunity Radar — ${today}`,
+      '',
+      '> `UNTRUSTED_EXTERNAL_DATA`: Review every listing manually before drafting or approving any bid or application. Zero automatic submissions occur.',
+      '',
+      `- **Enabled Sources:** ${enabledFeeds.length} (OK: ${sourceStatuses.filter(s => s.ok).length}, Failed: ${sourceStatuses.filter(s => !s.ok).length}, Peak Concurrency: ${peakConcurrency})`,
+      `- **Scanned:** ${totalScanned} | **Duplicates Filtered:** ${filteredDuplicates} | **Blacklist Filtered:** ${filteredBlacklist} | **Below Budget:** ${filteredBudget} | **Top Shortlist:** ${topItems.length}`,
+      '',
+      '## Source Health',
+      '',
+      '| Source | Status | Scanned | Kept | Notes |',
+      '|---|---|---|---|---|',
+      ...sourceStatuses.map(s => `| ${escapeMdCell(s.name)} | ${s.ok ? 'OK' : 'FAILED'} | ${s.scanned} | ${s.kept} | ${escapeMdCell(s.error || '—')} |`),
+      '',
+      '## Ranked Shortlist',
+      '',
+      '| # | Fit | Source | Title | Budget | Matched Skills | URL | Flags |',
+      '|---|---|---|---|---|---|---|---|',
+      ...(topItems.length > 0
+        ? topItems.map(it =>
+            `| ${it.rank} | ${it.fit_score}% | ${escapeMdCell(it.source_name)} | ${escapeMdCell(it.title)} | ${escapeMdCell(it.budget || 'Unstated')} | ${escapeMdCell((it.matched_skills || []).join(', ') || '—')} | ${escapeMdCell(it.url || '—')} | ${escapeMdCell((it.injection_flags || []).join(', ') || 'clean')} |`
+          )
+        : ['| — | — | — | No new matching items found | — | — | — | — |']),
+      '',
+    ];
+    writeAtomic(digestPath, mdLines.join('\n'), { boundary: resolvedRoot, home });
+  }
+
+  return {
+    ok: true,
+    mode: 'multi_feed_radar',
+    untrusted_external_data: true,
+    config_path: path.relative(resolvedRoot, cfgAbs).replace(/\\/g, '/'),
+    digest_path: write ? path.relative(resolvedRoot, digestPath).replace(/\\/g, '/') : null,
+    enabled_sources: enabledFeeds.length,
+    succeeded_sources: sourceStatuses.filter(s => s.ok).length,
+    failed_sources: sourceStatuses.filter(s => !s.ok).length,
+    peak_concurrency: peakConcurrency,
+    total_scanned: totalScanned,
+    filtered_duplicates: filteredDuplicates,
+    filtered_blacklist: filteredBlacklist,
+    filtered_budget: filteredBudget,
+    returned_count: topItems.length,
+    source_statuses: sourceStatuses,
+    items: topItems,
+  };
+}
+
+// ---------------- 60-Second Interactive / Non-Interactive Onboarding (`veycraft onboard`) ----------------
+
+function normalizeGithubUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (/^https:\/\/github\.com\/[A-Za-z0-9_.-]+/i.test(s)) return s;
+  const handle = s.replace(/^@/, '').replace(/^github\.com\//i, '').split('/')[0];
+  if (/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(handle)) return `https://github.com/${handle}`;
+  return null;
+}
+
+async function promptLineList(questions, { input = process.stdin, output = process.stdout } = {}) {
+  const answers = [];
+  if (!input) return answers;
+
+  // For non-TTY piped stdin, read all lines upfront cleanly so EOF never hangs on any OS
+  if (!input.isTTY) {
+    const chunks = [];
+    for await (const chunk of input) {
+      chunks.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
+    }
+    const rawLines = chunks.join('').split(/\r?\n/);
+    for (let i = 0; i < questions.length; i++) {
+      answers.push((rawLines[i] || '').trim());
+    }
+    return answers;
+  }
+
+  const rl = readline.createInterface({ input, output });
+  try {
+    for (const q of questions) {
+      try {
+        const ans = await rl.question(q);
+        answers.push(String(ans || '').trim());
+      } catch {
+        answers.push('');
+      }
+    }
+  } finally {
+    rl.close();
+  }
+  return answers;
+}
+
+export async function runOnboardingWizard(root, {
+  cvPath = null,
+  role = null,
+  stack = null,
+  minBudget = null,
+  minHourly = null,
+  currency = null,
+  workMode = null,
+  github = null,
+  portfolio = null,
+  force = false,
+  nonInteractive = false,
+  useStdin = false,
+  input = process.stdin,
+  output = process.stdout,
+  home = os.homedir(),
+  cwd = null,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  const baseDir = cwd ? path.resolve(cwd) : resolvedRoot;
+
+  let effCv = cvPath;
+  let effRole = role;
+  let effStack = stack;
+  let effMinBudget = minBudget;
+  let effWorkMode = workMode;
+  let effGithub = github;
+  let effPortfolio = portfolio;
+  const effCurrency = String(currency || 'USD').toUpperCase();
+
+  const hasExplicitFlags = Boolean(effCv || effRole || effStack || effMinBudget !== null || effGithub || effWorkMode);
+  const shouldPrompt = !nonInteractive && (useStdin || (!hasExplicitFlags && Boolean(input?.isTTY)));
+
+  if (shouldPrompt) {
+    const [aRole, aStack, aBudget, aMode, aGithub, aCv] = await promptLineList([
+      '1/6 Target role / headline (e.g., Senior Full-Stack TypeScript Engineer): ',
+      '2/6 Core skills comma-separated (e.g., TypeScript, Next.js, Node.js, PostgreSQL): ',
+      '3/6 Minimum project budget / monthly floor in USD (optional, e.g., 400): ',
+      '4/6 Work mode (remote / hybrid / onsite) [remote]: ',
+      '5/6 GitHub handle or URL (optional): ',
+      '6/6 Path to existing CV (.md/.txt/.html inside workspace, optional): ',
+    ], { input, output });
+    if (!effRole && aRole) effRole = aRole;
+    if (!effStack && aStack) effStack = aStack;
+    if (effMinBudget === null && aBudget && /^\d+(?:\.\d+)?$/.test(aBudget)) effMinBudget = Number(aBudget);
+    if (!effWorkMode && aMode) effWorkMode = aMode;
+    if (!effGithub && aGithub) effGithub = aGithub;
+    if (!effCv && aCv) effCv = aCv;
+  }
+
+  const finalRole = String(effRole || '').trim() || 'Software Engineer';
+  const finalSkills = String(effStack || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .slice(0, 15);
+  const finalWorkMode = /^(remote|hybrid|onsite)$/i.test(String(effWorkMode || '').trim())
+    ? String(effWorkMode).trim().toLowerCase()
+    : 'remote';
+  const finalGithubUrl = normalizeGithubUrl(effGithub);
+  const finalPortfolioUrl = portfolio && /^https:\/\//i.test(String(portfolio).trim()) ? String(portfolio).trim() : null;
+
+  const writtenFiles = [];
+  const skippedExisting = [];
+
+  const canWriteContextFile = (absPath) => {
+    if (!fs.existsSync(absPath)) return true;
+    if (force) return true;
+    try {
+      refuseSymlink(absPath, resolvedRoot, home);
+      const txt = fs.readFileSync(absPath, 'utf8');
+      return TEMPLATE_PLACEHOLDER_RE.test(txt);
+    } catch {
+      return false;
+    }
+  };
+
+  // 1. context/cv.md (from --cv if provided, else grounded starter summary)
+  const cvDest = path.join(resolvedRoot, 'context', 'cv.md');
+  if (effCv) {
+    const srcAbs = path.isAbsolute(effCv) ? path.resolve(effCv) : path.resolve(baseDir, effCv);
+    if (!isWithinDir(srcAbs, resolvedRoot)) {
+      throw new Error(`Refusing CV source outside workspace boundary: ${effCv}`);
+    }
+    refuseSymlink(srcAbs, resolvedRoot, home);
+    if (!fs.existsSync(srcAbs)) throw new Error(`CV file not found: ${srcAbs}`);
+    const rawCv = readFileBoundedSync(srcAbs, 512 * 1024, 'CV source').toString('utf8');
+    const cleanCv = /\.html?$/i.test(srcAbs) ? decodeXmlHtmlEntities(stripMarkupTags(rawCv, '\n')) : rawCv;
+    if (canWriteContextFile(cvDest)) {
+      writeAtomic(cvDest, cleanCv, { boundary: resolvedRoot, home });
+      writtenFiles.push('context/cv.md');
+    } else {
+      skippedExisting.push('context/cv.md');
+    }
+  } else if (canWriteContextFile(cvDest)) {
+    const starterCv = [
+      `# ${finalRole}`,
+      '',
+      `Skills: ${finalSkills.length ? finalSkills.join(', ') : 'TypeScript, Node.js'}`,
+      '',
+      '## Experience',
+      `- Add verified project outcomes and metrics for ${finalRole}.`,
+      '',
+    ].join('\n');
+    writeAtomic(cvDest, starterCv, { boundary: resolvedRoot, home });
+    writtenFiles.push('context/cv.md');
+  } else {
+    skippedExisting.push('context/cv.md');
+  }
+
+  // 2. context/profile.md
+  const profileDest = path.join(resolvedRoot, 'context', 'profile.md');
+  if (canWriteContextFile(profileDest)) {
+    const profileLines = [
+      '# Candidate Profile',
+      '',
+      `Headline: ${finalRole}`,
+      `Work Mode: ${finalWorkMode}`,
+      ...(finalGithubUrl ? [`GitHub: ${finalGithubUrl}`] : []),
+      ...(finalPortfolioUrl ? [`Portfolio: ${finalPortfolioUrl}`] : []),
+      '',
+    ];
+    writeAtomic(profileDest, profileLines.join('\n'), { boundary: resolvedRoot, home });
+    writtenFiles.push('context/profile.md');
+  } else {
+    skippedExisting.push('context/profile.md');
+  }
+
+  // 3. context/preferences.yaml
+  const prefDest = path.join(resolvedRoot, 'context', 'preferences.yaml');
+  if (canWriteContextFile(prefDest)) {
+    const prefLines = [
+      `work_mode: ${finalWorkMode}`,
+      `currency: ${effCurrency}`,
+      ...(effMinBudget !== null && Number.isFinite(Number(effMinBudget)) ? [`min_budget: ${Number(effMinBudget)}`] : []),
+      ...(minHourly !== null && Number.isFinite(Number(minHourly)) ? [`min_hourly: ${Number(minHourly)}`] : []),
+      'languages:',
+      '  - en',
+      ...(finalSkills.length
+        ? ['skills:', ...finalSkills.map(s => `  - ${s}`)]
+        : []),
+      'blacklisted_companies: []',
+      '',
+    ];
+    writeAtomic(prefDest, prefLines.join('\n'), { boundary: resolvedRoot, home });
+    writtenFiles.push('context/preferences.yaml');
+  } else {
+    skippedExisting.push('context/preferences.yaml');
+  }
+
+  // 4. Immediately compile compact context/brief.json (< 400 tokens)
+  const briefRes = compileCandidateBrief(resolvedRoot, { refresh: true, write: true, home });
+  if (briefRes.brief_ready) writtenFiles.push('context/brief.json');
+
+  return {
+    ok: true,
+    onboarded: true,
+    written_files: writtenFiles,
+    skipped_existing: skippedExisting,
+    brief: {
+      ready: briefRes.brief_ready,
+      bytes: briefRes.bytes || 0,
+      est_tokens: briefRes.est_tokens || 0,
+      path: briefRes.brief_ready ? 'context/brief.json' : null,
+    },
+  };
+}
+
+// ---------------- Scoped CLI Runner for `brief`, `feed-scan`, `browser-script`, `onboard` ----------------
 
 export async function runFastOpsCli(root, command, rawArgs = [], { home = os.homedir(), cwd = process.cwd() } = {}) {
   const args = Array.isArray(rawArgs) ? rawArgs : [];
@@ -723,16 +1202,93 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
     };
   }
 
-  if (command === 'feed-scan') {
-    let url = null;
-    let file = null;
-    let top = 10;
+  if (command === 'onboard') {
+    let cvPath = null;
+    let role = null;
+    let stack = null;
     let minBudget = null;
+    let minHourly = null;
+    let currency = null;
+    let workMode = null;
+    let github = null;
+    let portfolio = null;
+    let force = false;
+    let nonInteractive = false;
+    let useStdin = false;
+
     for (let i = 0; i < args.length; i++) {
       const a = args[i];
       if (a === '--json') json = true;
       else if (a === '--help' || a === '-h') help = true;
-      else if (a === '--url') {
+      else if (a === '--force') force = true;
+      else if (a === '--non-interactive') nonInteractive = true;
+      else if (a === '--stdin') useStdin = true;
+      else if (a === '--cv') { cvPath = args[++i]; if (!cvPath) throw new Error('Option --cv requires a file path.'); }
+      else if (a === '--role') { role = args[++i]; if (!role) throw new Error('Option --role requires a role title.'); }
+      else if (a === '--stack') { stack = args[++i]; if (!stack) throw new Error('Option --stack requires comma-separated skills.'); }
+      else if (a === '--currency') { currency = args[++i]; if (!currency) throw new Error('Option --currency requires a currency code.'); }
+      else if (a === '--work-mode') { workMode = args[++i]; if (!workMode) throw new Error('Option --work-mode requires remote|hybrid|onsite.'); }
+      else if (a === '--github') { github = args[++i]; if (!github) throw new Error('Option --github requires a handle or URL.'); }
+      else if (a === '--portfolio') { portfolio = args[++i]; if (!portfolio) throw new Error('Option --portfolio requires an HTTPS URL.'); }
+      else if (a === '--min-budget') {
+        const rawVal = args[++i];
+        if (!rawVal || !/^\d+(?:\.\d+)?$/.test(rawVal)) throw new Error(`Invalid --min-budget value: "${rawVal}".`);
+        minBudget = Number(rawVal);
+      } else if (a === '--min-hourly') {
+        const rawVal = args[++i];
+        if (!rawVal || !/^\d+(?:\.\d+)?$/.test(rawVal)) throw new Error(`Invalid --min-hourly value: "${rawVal}".`);
+        minHourly = Number(rawVal);
+      } else {
+        throw new Error(`Unknown option for \`veycraft onboard\`: "${a}".`);
+      }
+    }
+    if (help) {
+      return {
+        json: false,
+        exitCode: 0,
+        lines: [
+          'Usage: veycraft onboard [--cv <path>] [--role <title>] [--stack <a,b,c>] [--min-budget <n>] [--min-hourly <n>] [--currency <USD>] [--work-mode <remote|hybrid|onsite>] [--github <handle>] [--portfolio <https-url>] [--force] [--non-interactive | --stdin] [--json]',
+          '60-second zero-dependency onboarding wizard: populates context/ files (preserving existing verified files unless --force) and compiles context/brief.json (< 400 tokens).',
+        ],
+      };
+    }
+    const res = await runOnboardingWizard(root, {
+      cvPath, role, stack, minBudget, minHourly, currency, workMode, github, portfolio,
+      force, nonInteractive, useStdin, home, cwd,
+    });
+    return {
+      json,
+      exitCode: 0,
+      data: res,
+      lines: [
+        `Onboarding complete. Written: ${res.written_files.join(', ') || 'none'}${res.skipped_existing.length ? ` | Preserved existing: ${res.skipped_existing.join(', ')}` : ''}`,
+        res.brief.ready
+          ? `Candidate brief ready: ${res.brief.path} (${res.brief.bytes} bytes, ~${res.brief.est_tokens} tokens)`
+          : 'Candidate brief pending real CV/profile details.',
+      ],
+    };
+  }
+
+  if (command === 'feed-scan') {
+    let url = null;
+    let file = null;
+    let all = false;
+    let configPath = null;
+    let top = 10;
+    let topExplicit = false;
+    let minBudget = null;
+    let concurrency = 4;
+    let write = true;
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a === '--json') json = true;
+      else if (a === '--help' || a === '-h') help = true;
+      else if (a === '--all') all = true;
+      else if (a === '--no-write') write = false;
+      else if (a === '--config') {
+        configPath = args[++i];
+        if (!configPath || configPath.startsWith('-')) throw new Error('Option --config requires a workspace path to feeds.yaml.');
+      } else if (a === '--url') {
         url = args[++i];
         if (!url || url.startsWith('-')) throw new Error('Option --url requires an HTTPS URL.');
       } else if (a === '--file') {
@@ -742,10 +1298,15 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
         const rawTop = args[++i];
         if (!rawTop || !/^\d+$/.test(rawTop) || Number(rawTop) < 1) throw new Error(`Invalid --top value: "${rawTop}".`);
         top = Number(rawTop);
+        topExplicit = true;
       } else if (a === '--min-budget') {
         const rawMin = args[++i];
         if (!rawMin || !/^\d+(?:\.\d+)?$/.test(rawMin)) throw new Error(`Invalid --min-budget value: "${rawMin}".`);
         minBudget = Number(rawMin);
+      } else if (a === '--concurrency') {
+        const rawConc = args[++i];
+        if (!rawConc || !/^[1-4]$/.test(rawConc)) throw new Error(`Invalid --concurrency value (must be 1..4): "${rawConc}".`);
+        concurrency = Number(rawConc);
       } else {
         throw new Error(`Unknown option for \`veycraft feed-scan\`: "${a}".`);
       }
@@ -755,8 +1316,30 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
         json: false,
         exitCode: 0,
         lines: [
-          'Usage: veycraft feed-scan (--url <https-rss-or-json-url> | --file <workspace-path>) [--top <n>] [--min-budget <n>] [--json]',
-          'Zero-token local RSS/Atom/JSON feed scanner with SEC-01 SSRF protection, deduplication, and local Fit Score (0-100) ranking.',
+          'Usage: veycraft feed-scan (--all [--config <feeds.yaml>] [--concurrency 1..4] [--no-write] | --url <https-url> | --file <path>) [--top <n>] [--min-budget <n>] [--json]',
+          'Zero-token local RSS/Atom/JSON feed scanner with SEC-01 SSRF protection, bounded concurrency (max 4), deduplication, daily logs/radar/YYYY-MM-DD.md digest, and local Fit Score (0-100) ranking.',
+        ],
+      };
+    }
+    if (all) {
+      if (url || file) throw new Error('Cannot combine --all with --url or --file.');
+      const res = await scanAllConfiguredFeeds(root, {
+        configPath,
+        top: topExplicit ? top : 15,
+        minBudget,
+        concurrency,
+        write,
+        home,
+        cwd,
+      });
+      return {
+        json,
+        exitCode: 0,
+        data: res,
+        lines: [
+          `Radar scanned ${res.enabled_sources} source(s) (ok: ${res.succeeded_sources}, failed: ${res.failed_sources}, peak concurrency: ${res.peak_concurrency}) -> ${res.returned_count} top item(s) from ${res.total_scanned} scanned`,
+          ...(res.digest_path ? [`Saved daily digest -> ${res.digest_path}`] : []),
+          ...res.items.map(it => `#${it.rank} [${it.fit_score}%] (${it.source_name}) ${it.title}${it.budget ? ` (${it.budget})` : ''}`),
         ],
       };
     }

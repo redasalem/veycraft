@@ -124,7 +124,7 @@ for (let i = 0; i < ARGV.length; i++) {
     preSubmitArgs = ARGV.slice(i);
     break;
   }
-  if (positional[0] === 'brief' || positional[0] === 'feed-scan' || positional[0] === 'browser-script') {
+  if (positional[0] === 'brief' || positional[0] === 'feed-scan' || positional[0] === 'browser-script' || positional[0] === 'onboard') {
     fastOpsArgs = ARGV.slice(i);
     break;
   }
@@ -1943,8 +1943,9 @@ Core & Verification Commands:
   veycraft career record|reserve|confirm-submit|transition|skip|cv-register [--help] Atomic ledger & CV writes
   veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery
   veycraft pre-submit [--draft <f> | --text <t>] [--platform <p> --company <c> --title <t> --url <u> --job-id <id>] [--json] Pre-submit cap, dedup, blacklist & word-cap gate
+  veycraft onboard [--cv <p>] [--role <t>] [--stack <a,b>] [--min-budget <n>] [--non-interactive] [--json] 60-second setup wizard + context/brief.json compiler
   veycraft brief [--refresh] [--no-write] [--json] Compile or read cached context/brief.json (< 400 tokens, zero PII)
-  veycraft feed-scan (--url <u> | --file <p>) [--top <n>] [--min-budget <n>] [--json] Zero-token SSRF-safe RSS/Atom/JSON scanner & local ranker
+  veycraft feed-scan (--all | --url <u> | --file <p>) [--top <n>] [--min-budget <n>] [--json] Zero-token SSRF-safe RSS/Atom/JSON radar & daily digest
   veycraft browser-script <distill-feed|distill-form|batch-fill> [--json] Output read-only DOM distiller or non-submitting batch-fill payload
   veycraft eval [--baseline | --file <json> | --journeys] Run deterministic safety assertions & journey tests
   veycraft proof [--global | -g]                   Generate reproducible proof-card.svg & proof-card.md
@@ -2006,7 +2007,7 @@ try {
   else if (command === 'eval') cmdEval();
   else if (command === 'proof') cmdProof();
   else if (command === 'pre-submit') cmdPreSubmit();
-  else if (command === 'brief' || command === 'feed-scan' || command === 'browser-script') {
+  else if (command === 'brief' || command === 'feed-scan' || command === 'browser-script' || command === 'onboard') {
     const res = await runFastOpsCli(ROOT, command, fastOpsArgs, { home: HOME, cwd: process.cwd() });
     if (res.json) {
       console.log(JSON.stringify(res.data, null, 2));

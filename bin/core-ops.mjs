@@ -1030,7 +1030,7 @@ export const ROUTE_RULES = [
       /(^|\s)\/github-remote\b|\b(no[- ]clone|without cloning|gh api|contents api|git data api|pull requests?|gh pr|gh issue|gh workflow|github actions?|workflow runs?|push commit remotely)\b/i.test(q) ||
       (/\bgithub\b/i.test(q) && /\b(license|workflows?|branches?|tags?|releases?|issues?|prs?)\b/i.test(q) && !/\b(cv|resume|portfolio|recruiter|audit)\b/i.test(q)),
     skills: ['54-github-cli-remote-manager', '14-privacy-pii-shield', 'meta-self-verification'],
-    workflow: null,
+    workflow: '.agent/workflows/github-remote.md',
     readiness: 'task-specific (authenticated gh CLI session + explicit target <owner>/<repo>; no /setup or local clone required)',
     required_inputs: ['authenticated gh CLI session (`gh auth status`)', 'target <owner>/<repo> and requested remote operation'],
     optional_tools: ['gh CLI (required for remote execution)'],
@@ -1063,7 +1063,7 @@ export const ROUTE_RULES = [
         !/(?:عروض|تقديم\s+عرض|فلترة|مشاريع\s+مفتوحة)/i.test(q)
       ),
     skills: ['55-freelance-profile-and-service-publisher', '14-privacy-pii-shield', '18-condition-based-browser-waiting', '24-circuit-breaker-and-antiban', 'meta-self-verification'],
-    workflow: null,
+    workflow: '.agent/workflows/freelance-service.md',
     readiness: 'task-specific (service description + target freelance platform URL + verified CV/project facts; no /setup required)',
     required_inputs: ['plain-language service description', 'target freelance marketplace URL or platform name', 'verified CV/project facts'],
     optional_tools: ['playwright (optional for live profile audit, cover upload, and form filling)', 'native image generator (optional for cover artwork)'],
@@ -1080,7 +1080,7 @@ export const ROUTE_RULES = [
         (/\b(bid|bids|bidding|proposal|proposals|open projects?|offers?|radar|filter|rank|batch)\b/i.test(q) || /(?:عروض|عرض|تقديم|فلترة|مشاريع\s+مفتوحة)/i.test(q))
       ),
     skills: ['56-freelance-offer-radar-and-batch-bidder', '14-privacy-pii-shield', '18-condition-based-browser-waiting', '24-circuit-breaker-and-antiban', '25-prompt-injection-defense', 'meta-self-verification'],
-    workflow: null,
+    workflow: '.agent/workflows/freelance-bid.md',
     readiness: 'task-specific (target freelance feed URL or pasted listings + verified stack/rate floor; no /setup required)',
     required_inputs: ['target marketplace open-projects URL or pasted listings', 'verified stack & minimum rate/budget floor'],
     optional_tools: ['playwright (optional for live feed scanning and APPROVE-gated batch bidding)'],

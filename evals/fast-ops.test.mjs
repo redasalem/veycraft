@@ -22,6 +22,9 @@ const {
   sanitizeUntrustedSnippet,
   parseFeedText,
   scanPublicFeeds,
+  parseFeedsConfigYaml,
+  scanAllConfiguredFeeds,
+  runOnboardingWizard,
   BRIEF_MAX_BYTES,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'fast-ops.mjs')).href);
 const {
@@ -413,5 +416,199 @@ test('5. CLI subprocess (brief, feed-scan, browser-script) & tracker/ privacy gu
     assert.ok(fs.readFileSync(path.join(REPO_ROOT, '.github', 'workflows', 'validate-repo.yml'), 'utf8').includes('^tracker/'));
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('6. veycraft onboard works non-interactively and via piped stdin without hanging, preserves real files, and compiles brief.json', async () => {
+  const ws = makeTempWs();
+  try {
+    // Prepare a CV file inside workspace
+    fs.writeFileSync(
+      path.join(ws, 'my-cv.md'),
+      '# Senior Backend Engineer\nSkills: TypeScript, Node.js, PostgreSQL, Redis\n- Reduced p95 latency by 42% on high-volume APIs.\n',
+      'utf8',
+    );
+
+    // 1) Non-interactive CLI subprocess (CI-safe on Ubuntu/macOS/Windows)
+    const cliRes = spawnSync(
+      process.execPath,
+      [
+        CLI_PATH, 'onboard',
+        '--cv', 'my-cv.md',
+        '--role', 'Senior Full-Stack Engineer',
+        '--stack', 'TypeScript,Next.js,Node.js,PostgreSQL',
+        '--min-budget', '500',
+        '--work-mode', 'remote',
+        '--github', 'valid-dev',
+        '--non-interactive',
+        '--json',
+      ],
+      { cwd: ws, encoding: 'utf8', timeout: 10000 },
+    );
+    assert.equal(cliRes.status, 0, cliRes.stderr);
+    const out = JSON.parse(cliRes.stdout);
+    assert.equal(out.ok, true);
+    assert.equal(out.onboarded, true);
+    assert.ok(out.written_files.includes('context/cv.md'));
+    assert.ok(out.written_files.includes('context/profile.md'));
+    assert.ok(out.written_files.includes('context/preferences.yaml'));
+    assert.ok(out.written_files.includes('context/brief.json'));
+    assert.equal(out.brief.ready, true);
+    assert.ok(out.brief.est_tokens <= 400);
+
+    // 2) Re-running without --force preserves existing real files
+    const secondRes = await runOnboardingWizard(ws, {
+      role: 'Different Role Should Not Overwrite',
+      nonInteractive: true,
+    });
+    assert.ok(secondRes.skipped_existing.includes('context/profile.md'));
+    assert.ok(secondRes.skipped_existing.includes('context/cv.md'));
+    assert.ok(fs.readFileSync(path.join(ws, 'context', 'profile.md'), 'utf8').includes('Senior Full-Stack Engineer'));
+
+    // 3) Piped stdin mode on a fresh temp workspace completes cleanly with zero hang
+    const ws2 = makeTempWs();
+    try {
+      const stdinRes = spawnSync(
+        process.execPath,
+        [CLI_PATH, 'onboard', '--stdin', '--json'],
+        {
+          cwd: ws2,
+          encoding: 'utf8',
+          input: 'Full-Stack React Developer\nReact, TypeScript, Node.js\n350\nremote\nvalid-user\n\n',
+          timeout: 10000,
+        },
+      );
+      assert.equal(stdinRes.status, 0, stdinRes.stderr);
+      const parsed2 = JSON.parse(stdinRes.stdout);
+      assert.equal(parsed2.brief.ready, true);
+      assert.ok(fs.readFileSync(path.join(ws2, 'context', 'profile.md'), 'utf8').includes('Full-Stack React Developer'));
+    } finally {
+      fs.rmSync(ws2, { recursive: true, force: true });
+    }
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('7. Multi-feed radar (feed-scan --all) enforces max-4 concurrency, Promise.allSettled fault isolation, cross-feed dedup & daily digest', async () => {
+  const ws = makeTempWs();
+  try {
+    writeSampleContext(ws);
+    fs.writeFileSync(
+      path.join(ws, 'feed-local-1.json'),
+      JSON.stringify({
+        items: [
+          { title: 'Next.js SaaS Architect', url: 'https://board1.example/j/1', company: 'AlphaCo', budget: '$1,500', tags: ['TypeScript', 'Next.js', 'Node.js'] },
+          { title: 'Cross-Feed Duplicate Role', url: 'https://shared.example/j/dup', company: 'DupCo', budget: '$900', tags: ['React'] },
+        ],
+      }),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(ws, 'feed-local-2.xml'),
+      `<?xml version="1.0"?><rss><channel>
+        <item><title>Cross-Feed Duplicate Role</title><link>https://shared.example/j/dup</link><description>Duplicate across feeds $900</description></item>
+        <item><title>PostgreSQL &amp; Node.js API Engineer</title><link>https://board2.example/j/2</link><description>Build fast Node.js APIs $1,100</description></item>
+      </channel></rss>`,
+      'utf8',
+    );
+
+    const feedsYaml = [
+      'feeds:',
+      '  - name: Local JSON Feed',
+      '    enabled: true',
+      '    file: feed-local-1.json',
+      '  - name: Local RSS Feed',
+      '    enabled: true',
+      '    file: feed-local-2.xml',
+      '  - name: Broken HTTP 500 Feed',
+      '    enabled: true',
+      '    url: https://broken-feed.example/api',
+      '  - name: SSRF Blocked Metadata Feed',
+      '    enabled: true',
+      '    url: http://169.254.169.254/latest/meta-data/',
+      '  - name: Good Remote JSON Feed',
+      '    enabled: true',
+      '    url: https://good-remote.example/api',
+      '  - name: Disabled Feed',
+      '    enabled: false',
+      '    url: https://disabled.example/api',
+    ].join('\n');
+    fs.writeFileSync(path.join(ws, 'context', 'feeds.yaml'), feedsYaml, 'utf8');
+    assert.equal(parseFeedsConfigYaml(feedsYaml).length, 6);
+
+    const radarRes = await scanAllConfiguredFeeds(ws, {
+      concurrency: 4,
+      top: 10,
+      lookupImpl: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async (href) => {
+        await new Promise(r => setTimeout(r, 15));
+        if (href.includes('broken-feed.example')) {
+          return { status: 500, headers: { get: () => 'text/plain' }, text: 'Internal Error' };
+        }
+        return {
+          status: 200,
+          headers: { get: () => 'application/json' },
+          text: JSON.stringify({
+            jobs: [{ title: 'TypeScript Platform Lead', url: 'https://remote3.example/j/3', company: 'GammaCo', budget: '$1,800', tags: ['TypeScript', 'Node.js'] }],
+          }),
+        };
+      },
+    });
+
+    assert.equal(radarRes.ok, true);
+    assert.equal(radarRes.enabled_sources, 5);
+    assert.equal(radarRes.succeeded_sources, 3);
+    assert.equal(radarRes.failed_sources, 2);
+    assert.ok(radarRes.peak_concurrency <= 4, `Expected peak concurrency <= 4, got ${radarRes.peak_concurrency}`);
+    assert.equal(radarRes.filtered_duplicates, 1, 'Duplicate URL across feeds must be deduplicated once');
+    assert.equal(radarRes.returned_count, 4);
+    assert.ok(radarRes.digest_path && radarRes.digest_path.startsWith('logs/radar/'));
+    assert.ok(fs.existsSync(path.join(ws, radarRes.digest_path)));
+    const digestText = fs.readFileSync(path.join(ws, radarRes.digest_path), 'utf8');
+    assert.ok(digestText.includes('UNTRUSTED_EXTERNAL_DATA'));
+    assert.ok(digestText.includes('Broken HTTP 500 Feed') && digestText.includes('FAILED'));
+    assert.ok(digestText.includes('Next.js SaaS Architect'));
+
+    // Verify CLI subprocess `veycraft feed-scan --all --json` with local-only feeds config
+    fs.writeFileSync(
+      path.join(ws, 'context', 'feeds-local.yaml'),
+      'feeds:\n  - name: Local JSON\n    enabled: true\n    file: feed-local-1.json\n',
+      'utf8',
+    );
+    const cliRadar = spawnSync(
+      process.execPath,
+      [CLI_PATH, 'feed-scan', '--all', '--config', 'context/feeds-local.yaml', '--json'],
+      { cwd: ws, encoding: 'utf8', timeout: 10000 },
+    );
+    assert.equal(cliRadar.status, 0, cliRadar.stderr);
+    const cliRadarOut = JSON.parse(cliRadar.stdout);
+    assert.equal(cliRadarOut.mode, 'multi_feed_radar');
+    assert.equal(cliRadarOut.returned_count, 2);
+
+    // Privacy check: context/feeds.yaml.example exists in repo; context/feeds.yaml & logs/radar/ are blocked by pack:check regex
+    assert.ok(fs.existsSync(path.join(REPO_ROOT, 'context', 'feeds.yaml.example')));
+    const sensitiveRe = /context\/(?!.*\.example$|DROP_YOUR_FILES_HERE\.md$)|^logs\/|^tracker\/|\.pdf$|^\.env|browser-profile|\.veycraft\.bak$/i;
+    assert.equal(sensitiveRe.test('context/feeds.yaml'), true);
+    assert.equal(sensitiveRe.test('context/feeds.yaml.example'), false);
+    assert.equal(sensitiveRe.test('logs/radar/2026-11-26.md'), true);
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('8. Track A workflow & slash-command parity for Skills 54, 55, and 56', () => {
+  const chatDocs = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'chat-commands.md'), 'utf8');
+  for (const slug of ['github-remote', 'freelance-service', 'freelance-bid']) {
+    const wfPath = path.join(REPO_ROOT, '.agent', 'workflows', `${slug}.md`);
+    const cmdPath = path.join(REPO_ROOT, 'commands', `${slug}.md`);
+    assert.ok(fs.existsSync(wfPath), `Missing .agent/workflows/${slug}.md`);
+    assert.ok(fs.existsSync(cmdPath), `Missing commands/${slug}.md`);
+    assert.ok(chatDocs.includes(`/${slug}`), `docs/chat-commands.md missing /${slug}`);
+
+    const routeRes = spawnSync(process.execPath, [CLI_PATH, 'route', `/${slug}`, '--json'], { cwd: REPO_ROOT, encoding: 'utf8' });
+    assert.equal(routeRes.status, 0, routeRes.stderr);
+    const routed = JSON.parse(routeRes.stdout);
+    assert.equal(routed.workflow, `.agent/workflows/${slug}.md`);
   }
 });

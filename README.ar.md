@@ -21,7 +21,7 @@
 
 جميع الأسماء والشركات والأرقام في المعاينة أدناه هي بيانات عرض اصطناعية من [`evals/fixtures/`](evals/fixtures/candidate-profile.md):
 
-![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.7.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لمدة 10 ثوانٍ لأداة Veycraft v2.8.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 <div dir="ltr" align="left">
 
@@ -163,7 +163,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 | `veycraft career summary\|analytics\|dashboard\|next [--json]` | ملخص التقديمات، تحليلات حتمية (`MIN_N = 5`)، لوحة Kanban HTML محلية للقراءة فقط، وقائمة الأولويات |
 | `veycraft ui [--port <n>] [--no-open] [--workspace <dir> \| -g]` | واجهة ويب محلية للقراءة فقط على `127.0.0.1` بلا شبكة (الجاهزية، Kanban، التحليلات، استوديو الفحص بالذاكرة، و56 مهارة) |
 | `veycraft mcp [--global]` | خادم MCP محلي أصيل عبر `stdio` بصفر تبعيات (8 أدوات قراءة فقط بلا شبكة + موارد `veycraft://` — [`mcp/README.md`](mcp/README.md)) |
-| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`129/129` |
+| `veycraft pre-submit` / `veycraft eval` | فرض الحدود اليومية وحد الإحماء وقواطع الحماية ومنع التكرار والكليشيهات وحد `<= 75` كلمة؛ تشغيل اختبارات `20/20` و`132/132` |
 
 <details>
 <summary>مرجع CLI المتقدم (محرك الجلسات، السجل الذرّي المحمي بقفل، مزامنة Notion، والصيانة)</summary>

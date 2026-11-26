@@ -1,6 +1,6 @@
 {
   "name": "veycraft",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "type": "module",
   "description": "Veycraft — Agent-native career operations & Profile Intelligence Engine for the AI agent you already use. Zero-dependency CLI, 56 Markdown skills, truthful CV tailoring, and human APPROVE gates.",
   "license": "MIT",

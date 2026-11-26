@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-26 — 60-Second Onboarding Wizard (`veycraft onboard`), Multi-Feed Opportunity Radar (`feed-scan --all`) & Slash Workflows for Skills 54–56
+
+### Added
+- **60-Second Zero-Dependency Onboarding Wizard (`bin/fast-ops.mjs` `runOnboardingWizard`, `bin/cli.mjs` `veycraft onboard`):** Supports interactive TTY prompts (`node:readline/promises`), clean EOF-safe `--stdin` piping, and CI-safe `--non-interactive` flags (`--cv`, `--role`, `--stack`, `--min-budget`, `--min-hourly`, `--currency`, `--work-mode`, `--github`, `--portfolio`, `--force`, `--json`), populating `context/profile.md`, `context/cv.md`, and `context/preferences.yaml` (preserving existing verified files unless `--force`) and immediately compiling `context/brief.json` (`< 400` tokens, zero PII).
+- **Multi-Source Zero-Token Opportunity Radar (`context/feeds.yaml.example`, `bin/fast-ops.mjs` `scanAllConfiguredFeeds`, `veycraft feed-scan --all`):** Scans multiple configured RSS/Atom/JSON feeds with bounded concurrency (max `4` concurrent sources via `--concurrency 1..4`) and `Promise.allSettled` fault isolation so a slow, broken, or SEC-01 SSRF-blocked source never interrupts the remaining feeds; applies cross-feed deduplication against `logs/` and `tracker/freelance-proposals.md` and writes a sanitized daily digest to `logs/radar/YYYY-MM-DD.md` (both `context/feeds.yaml` and `logs/radar/` excluded from Git and npm tarballs).
+- **Slash Workflows & IDE Command Parity for Skills 54–56 (`.agent/workflows/{github-remote,freelance-service,freelance-bid}.md`, `commands/{github-remote,freelance-service,freelance-bid}.md`, `docs/chat-commands.md`, `bin/core-ops.mjs`):** Added native slash workflow and command files for `/github-remote`, `/freelance-service`, and `/freelance-bid`, wired their `.agent/workflows/*.md` paths into `ROUTE_RULES`, and synced `docs/chat-commands.md`.
+- **Expanded Deterministic CI Coverage (`evals/fast-ops.test.mjs`):** Added 3 CI-safe suites (Tests `6`, `7`, and `8`) validating non-interactive & piped-stdin onboarding, max-4 bounded concurrency + fault isolation + cross-feed dedup + daily digest generation, and Track A workflow/command parity (`129/129 -> 132/132` journey tests, `113/113 -> 116/116` unit tests, `0/0` npm dependencies, strict `8`-tool MCP contract preserved).
+
 ## [2.7.0] - 2026-11-26 — Token-Efficiency Fast-Path Architecture (`brief`, `feed-scan`, `browser-script`) & `tracker/` Privacy Guards
 
 ### Added

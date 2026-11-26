@@ -1,0 +1,2 @@
+Read `AGENTS.md` and `skills/REGISTRY.md` first.
+Follow `.agent/workflows/github-remote.md` and `skills/54-github-cli-remote-manager.md`. Verify `gh auth status` (never print tokens or `.env` secrets), inspect trees/files and commit single or multi-file changes remotely via `gh api` Contents or Git Data API without cloning locally, preserve `README.md` custom styling verbatim, require explicit owner confirmation before public/visibility mutations (and per-repo typed `DELETE <owner>/<repo>` before any deletion), and verify every write via fresh remote `gh` read-back.

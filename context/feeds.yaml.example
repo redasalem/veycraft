@@ -1,0 +1,27 @@
+# Veycraft Multi-Source Zero-Token Opportunity Radar Configuration
+# Copy to `context/feeds.yaml` (gitignored & never published) and enable sources you want to scan via:
+#   veycraft feed-scan --all [--top 15] [--json]
+#
+# All remote URLs are enforced by SEC-01 DNS-pinned SSRF protection and max-4 bounded concurrency.
+# One failing or slow feed never aborts the rest of the radar. Daily digest writes to `logs/radar/YYYY-MM-DD.md`.
+
+feeds:
+  - name: RemoteOK Public JSON
+    enabled: false
+    url: https://remoteok.com/api
+    min_budget: 0
+
+  - name: Remotive Software Dev JSON
+    enabled: false
+    url: https://remotive.com/api/remote-jobs?category=software-dev
+    min_budget: 0
+
+  - name: Arbeitnow Public Job Board JSON
+    enabled: false
+    url: https://www.arbeitnow.com/api/job-board-api
+    min_budget: 0
+
+  - name: Custom Freelance or Company RSS Feed
+    enabled: false
+    url: https://example.org/jobs.rss
+    min_budget: 400
