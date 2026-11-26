@@ -18,7 +18,7 @@ Cuts browser and context token usage by **85%–95%** via a local zero-token fas
 
 > *(Formerly `job-hunter-os` — GitHub redirects, existing `~/.job-hunter-os` homes, and `job-hunter` / `job-hunter-os` CLI aliases remain supported.)*
 
-![Veycraft v2.8.3 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.8.4 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
 
 ---
 
@@ -43,6 +43,10 @@ Launch the read-only local Web UI (`127.0.0.1`) or wire the native 8-tool MCP se
 npx veycraft ui                          # 5-tab local UI: Readiness, Kanban, Analytics, Studio, 56 Skills
 npx veycraft sync-mcp --with-veycraft    # Safely registers Veycraft MCP with .veycraft.bak backups
 ```
+
+| Zero-Token CLI Fast-Path (`brief` · `feed-scan` · `batch-fill` · `eval`) | Read-Only Local Web UI (`127.0.0.1` · 5 Tabs · 0 External Requests) |
+|---|---|
+| ![Veycraft CLI Fast-Path animated demo](https://raw.githubusercontent.com/redasalem/veycraft/main/assets/cli-fast-path.gif) | ![Veycraft Local Web UI animated dashboard demo](https://raw.githubusercontent.com/redasalem/veycraft/main/assets/ui-dashboard.gif) |
 
 <details>
 <summary>Alternative Installs (Global npm, GitHub Latest, Source Clone &amp; OS Data Paths)</summary>

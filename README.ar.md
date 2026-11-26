@@ -20,7 +20,7 @@
 
 > *(سابقًا `job-hunter-os` — تحويلات GitHub، ومجلدات `~/.job-hunter-os` القديمة، وأوامر `job-hunter` و`job-hunter-os` ما زالت مدعومة بالكامل.)*
 
-![عرض طرفية متحرك لأداة Veycraft v2.8.3: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لأداة Veycraft v2.8.4: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 ---
 
@@ -53,6 +53,10 @@ npx veycraft sync-mcp --with-veycraft    # ربط خادم Veycraft MCP مع ن�
 ```
 
 </div>
+
+| المسار السريع لـ CLI بصفر توكنز (`brief` · `feed-scan` · `batch-fill` · `eval`) | الواجهة المحلية للقراءة فقط (`127.0.0.1` · 5 تبويبات · 0 طلبات خارجية) |
+|---|---|
+| ![عرض متحرك للمسار السريع في Veycraft CLI](https://raw.githubusercontent.com/redasalem/veycraft/main/assets/cli-fast-path.gif) | ![عرض متحرك للواجهة المحلية Veycraft Web UI](https://raw.githubusercontent.com/redasalem/veycraft/main/assets/ui-dashboard.gif) |
 
 <details>
 <summary>خيارات التثبيت البديلة (تثبيت عالمي، GitHub، الاستنساخ المصدري، ومسارات البيانات)</summary>

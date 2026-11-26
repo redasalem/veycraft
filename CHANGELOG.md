@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.4] - 2026-11-26 — Animated CLI Fast-Path & Local Web UI GIF Demos in English & Arabic READMEs
+
+### Added & Changed
+- **Lightweight Animated GIF Demos (`assets/cli-fast-path.gif`, `assets/ui-dashboard.gif`, `README.md`, `README.ar.md`):** Added crisp dark-themed animated GIF demos showcasing the 4-stage zero-token CLI fast-path (`onboard`, `brief --json`, `feed-scan --all`, `browser-script distill-form/batch-fill`, `eval --baseline` — `85.2 KB`) and the 5-tab read-only `127.0.0.1` Local Web UI (`118.4 KB`), embedded via absolute GitHub Raw URLs so they render natively on both GitHub and [`npmjs.com/package/veycraft`](https://www.npmjs.com/package/veycraft) while remaining excluded from the npm tarball (`250` files, `0/0` npm dependencies).
+
 ## [2.8.3] - 2026-11-26 — Tokenless npm OIDC Trusted Publishing with Sigstore Provenance
 
 ### Security & Changed
