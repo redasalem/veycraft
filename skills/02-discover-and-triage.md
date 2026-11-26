@@ -1,7 +1,7 @@
 ---
 name: discover-and-triage
-version: "2.2.0"
-description: Load when finding suitable jobs across platforms, analyzing or comparing/ranking job descriptions, or running /daily-run and /apply-url; filters ghost/expired postings, scores 0-10 with evidence, and displays Mission Control before any Apply click (with URL/pasted-JD/screenshot fallback when live browsing is unavailable).
+version: "2.3.0"
+description: Load when finding suitable jobs across platforms, analyzing or comparing/ranking job descriptions, or running /daily-run and /apply-url; runs strict analytical eligibility pre-filtering (country locks, unsupported languages, seniority mismatches) and ghost filtering before Mission Control, scores 0-10 with evidence, and displays only genuinely eligible roles before any Apply click.
 triggers:
   - daily run discovery and scoring
   - find suitable remote or local jobs
@@ -21,9 +21,10 @@ requires_skills:
   - meta-dom-recovery
 verification:
   - every discovered role includes source URL and verification date with zero fabricated live listings
+  - strict analytical pre-filter cross-checked every role against veycraft brief, context/profile.md, and context/preferences.yaml and excluded country-locked, unsupported-language, and severe seniority-mismatch roles before Mission Control
   - every match score cites verified CV matches separately from unknown/unclaimed requirements (full JD expanded before scoring)
   - closed, expired, or >30-day ghost listings were skipped and logged to logs/skipped-jobs.json with reason "ghost_or_expired"
-  - Mission Control table was shown and no Apply button was clicked before the owner's APPLY reply
+  - Mission Control table showed only genuinely eligible roles plus a 1-line exclusion count and no Apply button was clicked before the owner's APPLY reply
 ---
 # Two-Phase Batch Discovery, Ghost-Job Filter & Mission Control Table
 
@@ -60,6 +61,14 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
      - Verify aggregator redirects actually load an active role on the employer's ATS.
      - Log ghost/expired listings to `logs/skipped-jobs.json` with `reason: "ghost_or_expired"`, `tier: "C"`, and one-line `skip_reason`, plus `status: "skipped"` in `logs/applications-log.json`.
 
+2.5. **Strict Analytical Eligibility Pre-Filter (Hard-Reject BEFORE Mission Control):**
+   - Cross-check EVERY expanded JD against the candidate's verified profile (`node ./bin/cli.mjs brief --json`, `context/profile.md`, `context/preferences.yaml`, and `context/form-answers.yaml`) BEFORE rendering the Mission Control table.
+   - **Hard-reject and EXCLUDE from the Mission Control table** any role triggering one or more of these disqualifiers (log each excluded role to `logs/skipped-jobs.json` with `tier: "C"` and exact `reason`, plus `status: "skipped"` in `logs/applications-log.json` for deduplication):
+     - **Country / Residency Locks (`reason: "country_locked"`):** Remote or hybrid roles requiring EU, UK, US, Canada, or other country-specific residency, tax status, or local work authorization outside the candidate's verified eligible regions (e.g., `Egypt / MENA / EMEA-open / Worldwide Remote` in `context/preferences.yaml`).
+     - **Unsupported Language Requirements (`reason: "language_mismatch"`):** Roles requiring spoken or written fluency in languages not verified in the candidate's profile (e.g., German, French, Spanish, Italian, Dutch, Polish, Portuguese, etc., when candidate languages are English and Arabic only).
+     - **Severe Seniority Mismatch (`reason: "seniority_mismatch"`):** Roles whose mandatory experience floor or title sits severely outside the candidate's verified `seniority_band` in `context/preferences.yaml` (e.g., Staff, Principal, Architect, Lead, Director, or `7+`–`8+` years mandatory for a `2.5+`-year candidate).
+   - Track exact exclusion counts by disqualifier category so Phase 2 appends a crisp 1-line exclusion summary below the table.
+
 3. **Decode JD & Score Honestly (`0–10`) with Unified Domain-Agnostic Rubric:**
    - First apply `skills/28-recruiter-brand-and-domain-intelligence.md` (Steps 1–2): detect the target **Domain Archetype** (never assume Software Engineering), separate **True Knock-Out Screeners** (visa/legal, mandatory licensure/certifications, core domain execution, real seniority floor) from **HR Wishlist Inflation**, flag **Scope & Organizational Signals** (title-vs-scope mismatch, "one-person department" burnout risk, company-stage fit), and extract the top **2–3 Buyer Pain Points**.
    - Unified Domain-Agnostic `0–10` Rubric (`Match % = Score * 10%`, single authoritative rubric across all tables): Core Domain & Mandatory Competency Fit (`0–4`) + Experience, Seniority & Scope Fit (`0–2`) + Domain / Business Context Overlap (`0–1`) + Work Mode, Location & Legal/Licensure Eligibility (`0–1`) + Secondary / Nice-to-Have Fit (`0–1`) + Compensation Fit (`0–1`, unknown = `0.5`). Subtract `2` for red flags (unpaid, commission-only, missing required clearance/licensure, or severe scope/burnout mismatch).
@@ -72,15 +81,16 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
 
 ### Phase 2 — Mission Control / Ranked Comparison Briefing in Chat (Wait for Reply)
 
-Always sort the Mission Control table **strictly from highest match (`Score` / `Match %`) to lowest**, and present one numbered table in chat (including source URL & verified date):
+Show **ONLY genuinely eligible, high-fit roles** (Tier A and eligible Tier B that passed Step 2.5's Strict Analytical Eligibility Pre-Filter) — do **NOT** clutter the Mission Control table with country-locked, wrong-language, or severe seniority-mismatch Tier C roles. Always sort the Mission Control table **strictly from highest match (`Score` / `Match %`) to lowest**, and present one numbered table in chat (including source URL & verified date):
 
 | # | Company & Role | Source & Verified Date | Score | Status | Verified Matches vs. Unknown/Gap Summary | Tailored files |
 |---|---|---|---|---|---|---|
-| 1 | Acme Pay — Senior Backend Engineer | [LinkedIn](https://www.linkedin.com/jobs/view/4012/) (`2026-11-19`) | 8.5 | 🟢 Ready | Verified: Node.js/PostgreSQL, payments latency; Unknown/Gap: none | `logs/resumes/acme-pay-senior-backend-engineer-linkedin-4012/` |
-| 2 | Orbit — Platform Engineer | [RemoteOK](https://remoteok.com/remote-jobs/774) (`2026-11-19`) | 6.5 | 🟡 Stretch | Verified: Docker, CI; Unknown/Gap: Kubernetes | — (on request) |
-| 3 | Lumen — iOS Developer | [Indeed](https://www.indeed.com/viewjob?jk=909) (`2026-11-19`) | 2.0 | 🔴 Skipped | Gap: Swift-only stack absent from CV | — |
+| 1 | Acme Pay — Full-Stack Software Engineer | [LinkedIn](https://www.linkedin.com/jobs/view/4012/) (`2026-11-19`) | 8.5 (85%) | 🟢 Ready | Verified: React/Next.js/Node.js/PostgreSQL; Unknown/Gap: none | `logs/resumes/acme-pay-full-stack-software-engineer-4012/` |
+| 2 | Orbit — Frontend Software Engineer | [RemoteOK](https://remoteok.com/remote-jobs/774) (`2026-11-19`) | 7.0 (70%) | 🟡 Stretch | Verified: React, TypeScript, CI; Unknown/Gap: GraphQL | — (on request) |
 
-Ask: **"I evaluated N jobs: X are 🟢 Ready, Y are 🟡 Stretch, Z were 🔴 Skipped. Reply `APPLY ALL GREEN`, `APPLY 1,3`, or tell me which role to tailor/compare next before I open any form."**
+Directly below the table, include a **1-line pre-filter exclusion summary** reporting how many ineligible roles were automatically filtered out and logged to `logs/skipped-jobs.json` (e.g., `Filtered out 6 ineligible jobs before Mission Control: 3 country-locked (EU/UK/US only), 2 unsupported language (German/French), 1 seniority mismatch (8+ yrs Staff).`).
+
+Ask: **"I evaluated N jobs, filtered out Z ineligible roles, and surfaced X 🟢 Ready + Y 🟡 Stretch eligible matches. Reply `APPLY ALL GREEN`, `APPLY 1,2`, or tell me which role to tailor/compare next before I open any form."**
 
 - Only open forms for valid Tier A/B rows explicitly chosen in `APPLY ALL GREEN` or `APPLY <numbers>`. Reject Tier C numbers. Record the owner's batch selection into the session checkpoint queue via `node ./bin/cli.mjs career run-enqueue --job-ids <csv> --batch-selection "<owner_reply>" [--json]` (`submission_authorized: false` — batch selection never authorizes final submission; every application still stops before Submit in `skills/04-fill-and-apply.md` for the Live DOM Read-Back Table and explicit per-job `APPROVE`).
 - If `workflow_mode: direct_auto` is explicitly set in `config/guardrails.yaml`, process one eligible job at a time while still expanding full JDs, filtering ghosts, and running `skills/04-fill-and-apply.md` before any Submit.

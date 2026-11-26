@@ -99,9 +99,9 @@
     },
     {
       "name": "discover-and-triage",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "category": "core",
-      "description": "Load when finding suitable jobs across platforms, analyzing or comparing/ranking job descriptions, or running /daily-run and /apply-url; filters ghost/expired postings, scores 0-10 with evidence, and displays Mission Control before any Apply click (with URL/pasted-JD/screenshot fallback when live browsing is unavailable).",
+      "description": "Load when finding suitable jobs across platforms, analyzing or comparing/ranking job descriptions, or running /daily-run and /apply-url; runs strict analytical eligibility pre-filtering (country locks, unsupported languages, seniority mismatches) and ghost filtering before Mission Control, scores 0-10 with evidence, and displays only genuinely eligible roles before any Apply click.",
       "triggers": [
         "daily run discovery and scoring",
         "find suitable remote or local jobs",
@@ -135,7 +135,7 @@
       "name": "tailor-resume-and-verify",
       "version": "2.2.0",
       "category": "core",
-      "description": "Load when tailoring or revising a CV or cover letter (/quick-tailor, /tailor-cv, Tier A pre-generation, or standalone format conversion/edits); renders verified facts into templates/ats-resume-template.html, runs the Fact-Check Guard and Anti-AI Slop filter, writes and re-reads HTML/TXT/Word-compatible .doc (never fake .docx), and exports PDF optionally via Playwright MCP.",
+      "description": "Load when tailoring or revising a CV or cover letter (/quick-tailor, /tailor-cv, Tier A pre-generation, or standalone format conversion/edits); renders verified facts into templates/ats-resume-template.html using role-specific filenames (<Candidate-Name>-<Target-Role>.pdf/.html/.txt/.doc), runs Fact-Check Guard and Anti-AI Slop filter, auto-generates clean ATS-safe PDF via local Chrome/Edge Headless (or Playwright MCP), and re-reads every deliverable.",
       "triggers": [
         "/tailor-cv <url>",
         "/quick-tailor",
@@ -169,9 +169,9 @@
     },
     {
       "name": "fill-and-apply",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "category": "core",
-      "description": "Load when filling any Easy Apply modal or external ATS application form; enforces the Upload-First rule, absolute paths, EEO/GDPR compliance defaults, unknown-question pause, and job-bound APPROVE gate before Submit.",
+      "description": "Load when filling any Easy Apply modal or external ATS application form; enforces the Upload-First rule with a 3-step programmatic CV upload ladder (native MCP upload_file/browser_file_upload -> CDP DOM.setFileInputFiles -> manual path fallback), routine GDPR/Privacy Policy consent checks, EEO defaults, unknown-question pause, structured Arabic User Handoff protocol, and job-bound APPROVE gate before Submit.",
       "triggers": [
         "selected job from APPLY reply",
         "Easy Apply modal or external ATS form open",
