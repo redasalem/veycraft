@@ -16,8 +16,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -25,8 +23,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
+          node-version: "24"
+
+      - name: Ensure npm >= 11.5.1 for OIDC Trusted Publishing
+        run: |
+          npm install -g npm@latest
+          node --version
+          npm --version
 
       - name: Verify zero-dependency CLI, package contents & Skill Eval Harness
         run: |
@@ -38,10 +41,7 @@ jobs:
           npm run pack:check
           node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); if(Object.keys(p.dependencies||{}).length || Object.keys(p.devDependencies||{}).length) { process.exit(1); }"
 
-      - name: Publish to npm with OIDC Sigstore Provenance (when NPM_TOKEN secret is configured)
-        if: ${{ env.NPM_TOKEN != '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm via OIDC Trusted Publishing with Sigstore Provenance
         run: |
           PKG_NAME="$(node -p "require('./package.json').name")"
           PKG_VERSION="$(node -p "require('./package.json').version")"

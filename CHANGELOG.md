@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.3] - 2026-11-26 — Tokenless npm OIDC Trusted Publishing with Sigstore Provenance
+
+### Security & Changed
+- **npm OIDC Trusted Publishing (`.github/workflows/publish-npm.yml`):** Migrated automated npm releases to tokenless **npm OIDC Trusted Publishing** (`permissions: id-token: write`, `contents: read`, Node `24`, `npm >= 11.5.1`) with Sigstore Provenance (`npm publish --provenance --access public`), removed all `NPM_TOKEN` / `NODE_AUTH_TOKEN` usage and deleted the legacy `NPM_TOKEN` GitHub Actions secret, while preserving the pre-publish `npm view` idempotency guard.
+
 ## [2.8.2] - 2026-11-26 — Developer-First README, 60-Second Quickstart, Token-Efficiency Table & Idempotent npm Publish Workflow
 
 ### Changed

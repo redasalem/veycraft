@@ -18,7 +18,7 @@ Cuts browser and context token usage by **85%–95%** via a local zero-token fas
 
 > *(Formerly `job-hunter-os` — GitHub redirects, existing `~/.job-hunter-os` homes, and `job-hunter` / `job-hunter-os` CLI aliases remain supported.)*
 
-![Veycraft v2.8.2 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.8.3 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
 
 ---
 

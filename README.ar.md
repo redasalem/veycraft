@@ -20,7 +20,7 @@
 
 > *(سابقًا `job-hunter-os` — تحويلات GitHub، ومجلدات `~/.job-hunter-os` القديمة، وأوامر `job-hunter` و`job-hunter-os` ما زالت مدعومة بالكامل.)*
 
-![عرض طرفية متحرك لأداة Veycraft v2.8.2: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لأداة Veycraft v2.8.3: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 ---
 
