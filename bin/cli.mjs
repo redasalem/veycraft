@@ -24,6 +24,7 @@ import {
   installGitPreCommitHook as installGitPreCommitHookBase,
   evaluateGates,
   evaluateDoctorSnapshot,
+  detectHeadlessBrowser,
   extractHtmlText,
   auditCvFile,
   matchNaturalLanguageRoute,
@@ -810,7 +811,7 @@ async function cmdDoctor() {
     home: HOME,
     isGlobal,
     strict: opts.strict,
-    offline: false,
+    offline: true,
     readOnly: false,
   });
 
@@ -839,31 +840,7 @@ async function cmdDoctor() {
 
 // ---------------- login ----------------
 function findBrowser() {
-  const winPF = process.env.PROGRAMFILES || 'C:\\Program Files';
-  const winPF86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
-  const winLocal = process.env.LOCALAPPDATA || HOME;
-  const candidates = process.platform === 'win32'
-    ? [
-        path.join(winPF, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        path.join(winPF86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        path.join(winLocal, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-        path.join(winPF, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-        path.join(winPF86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-      ]
-    : process.platform === 'darwin'
-      ? [
-          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-          '/Applications/Chromium.app/Contents/MacOS/Chromium',
-          '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-        ]
-      : [
-          '/usr/bin/google-chrome',
-          '/usr/bin/chromium',
-          '/usr/bin/chromium-browser',
-          '/snap/bin/chromium',
-          '/opt/google/chrome/chrome',
-        ];
-  return candidates.find(p => fs.existsSync(p)) || null;
+  return detectHeadlessBrowser({ home: HOME });
 }
 
 function cmdLogin() {
@@ -1925,7 +1902,7 @@ veycraft v${version} — Agent-Native Career Operations & Profile Intelligence E
 Legacy CLI aliases \`job-hunter\` and \`job-hunter-os\` remain supported for backwards compatibility.
 
 Quick Start:
-  veycraft doctor [--json]                         Verify runtime, provenance & workspace readiness (read-only)
+  veycraft doctor [--json]                         Fast (<1s) pre-flight check: context/, Headless Chrome/Edge PDF & chrome-devtools-mcp
   veycraft init [--global | -g] [--ide <name>]     Scaffold agent home & sync AI IDE skills/MCP (non-destructive)
   veycraft ui [--port <n>] [--no-open] [--workspace <dir> | -g] Launch local read-only Web UI on 127.0.0.1
   veycraft route "<request>" [--json]              Route natural-language career task to minimal skills

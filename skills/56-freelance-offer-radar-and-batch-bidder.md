@@ -46,8 +46,9 @@ Use this model-agnostic playbook to scan live open freelance projects across any
 
 ## Deterministic Step-by-Step Execution
 
-### 1. Auth, Circuit Breaker, Idempotency & Cap Check
-- Run `veycraft brief --json` to load the `< 400`-token candidate brief (`context/brief.json`) instead of reloading full `context/` files on every turn.
+### 1. Pre-Flight, Auth, Circuit Breaker, Idempotency & Cap Check
+- Run `node ./bin/cli.mjs doctor` (<1 s) when workspace or browser MCP readiness is uncertain, and run `veycraft brief --json` to load the `< 400`-token candidate brief (`context/brief.json`) instead of reloading full `context/` files on every turn.
+- **Zero-Stall Browser MCP Fallback (< 30 s value):** If browser MCP (`chrome_devtools` or `playwright`) is unavailable or timing out, NEVER stall: immediately provide **(1) the 1-line fast fix** (`npm i -g chrome-devtools-mcp`, then point MCP config `"command"` directly to the installed binary path instead of `npx`) **AND (2) proceed immediately via `veycraft feed-scan` or pasted client briefs** to score opportunities and deliver ready-to-send proposals right away.
 - Inspect `logs/circuit-breaker.json` (`skills/24-circuit-breaker-and-antiban.md`) and `tracker/freelance-proposals.md` (gitignored; create the tracker header if missing) so already-bid projects are never duplicated.
 - For public RSS/Atom/JSON feeds or exported JSON lists, run `veycraft feed-scan (--url <https-url> | --file <path>) --top 10 --json` first (`0` browser tokens, SSRF-pinned, deduped, and locally scored) before opening any browser tab.
 - Check daily proposal volume against owner caps (`config/guardrails.yaml` `max_applications_per_day` or conservative `5-10` bids/day default) and active `dry_run` flag.
@@ -85,6 +86,11 @@ Only after receiving explicit owner approval (`APPROVE 1, 3, 4`) and confirming 
 Record every attempted, skipped, or submitted offer in `tracker/freelance-proposals.md` with columns:
 `| Date | Platform | Project | URL | Fit Score | Bid | Timeline | Status | Receipt / Notes |`
 (`submitted`, `dry_run`, `needs_review`, or `skipped`, zero leaked secrets/PII).
+
+### 7. Mandatory Stage-by-Stage Next-Step Handoff
+After EVERY completed stage (Offer Radar & Drafts, Live DOM Read-Back pause, or Post-Submission logging), close with a compact **Next-Step Handoff** rendered in the **user's active conversation language**:
+- **Completed (1–2 bullets):** Count of projects scanned/filtered, top Fit Scores drafted, or confirmed bids logged to `tracker/freelance-proposals.md`.
+- **Next Action (1 clear choice or command):** Exact next command needed (`APPROVE 1, 3`, `EDIT 2: <notes>`, `SKIP ALL`, or paste the next client brief/feed URL).
 
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 

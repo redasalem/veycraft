@@ -121,5 +121,7 @@ Before generating the final tailored CV:
 
 ### Stage-to-Stage Handoff After Tailoring
 Once `<Candidate-Name>-<Target-Role>.pdf` (and matching `.html`, `.txt`, `.doc`, `tailoring-notes.md`) passes post-write verification:
-1. **If the owner already selected this job to apply (`APPLY <n>` / `"ابدأ بـ <n>"`):** Proceed directly into non-submitting form preparation in `skills/04-fill-and-apply.md` (open form, upload the verified role-named PDF, fill verified fields, and stop before final Submit for the Live DOM Read-Back Table and explicit `APPROVE`).
-2. **If standalone tailoring (`/tailor-cv` or `/quick-tailor`):** Display a clear **Next-Step Handoff** showing the exact absolute PDF path (`logs/resumes/<folder>/<Candidate-Name>-<Target-Role>.pdf`) and explicitly ask: **"تم تجهيز الـ CV المفصّل بصيغة PDF — هل تريد أن أبدأ ملء استمارة التقديم الآن (مع التوقف قبل الإرسال للمراجعة و`APPROVE`) أم تعديل أي قسم في الـ CV أولاً؟"**
+1. **If the owner already selected this job to prepare (`APPLY <n>` or equivalent in their language):** Proceed directly into non-submitting form preparation in `skills/04-fill-and-apply.md` (open form, upload the verified role-named PDF, fill verified fields, and stop before final Submit for the Live DOM Read-Back Table and explicit `APPROVE`).
+2. **If standalone tailoring (`/tailor-cv` or `/quick-tailor`):** Close with a compact **Next-Step Handoff** rendered in the **user's active conversation language**:
+   - **Completed (1–2 bullets):** Report exact generated file paths (`logs/resumes/<folder>/<Candidate-Name>-<Target-Role>.pdf`, `.html`, `.txt`, `.doc`, `tailoring-notes.md`) and verification pass (0 placeholders, 0 unverified metrics, 0 AI clichés).
+   - **Next Action (1 clear choice or command):** Ask whether the owner wants to start non-submitting application form preparation now (stopping before final Submit for Live DOM Read-Back and `APPROVE`) or request an edit to any CV section first.

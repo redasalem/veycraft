@@ -42,10 +42,13 @@ Use for `/daily-run` (multi-job discovery and batch triage) or `/apply-url <url>
 
 Follow this exact sequence. Never reorder steps 0–3.
 
-0. **Readiness Gatekeeper (`skills/00-interrogate-and-onboard.md`):**
+0. **Readiness Gatekeeper (`skills/00-interrogate-and-onboard.md`) & Pre-Flight (`veycraft doctor`):**
+   - Run `node ./bin/cli.mjs doctor` (<1 s) to verify `context/` readiness (`cv.md`, `profile.md`, `preferences.yaml`, `brief.json`), local Chrome/Edge Headless PDF availability, and global `chrome-devtools-mcp` binary status. If browser MCP is unavailable, immediately offer the 1-line `npm i -g chrome-devtools-mcp` fix + direct binary config tip OR proceed immediately via CLI/draft fallback (`skills/fallback-no-mcp.md`) so the user never stalls.
    - Inspect `context/profile.md`, `context/cv.md`, `context/preferences.yaml`, `context/form-answers.yaml`, `context/targets.yaml`, `config/guardrails.yaml`, and `assets/resume.pdf` (or `context/resume.pdf`).
    - If any file is missing, unverified, or still contains `.example` placeholders, STOP and interview the user in chat (3–4 questions at a time).
-   - Once all 5 gates pass, show a concise **Mission Briefing** (roles, regions, platforms, warm-up daily cap, minimum score, `dry_run` vs live) and wait for explicit owner launch confirmation.
+   - Once all 5 gates pass, show a concise **Mission Briefing** (roles, regions, platforms, warm-up daily cap, minimum score, `dry_run` vs live) and end with a compact **Next-Step Handoff** (rendered in the user's active conversation language) requesting explicit owner launch confirmation.
+
+   **Stage-by-Stage User Guidance Rule:** After every completed stage below (Readiness, Discovery, Tailoring, Form Read-Back, Post-Submit Logging), end your response with a compact **Next-Step Handoff** in the user's active conversation language: (1) 1–2 bullets of what was completed, and (2) 1 clear choice or command needed next.
 
 1. **Auth Verification (Playwright MCP):**
    - Open each enabled target's `auth_check_url` with 3–9 s pacing and take a `browser_snapshot`.

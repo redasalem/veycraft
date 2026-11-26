@@ -43,8 +43,8 @@ Use to discover jobs across multiple legitimate sources, analyze single postings
 ### Phase 1 — Multi-Source Search, Expand, Ghost-Check & Evidence-Backed Score (No Apply Clicks)
 
 0. **Proactive Browser MCP Pre-Flight Check (Before Opening Any Job Board):**
-   - Before attempting to open any job board or URL, inspect whether browser MCP tools are active (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`).
-   - **If browser MCP tools are missing or disabled:** Immediately notify the owner BEFORE starting with a crisp, 1-step setup box explaining how to enable `chrome_devtools` (or `playwright`) MCP in their IDE MCP settings so browsing and CV upload never stall mid-flow — AND immediately offer to continue seamlessly via public feeds, pasted JD text, or screenshots if they prefer to proceed right away.
+   - Before attempting to open any job board or URL, check whether browser MCP tools are active (`chrome_devtools` tools such as `new_page`, `navigate_page`, `take_snapshot`, `upload_file`, OR `playwright` tools such as `browser_navigate`, `browser_snapshot`, `browser_file_upload`) and run `node ./bin/cli.mjs doctor` (<1 s) when workspace or browser readiness is uncertain.
+   - **Zero-Stall Fallback (< 30 s value):** If browser MCP tools are missing, disabled, or timing out, NEVER stall: immediately present **(1) the 1-line fast fix** (`npm i -g chrome-devtools-mcp`, then point MCP config `"command"` directly to the installed binary path instead of `npx`, verified via `veycraft doctor`) **AND (2) an immediate fallback** via `veycraft feed-scan`, public ATS JSON endpoints, pasted JD text, or screenshots so the owner gets ranked results right away.
 
 1. **Multi-Source Search & Capability Check (Never Assume LinkedIn Auth or Single Source):**
    - For `/daily-run`: read enabled targets in `context/targets.yaml` and their platform playbooks (`skills/platforms/*`).
@@ -94,8 +94,9 @@ Show **ONLY genuinely eligible, high-fit roles** (Tier A and eligible Tier B tha
 
 Directly below the table, include a **1-line pre-filter exclusion summary** reporting how many ineligible roles were automatically filtered out and logged to `logs/skipped-jobs.json` (e.g., `Filtered out 6 ineligible jobs before Mission Control: 3 country-locked (EU/UK/US only), 2 unsupported language (German/French), 1 seniority mismatch (8+ yrs Staff).`).
 
-Always close the Mission Control briefing with a clear **Next-Step Guidance Box** so the owner knows the exact next command:
-> **الخطوة التالية (Next Step):** تم تقييم N وظيفة، واستبعاد Z وظيفة غير مؤهلة، وعرض X وظيفة 🟢 Ready وY وظيفة 🟡 Stretch. اختر رقم الوظيفة (مثلاً: **`ابدأ بـ 1`** أو **`APPLY 1`** أو **`APPLY ALL GREEN`**) لنجهّز لك الـ CV المفصّل بصيغة PDF ونملأ الاستمارة تلقائياً (مع التوقف قبل الإرسال للمراجعة النهائية و`APPROVE`).
+Always close the Mission Control briefing with a compact **Next-Step Handoff** rendered in the **user's active conversation language**:
+- **Completed (1–2 bullets):** Total roles evaluated, count of ineligible roles filtered out and logged to `logs/skipped-jobs.json`, and count of `🟢 Ready` vs `🟡 Stretch` roles displayed.
+- **Next Action (1 clear choice or command):** Ask the owner to choose a role number or command (e.g., `APPLY 1`, `APPLY ALL GREEN`, or inspect a specific row) to generate the role-named tailored PDF and complete non-submitting form preparation (stopping before final Submit for Live DOM Read-Back and explicit `APPROVE`).
 
 - Only open forms for valid Tier A/B rows explicitly chosen in `APPLY ALL GREEN` or `APPLY <numbers>`. Reject Tier C numbers. Record the owner's batch selection into the session checkpoint queue via `node ./bin/cli.mjs career run-enqueue --job-ids <csv> --batch-selection "<owner_reply>" [--json]` (`submission_authorized: false` — batch selection never authorizes final submission; every application still stops before Submit in `skills/04-fill-and-apply.md` for the Live DOM Read-Back Table and explicit per-job `APPROVE`).
 - If `workflow_mode: direct_auto` is explicitly set in `config/guardrails.yaml`, process one eligible job at a time while still expanding full JDs, filtering ghosts, and running `skills/04-fill-and-apply.md` before any Submit.

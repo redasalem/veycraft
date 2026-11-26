@@ -45,6 +45,10 @@ Use this model-agnostic playbook to audit a freelance marketplace profile, craft
 
 ## Deterministic Step-by-Step Execution
 
+### 0. Pre-Flight & Zero-Stall Browser MCP Fallback
+- Check workspace and browser readiness with `node ./bin/cli.mjs doctor` (<1 s) and confirm whether browser MCP (`chrome_devtools` or `playwright`) is active.
+- **Zero-Stall Fallback (< 30 s value):** If browser MCP is unavailable or timing out, NEVER stall: immediately provide **(1) the 1-line fast fix** (`npm i -g chrome-devtools-mcp`, then point MCP config `"command"` directly to the installed binary path instead of `npx`) **AND (2) proceed immediately in `DRAFT_ONLY` mode** to deliver the full copy-paste SEO service blueprint, pricing tiers, FAQs, and cover asset right away.
+
 ### 1. Grounded Fact & Anti-Slop Extraction
 - Run `veycraft brief --json` first to load the cache-invalidated `< 400`-token candidate summary (`context/brief.json`); fall back to reading `context/cv.md` and `context/github-projects.md` only when deeper project detail is needed.
 - Extract strictly verified deliverables, tech stacks, project outcomes, and turnaround bounds. Flag any unverified metric or tool before drafting.
@@ -81,6 +85,11 @@ Present the complete blueprint to the owner for edits or confirmation before cre
 ### 6. Post-Publish Verification & Local Logging
 - After explicit `APPROVE PUBLISH` and clicking Publish/Save once, capture a fresh `browser_snapshot` confirming live listing creation (`Pending Review` / `Active` / listing URL, per `skills/meta-self-verification.md`).
 - Save a sanitized record (platform, title, URL, pricing, delivery days, date, status) under `logs/freelance/services/` (`skills/14-privacy-pii-shield.md`).
+
+### 7. Mandatory Stage-by-Stage Next-Step Handoff
+After EVERY completed stage (Blueprint draft, Cover & Live DOM Read-Back pause, or Post-Publish verification), close with a compact **Next-Step Handoff** rendered in the **user's active conversation language**:
+- **Completed (1–2 bullets):** Exact listing sections, cover asset path, filled fields, or verified published listing URL just completed.
+- **Next Action (1 clear choice or command):** Exact next action needed (`CONFIRM BLUEPRINT` / `EDIT <section>`, `APPROVE PUBLISH` after reviewing the Live DOM Read-Back Table, or next service/platform to optimize).
 
 ## Anti-Patterns (What NEVER To Do) & Self-Verification Check
 

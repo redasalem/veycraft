@@ -438,15 +438,160 @@ export function evaluateGates(root) {
   return { g1, g2, g3, g5, passed, total: gates.length, profReady: prof.ready };
 }
 
+export function evaluateWorkspaceContext(root) {
+  const cv = isPopulated(root, 'context/cv.md');
+  const profile = isPopulated(root, 'context/profile.md');
+  const preferences = isPopulated(root, 'context/preferences.yaml');
+  const briefPath = path.join(root, 'context', 'brief.json');
+  let briefExists = false;
+  let briefReady = false;
+  if (fs.existsSync(briefPath)) {
+    briefExists = true;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(briefPath, 'utf8'));
+      briefReady = isObj(parsed)
+        && Number.isInteger(parsed.schema_version)
+        && typeof parsed.headline === 'string'
+        && parsed.headline.trim().length > 0;
+    } catch {
+      briefReady = false;
+    }
+  }
+  const files = {
+    'cv.md': { exists: cv.exists, ready: cv.ready },
+    'profile.md': { exists: profile.exists, ready: profile.ready },
+    'preferences.yaml': { exists: preferences.exists, ready: preferences.ready },
+    'brief.json': { exists: briefExists, ready: briefReady },
+  };
+  const readyCount = Object.values(files).filter(f => f.ready).length;
+  const missing = Object.entries(files).filter(([, v]) => !v.ready).map(([k]) => k);
+  return {
+    files,
+    ready_count: readyCount,
+    total: 4,
+    all_ready: readyCount === 4,
+    missing,
+  };
+}
+
+export function detectHeadlessBrowser({
+  platform = process.platform,
+  env = process.env,
+  home = os.homedir(),
+  existsSync = fs.existsSync,
+} = {}) {
+  const pathMod = platform === 'win32' ? path.win32 : path.posix;
+  const candidates = [];
+  if (platform === 'win32') {
+    const winPF = env.PROGRAMFILES || 'C:\\Program Files';
+    const winPF86 = env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+    const winLocal = env.LOCALAPPDATA || home;
+    candidates.push(
+      pathMod.join(winPF, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      pathMod.join(winPF86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      pathMod.join(winLocal, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      pathMod.join(winPF, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      pathMod.join(winPF86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      pathMod.join(winLocal, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    );
+  } else if (platform === 'darwin') {
+    candidates.push(
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    );
+  } else {
+    candidates.push(
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium',
+      '/opt/google/chrome/chrome',
+      '/usr/bin/microsoft-edge',
+    );
+  }
+  const direct = candidates.find(p => {
+    try { return Boolean(p && existsSync(p)); } catch { return false; }
+  });
+  if (direct) return direct;
+
+  const rawPath = env.PATH || env.Path || '';
+  const sep = platform === 'win32' ? ';' : ':';
+  const names = platform === 'win32'
+    ? ['chrome.exe', 'msedge.exe']
+    : ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'microsoft-edge'];
+  for (const seg of rawPath.split(sep)) {
+    const dir = seg.trim().replace(/^"|"$/g, '');
+    if (!dir) continue;
+    for (const name of names) {
+      const candidate = pathMod.join(dir, name);
+      try { if (existsSync(candidate)) return candidate; } catch { /* ignore */ }
+    }
+  }
+  return null;
+}
+
+export function detectChromeDevtoolsMcp({
+  platform = process.platform,
+  env = process.env,
+  home = os.homedir(),
+  existsSync = fs.existsSync,
+} = {}) {
+  const pathMod = platform === 'win32' ? path.win32 : path.posix;
+  const sep = platform === 'win32' ? ';' : ':';
+  const binNames = platform === 'win32'
+    ? ['chrome-devtools-mcp.cmd', 'chrome-devtools-mcp.exe', 'chrome-devtools-mcp']
+    : ['chrome-devtools-mcp'];
+  const dirs = [];
+
+  const rawPath = env.PATH || env.Path || '';
+  for (const seg of rawPath.split(sep)) {
+    const cleaned = seg.trim().replace(/^"|"$/g, '');
+    if (cleaned) dirs.push(cleaned);
+  }
+  if (env.NPM_CONFIG_PREFIX && env.NPM_CONFIG_PREFIX.trim()) {
+    const prefix = env.NPM_CONFIG_PREFIX.trim();
+    dirs.push(platform === 'win32' ? prefix : pathMod.join(prefix, 'bin'));
+  }
+  if (platform === 'win32') {
+    const appData = env.APPDATA || pathMod.join(home, 'AppData', 'Roaming');
+    dirs.push(pathMod.join(appData, 'npm'));
+  } else {
+    dirs.push(
+      '/usr/local/bin',
+      '/opt/homebrew/bin',
+      pathMod.join(home, '.npm-global', 'bin'),
+      pathMod.join(home, '.local', 'bin'),
+    );
+  }
+
+  const seen = new Set();
+  for (const dir of dirs) {
+    const key = platform === 'win32' ? dir.toLowerCase() : dir;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    for (const name of binNames) {
+      const candidate = pathMod.join(dir, name);
+      try {
+        if (existsSync(candidate)) return candidate;
+      } catch { /* ignore */ }
+    }
+  }
+  return null;
+}
+
 export async function evaluateDoctorSnapshot({
   root,
   source,
   home = os.homedir(),
   isGlobal = false,
   strict = false,
-  offline = false,
+  offline = true,
   readOnly = false,
   env = process.env,
+  platform = process.platform,
+  existsSync = fs.existsSync,
 } = {}) {
   let criticalFailures = 0;
   let readinessPending = 0;
@@ -571,6 +716,31 @@ export async function evaluateDoctorSnapshot({
   checkGate('Gate 3/4 · Legal, Comp & Skills', gates.g3, 'confirm salary, visa, and skill years in /setup');
   checkGate('Gate 5 · Enabled Targets', gates.g5, 'enable at least one board in context/targets.yaml via /setup');
 
+  const workspaceContext = evaluateWorkspaceContext(root);
+  if (workspaceContext.all_ready) {
+    logOk('Workspace Context: cv.md, profile.md, preferences.yaml, brief.json ready');
+  } else {
+    logWarn(`Workspace Context: ${workspaceContext.ready_count}/${workspaceContext.total} ready (missing/unready: ${workspaceContext.missing.join(', ')}) — run \`veycraft onboard\` or \`veycraft brief\``);
+  }
+
+  const headlessBrowserPath = detectHeadlessBrowser({ platform, env, home, existsSync });
+  if (headlessBrowserPath) {
+    logOk(`Headless PDF Browser: ${headlessBrowserPath} (auto-PDF ready)`);
+  } else {
+    logWarn('Headless PDF Browser: Chrome/Edge binary not found — auto-PDF falls back to Playwright MCP or browser Print -> Save as PDF');
+  }
+
+  const chromeDevtoolsMcpPath = detectChromeDevtoolsMcp({ platform, env, home, existsSync });
+  const cdpFixCommand = 'npm i -g chrome-devtools-mcp';
+  const cdpConfigTip = chromeDevtoolsMcpPath
+    ? `Point your MCP config "command" directly to "${chromeDevtoolsMcpPath}" instead of npx for <1s startup.`
+    : 'Run `npm i -g chrome-devtools-mcp`, then point your MCP config "command" directly to the installed binary path (e.g. %APPDATA%/npm/chrome-devtools-mcp.cmd on Windows or $(npm prefix -g)/bin/chrome-devtools-mcp on macOS/Linux) instead of npx.';
+  if (chromeDevtoolsMcpPath) {
+    logOk(`Browser MCP Binary (chrome-devtools-mcp): ${chromeDevtoolsMcpPath} (fast direct launch ready)`);
+  } else {
+    logWarn(`Browser MCP Binary (chrome-devtools-mcp): not installed globally (npx may time out). Fix: ${cdpFixCommand} — ${cdpConfigTip}`);
+  }
+
   const linkAudit = await verifyProfileLinks(root, gates.profReady, { offline });
   if (linkAudit.deadUrls.length > 0) {
     logWarn(`Profile & Resume Links: ${linkAudit.deadUrls.length} broken/dead URL(s): ${linkAudit.deadUrls.join(', ')}`);
@@ -678,6 +848,12 @@ export async function evaluateDoctorSnapshot({
   if (!installed) {
     nextSteps.push('Run `veycraft init --global` (recommended) or `veycraft init` in your workspace to scaffold skills and IDE configs.');
   }
+  if (!chromeDevtoolsMcpPath) {
+    nextSteps.push(`Fast browser MCP fix: run \`${cdpFixCommand}\` and point your MCP config "command" directly to the installed binary path instead of \`npx\`.`);
+  }
+  if (!workspaceContext.all_ready) {
+    nextSteps.push('Compile your workspace context & brief in 60s with `veycraft onboard` (or `veycraft brief`).');
+  }
   nextSteps.push('Start safely in your AI IDE with `/demo` (zero personal data) or `/quick-tailor` (1 CV + 1 JD, no browser login).');
   if (gates.passed < gates.total) {
     nextSteps.push('For full browser-assisted workflows later, run `veycraft login` and `/setup` in your AI IDE.');
@@ -689,11 +865,11 @@ export async function evaluateDoctorSnapshot({
     version,
     node: process.versions.node,
     node_ok: nodeOk,
-    platform: process.platform,
+    platform,
     arch: os.arch(),
     scope: isGlobal ? 'global' : 'local',
     root,
-    global_root: resolveGlobalRoot(home, env, process.platform),
+    global_root: resolveGlobalRoot(home, env, platform),
     package_source: source,
     initialized: installed,
     skills_count: manifestCount,
@@ -702,6 +878,17 @@ export async function evaluateDoctorSnapshot({
     provenance_issues: missingOrTampered,
     playbooks_verified: verifiedPlaybooks,
     stale_playbooks: stalePlaybooks,
+    workspace_context: workspaceContext,
+    headless_browser: {
+      available: Boolean(headlessBrowserPath),
+      path: headlessBrowserPath,
+    },
+    chrome_devtools_mcp: {
+      available: Boolean(chromeDevtoolsMcpPath),
+      path: chromeDevtoolsMcpPath,
+      fix_command: cdpFixCommand,
+      config_tip: cdpConfigTip,
+    },
     gates: {
       cv_and_profile: gates.g1,
       target_preferences: gates.g2,

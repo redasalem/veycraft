@@ -171,7 +171,7 @@
       "name": "fill-and-apply",
       "version": "2.1.0",
       "category": "core",
-      "description": "Load when filling any Easy Apply modal or external ATS application form; enforces the Upload-First rule with a 3-step programmatic CV upload ladder (native MCP upload_file/browser_file_upload -> CDP DOM.setFileInputFiles -> manual path fallback), routine GDPR/Privacy Policy consent checks, EEO defaults, unknown-question pause, structured Arabic User Handoff protocol, and job-bound APPROVE gate before Submit.",
+      "description": "Load when filling any Easy Apply modal or external ATS application form; enforces the Upload-First rule with a 3-step programmatic CV upload ladder (native MCP upload_file/browser_file_upload -> CDP DOM.setFileInputFiles -> manual path fallback), routine GDPR/Privacy Policy consent checks, EEO defaults, unknown-question pause, structured language-adapted User Handoff protocol, and job-bound APPROVE gate before Submit.",
       "triggers": [
         "selected job from APPLY reply",
         "Easy Apply modal or external ATS form open",

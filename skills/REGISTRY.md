@@ -6,6 +6,11 @@ Read `AGENTS.md`, then this index at session start. **Load a skill body only whe
 
 Route everyday user requests to the **smallest skill group** below without requiring slash commands or forcing `/setup` unless Full Career OS automation is requested. Check existing `context/`, `assets/`, and `logs/` files before asking for missing inputs.
 
+- **Fast-Track Guided Workflows (see `AGENTS.md`):** Run `veycraft doctor` (or check active browser MCP) up front; never stall if browser MCP is missing (offer the 1-line `npm i -g chrome-devtools-mcp` fix + immediate CLI/draft fallback in <30 s), and close every completed stage with a compact **Next-Step Handoff** (1–2 completed bullets + 1 clear next action) rendered in the user's active conversation language:
+  - **Track A (Fast Job Apply):** `doctor` → `02-discover-and-triage` → `03-tailor-resume-and-verify` (role-named auto-PDF) → `04-fill-and-apply` (Live DOM Read-Back) → `APPROVE` → submit & `06-log-and-insights`.
+  - **Track B (Fast Freelance Proposal):** `doctor` / `brief` → `56-freelance-offer-radar-and-batch-bidder` (analyze brief, draft proposal, non-submitting fill + Read-Back) → `APPROVE <numbers>` → submit & log.
+  - **Track C (Publish Freelance Service):** `doctor` / `brief` → `55-freelance-profile-and-service-publisher` (SEO blueprint, cover, non-submitting fill + Read-Back) → `APPROVE PUBLISH` → publish & verify.
+
 | User Intent / Natural-Language Examples | Minimal Skill Group | Task-Specific Readiness | Expected Output & Fallback |
 |---|---|---|---|
 | **Upload / Review CV** (*"Upload my CV"*, *"Review my CV"*) | `01-resume-ingestion`, `14-privacy-pii-shield` | CV file (`.md`/`.txt`/`.docx`/readable `.pdf`) or pasted text | Verified Fact Table + CV critique; if scanned PDF, warn & request pasted/text CV |
