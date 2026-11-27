@@ -1554,6 +1554,12 @@ test('16. Multi-tab ATS target switching, human jitter helper, and strict submis
     const failedModalStuck = verifySubmissionReceipt('You applied on 11/27/2026', { modalClosed: false });
     assert.equal(failedModalStuck.confirmed, false);
     assert.equal(failedModalStuck.status, 'failed_unconfirmed');
+
+    // 6. Snapshot expression includes empty_required_fields and validation_errors detection (e.g. Page 1 Contact info Resident Country*)
+    const snapSource = fs.readFileSync(path.join(BIN_DIR, 'cdp-ops.mjs'), 'utf8');
+    assert.match(snapSource, /empty_required_fields_count:\s*emptyRequiredFields\.length/);
+    assert.match(snapSource, /validation_errors:\s*validationErrors/);
+    assert.match(snapSource, /\[aria-invalid="true"\]/);
   } finally {
     MockWebSocket.handler = null;
     fs.rmSync(wsDir, { recursive: true, force: true });

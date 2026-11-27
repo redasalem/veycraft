@@ -1285,6 +1285,7 @@ function buildSnapshotExpression(maxChars) {
         placeholder: stripInvisible(el.getAttribute('placeholder') || '').slice(0, 80) || null,
         value: val,
         required: Boolean(el.required || el.getAttribute('aria-required') === 'true'),
+        invalid: el.getAttribute('aria-invalid') === 'true',
         disabled: Boolean(el.disabled),
         selector: uniqueSel(el),
       };
@@ -1298,6 +1299,16 @@ function buildSnapshotExpression(maxChars) {
       }
       fields.push(item);
     }
+
+    const emptyRequiredFields = fields
+      .filter(f => f.required && !f.disabled && (f.type === 'checkbox' || f.type === 'radio' ? !f.checked : !String(f.value || '').trim()))
+      .map(f => ({ label: f.label, type: f.type, selector: f.selector }));
+
+    const validationErrors = Array.from(document.querySelectorAll('[role="alert"], .artdeco-inline-feedback--error, [aria-invalid="true"]'))
+      .filter(el => isVisible(el))
+      .map(el => el.matches('[aria-invalid="true"]') ? ('Invalid: ' + resolveLabel(el)) : stripInvisible(el.innerText || el.textContent || '').slice(0, 160))
+      .filter(Boolean)
+      .slice(0, 20);
 
     const buttons = [];
     for (const btn of Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]'))) {
@@ -1327,6 +1338,9 @@ function buildSnapshotExpression(maxChars) {
       links,
       fields_count: fields.length,
       fields,
+      empty_required_fields_count: emptyRequiredFields.length,
+      empty_required_fields: emptyRequiredFields,
+      validation_errors: validationErrors,
       buttons_count: buttons.length,
       buttons,
       honeypots_detected: honeypotsDetected,
