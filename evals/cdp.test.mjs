@@ -296,7 +296,7 @@ test('6. End-to-end mock CDP runCdpCli executes status, open, snapshot, eval, cl
     };
 
     MockWebSocket.handler = (sock, req) => {
-      if (req.method === 'Page.enable' || req.method === 'Runtime.enable') {
+      if (req.method === 'Page.enable' || req.method === 'Runtime.enable' || req.method === 'Page.bringToFront') {
         sock.receive({ id: req.id, result: {} });
         return;
       }
