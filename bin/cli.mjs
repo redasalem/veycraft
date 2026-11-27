@@ -1978,7 +1978,7 @@ Core & Verification Commands:
   veycraft brief [--refresh] [--no-write] [--autopilot | --no-autopilot] [--json] Compile/read context/brief.json (< 400 tokens, zero PII, opt-in autopilot)
   veycraft feed-scan (--all | --url <u> | --file <p>) [--top <n>] [--min-budget <n>] [--json] Zero-token SSRF-safe RSS/Atom/JSON radar & daily digest
   veycraft browser-script <distill-feed|distill-form|batch-fill> [--json] Output read-only DOM distiller or non-submitting batch-fill payload
-  veycraft cdp <status|login|open|snapshot|eval|click|fill|upload> [--port 9222] [--json] Native 127.0.0.1 Chrome DevTools Protocol CLI (zero MCP lock-in)
+  veycraft cdp <status|login|close|open|snapshot|eval|click|fill|upload> [--port 9222] [--json] Native 127.0.0.1 Chrome DevTools Protocol CLI (zero MCP lock-in)
   veycraft eval [--baseline | --file <json> | --journeys] Run deterministic safety assertions & journey tests
   veycraft proof [--global | -g]                   Generate reproducible proof-card.svg & proof-card.md
   veycraft status [--global | -g] [--json]         Print readiness gates, warm-up cap & pipeline funnel summary

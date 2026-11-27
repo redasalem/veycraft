@@ -36,7 +36,8 @@ const {
   parseCdpArgs,
   CdpClient,
   buildChromeLaunchArgs,
-  buildWindowsDesktopLaunchSpec,
+  buildLoginFallbackCommand,
+  closeCdpBrowser,
   surfaceCdpWindow,
   ensureCdpChrome,
   runCdpCli,
@@ -424,7 +425,7 @@ test('7. Packaging hygiene, .gitignore exclusions, CLI help wiring, and agent ru
 
     const rootHelp = spawnSync(process.execPath, [CLI_PATH, '--help'], { cwd: ws, encoding: 'utf8' });
     assert.equal(rootHelp.status, 0, rootHelp.stderr);
-    assert.match(rootHelp.stdout, /veycraft cdp <status\|login\|open\|snapshot\|eval\|click\|fill\|upload>/i);
+    assert.match(rootHelp.stdout, /veycraft cdp <status\|login\|close\|open\|snapshot\|eval\|click\|fill\|upload>/i);
 
     const gitignore = fs.readFileSync(path.join(REPO_ROOT, '.gitignore'), 'utf8');
     assert.match(gitignore, /workspace\/\.chrome-profile\//);
@@ -640,7 +641,7 @@ test('10. cdp upload validates local PDF paths, sends DOM.setFileInputFiles, and
   }
 });
 
-test('11. cdp login defaults to LinkedIn login, restores Browser.setWindowBounds, and uses injection-safe desktop launch spec on win32', async () => {
+test('11. cdp login closes stale CDP, spawns browser directly (no PowerShell wrapper), surfaces window, and prints fallbackCommand on timeout', async () => {
   const wsDir = makeTempDir('veycraft-cdp-login-');
   try {
     const parsedDefault = parseCdpArgs(['login', '--json']);
@@ -653,15 +654,57 @@ test('11. cdp login defaults to LinkedIn login, restores Browser.setWindowBounds
     assert.equal(parsedCustom.port, 9225);
     assert.equal(parsedCustom.positionals[0], 'https://www.upwork.com/ab/account-security/login');
 
-    const launchSpec = buildWindowsDesktopLaunchSpec('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', ['--new-window', DEFAULT_LOGIN_URL]);
-    assert.equal(launchSpec.command, 'powershell.exe');
-    assert.equal(launchSpec.envPatch.VEYCRAFT_CHROME_BIN, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
-    assert.deepEqual(JSON.parse(launchSpec.envPatch.VEYCRAFT_CHROME_ARGS), ['--new-window', DEFAULT_LOGIN_URL]);
+    // Verify OS-specific fallbackCommand helper
+    const winFallback = buildLoginFallbackCommand({
+      binary: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      port: 9222,
+      profileDir: path.join(wsDir, 'workspace', '.chrome-profile'),
+      url: DEFAULT_LOGIN_URL,
+      platform: 'win32',
+    });
+    assert.match(winFallback, /^& "C:\\Program Files\\Google\\Chrome\\Application\\chrome\.exe"/);
+    assert.match(winFallback, /--remote-debugging-port=9222/);
+    assert.match(winFallback, /--new-window/);
 
+    const macFallback = buildLoginFallbackCommand({
+      binary: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      port: 9222,
+      profileDir: '/tmp/profile',
+      url: DEFAULT_LOGIN_URL,
+      platform: 'darwin',
+    });
+    assert.match(macFallback, /^"\/Applications\/Google Chrome\.app\/Contents\/MacOS\/Google Chrome"/);
+
+    // 1. Live flow: stale CDP running -> closed via Browser.close -> fresh direct spawn (NO powershell.exe) -> navigate & surfaceCdpWindow
+    let phase = 'stale'; // 'stale' -> 'closing' -> 'fresh'
+    let capturedSpawn = null;
     const cdpCalls = [];
+
     const mockHttp = async ({ endpointPath }) => {
       if (endpointPath === '/json/version') {
-        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+        if (phase === 'stale') {
+          return {
+            status: 200,
+            body: JSON.stringify({
+              Browser: 'Chrome/158.0.0.0',
+              'Protocol-Version': '1.3',
+              webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/browser/STALE',
+            }),
+          };
+        }
+        if (phase === 'closing') {
+          const err = new Error('connect ECONNREFUSED');
+          err.code = 'ECONNREFUSED';
+          throw err;
+        }
+        return {
+          status: 200,
+          body: JSON.stringify({
+            Browser: 'Chrome/158.0.0.0',
+            'Protocol-Version': '1.3',
+            webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/browser/FRESH',
+          }),
+        };
       }
       if (endpointPath === '/json/list') {
         return {
@@ -680,8 +723,19 @@ test('11. cdp login defaults to LinkedIn login, restores Browser.setWindowBounds
       throw new Error(`Unexpected path ${endpointPath}`);
     };
 
+    const spawnMock = (binary, args, options) => {
+      capturedSpawn = { binary, args, options };
+      phase = 'fresh';
+      return { unref() {} };
+    };
+
     MockWebSocket.handler = (sock, req) => {
       cdpCalls.push({ method: req.method, params: req.params });
+      if (req.method === 'Browser.close') {
+        phase = 'closing';
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
       if (req.method === 'Page.enable' || req.method === 'Runtime.enable' || req.method === 'Page.bringToFront' || req.method === 'Browser.setWindowBounds') {
         sock.receive({ id: req.id, result: {} });
         return;
@@ -705,16 +759,35 @@ test('11. cdp login defaults to LinkedIn login, restores Browser.setWindowBounds
 
     const res = await runCdpCli(wsDir, ['login', '--json'], {
       nodeVersion: '22.12.0',
+      platform: 'win32',
       WebSocketImpl: MockWebSocket,
       fetchImpl: () => {},
       httpRequestImpl: mockHttp,
+      detectBrowserImpl: () => 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      spawnImpl: spawnMock,
+      isPortAvailableImpl: async () => phase === 'closing',
     });
     assert.equal(res.exitCode, 0, JSON.stringify(res.data));
     assert.equal(res.data.mode, 'login');
+    assert.equal(res.data.closed_stale, true);
+    assert.equal(res.data.launched, true);
     assert.equal(res.data.navigated_to, DEFAULT_LOGIN_URL);
     assert.equal(res.data.window_surfaced, true);
     assert.equal(res.data.window_id, 77);
     assert.equal(res.data.bounds_applied, true);
+
+    // Must spawn detected Chrome directly — NEVER powershell.exe
+    assert.ok(capturedSpawn, 'Expected direct browser spawn');
+    assert.equal(capturedSpawn.binary, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
+    assert.notEqual(capturedSpawn.binary.toLowerCase(), 'powershell.exe');
+    assert.equal(capturedSpawn.options.detached, true);
+    assert.equal(capturedSpawn.options.stdio, 'ignore');
+    assert.equal(capturedSpawn.options.windowsHide, false);
+    assert.ok(capturedSpawn.args.includes('--remote-debugging-port=9222'));
+    assert.ok(capturedSpawn.args.includes('--no-first-run'));
+    assert.ok(capturedSpawn.args.includes('--no-default-browser-check'));
+    assert.ok(capturedSpawn.args.includes('--new-window'));
+    assert.ok(capturedSpawn.args.includes(DEFAULT_LOGIN_URL));
 
     const boundsCalls = cdpCalls.filter(c => c.method === 'Browser.setWindowBounds');
     assert.ok(boundsCalls.length >= 2, 'Expected restore from minimized -> normal plus explicit on-screen bounds');
@@ -722,8 +795,208 @@ test('11. cdp login defaults to LinkedIn login, restores Browser.setWindowBounds
       windowId: 77,
       bounds: { windowState: 'normal', left: 80, top: 60, width: 1280, height: 900 },
     });
+    assert.ok(cdpCalls.some(c => c.method === 'Browser.close'));
     assert.ok(cdpCalls.some(c => c.method === 'Page.bringToFront'));
     assert.equal(typeof surfaceCdpWindow, 'function');
+
+    // 2. Timeout case: returns graceful exitCode=1 with ready-to-copy OS-specific fallbackCommand
+    const timeoutHttp = async () => {
+      const err = new Error('connect ECONNREFUSED');
+      err.code = 'ECONNREFUSED';
+      throw err;
+    };
+    const timeoutRes = await runCdpCli(wsDir, ['login', '--timeout', '600', '--json'], {
+      nodeVersion: '22.12.0',
+      platform: 'win32',
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: timeoutHttp,
+      detectBrowserImpl: () => 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      spawnImpl: () => ({ unref() {} }),
+      isPortAvailableImpl: async () => true,
+    });
+    assert.equal(timeoutRes.exitCode, 1);
+    assert.equal(timeoutRes.data.ok, false);
+    assert.match(timeoutRes.data.error, /did not become ready/i);
+    assert.match(timeoutRes.data.fallbackCommand, /chrome\.exe.*--remote-debugging-port=9222.*--new-window/i);
+    assert.ok(timeoutRes.lines.some(l => l.includes(timeoutRes.data.fallbackCommand)));
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test('12. cdp upload --trigger and button auto-fallback intercept Page.fileChooserOpened and attach via DOM.setFileInputFiles({ backendNodeId })', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-chooser-');
+  try {
+    const pdfPath = path.join(wsDir, 'logs', 'resumes', 'Reda-Salem-Full-Stack-Engineer.pdf');
+    fs.mkdirSync(path.dirname(pdfPath), { recursive: true });
+    fs.writeFileSync(pdfPath, '%PDF-1.4\n% chooser interception test\n', 'utf8');
+
+    const parsedTriggerOnly = parseCdpArgs(['upload', '--trigger', 'button[aria-label="Upload resume"]', pdfPath, '--json']);
+    assert.equal(parsedTriggerOnly.error, null);
+    assert.equal(parsedTriggerOnly.subcommand, 'upload');
+    assert.equal(parsedTriggerOnly.trigger, 'button[aria-label="Upload resume"]');
+    assert.deepEqual(parsedTriggerOnly.positionals, [pdfPath]);
+
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version') {
+        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+      }
+      if (endpointPath === '/json/list') {
+        return {
+          status: 200,
+          body: JSON.stringify([
+            {
+              id: 'TAB-LI',
+              type: 'page',
+              title: 'LinkedIn Easy Apply',
+              url: 'https://www.linkedin.com/jobs/view/999/',
+              webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-LI',
+            },
+          ]),
+        };
+      }
+      throw new Error(`Unexpected path ${endpointPath}`);
+    };
+
+    const recordedMethods = [];
+    const interceptStates = [];
+    let setFilesParams = null;
+
+    MockWebSocket.handler = (sock, req) => {
+      recordedMethods.push(req.method);
+      if (req.method === 'Page.enable' || req.method === 'DOM.enable' || req.method === 'Runtime.enable') {
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Page.setInterceptFileChooserDialog') {
+        interceptStates.push(req.params?.enabled);
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'DOM.getDocument') {
+        sock.receive({ id: req.id, result: { root: { nodeId: 1 } } });
+        return;
+      }
+      if (req.method === 'DOM.querySelector') {
+        // Return a button nodeId when testing auto-fallback without --trigger
+        sock.receive({ id: req.id, result: { nodeId: req.params?.selector === '#upload-btn' ? 55 : 0 } });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate' && req.params?.returnByValue === false) {
+        sock.receive({ id: req.id, result: { result: { type: 'object', subtype: 'null', value: null } } });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate' && String(req.params?.expression || '').includes('clicked: true')) {
+        sock.receive({
+          id: req.id,
+          result: { result: { type: 'object', value: { ok: true, clicked: true, selector: '#upload-btn', tag: 'button', text: 'Upload resume' } } },
+        });
+        setTimeout(() => {
+          sock.receive({
+            method: 'Page.fileChooserOpened',
+            params: { frameId: 'F1', backendNodeId: 777, mode: 'selectSingle' },
+          });
+        }, 10);
+        return;
+      }
+      if (req.method === 'DOM.setFileInputFiles') {
+        if (req.params?.nodeId === 55) {
+          sock.receive({ id: req.id, error: { code: -32000, message: 'Node is not a file input element' } });
+          return;
+        }
+        setFilesParams = req.params;
+        sock.receive({ id: req.id, result: {} });
+      }
+    };
+
+    const mockDeps = {
+      nodeVersion: '22.12.0',
+      cwd: wsDir,
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+    };
+
+    // 1. Explicit `--trigger` mode
+    const triggerRes = await runCdpCli(wsDir, ['upload', '--trigger', '#upload-btn', pdfPath, '--json'], mockDeps);
+    assert.equal(triggerRes.exitCode, 0, JSON.stringify(triggerRes.data));
+    assert.equal(triggerRes.data.uploaded, true);
+    assert.equal(triggerRes.data.method, 'file_chooser_interception');
+    assert.equal(triggerRes.data.backend_node_id, 777);
+    assert.deepEqual(setFilesParams, { backendNodeId: 777, files: [pdfPath] });
+    assert.deepEqual(interceptStates, [true, false], 'Must enable interception before click and disable it afterward');
+
+    // 2. Auto-fallback when <selector> matches a button instead of <input type="file">
+    setFilesParams = null;
+    interceptStates.length = 0;
+    const autoRes = await runCdpCli(wsDir, ['upload', '#upload-btn', pdfPath, '--json'], mockDeps);
+    assert.equal(autoRes.exitCode, 0, JSON.stringify(autoRes.data));
+    assert.equal(autoRes.data.uploaded, true);
+    assert.equal(autoRes.data.method, 'file_chooser_interception');
+    assert.deepEqual(setFilesParams, { backendNodeId: 777, files: [pdfPath] });
+    assert.deepEqual(interceptStates, [true, false]);
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test('13. cdp close sends Browser.close, waits for port release to unlock workspace/.chrome-profile, and is idempotent when already stopped', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-close-');
+  try {
+    let alive = true;
+    let browserCloseCalled = false;
+
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version' && alive) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            Browser: 'Chrome/158.0.0.0',
+            webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/browser/B1',
+          }),
+        };
+      }
+      const err = new Error('connect ECONNREFUSED');
+      err.code = 'ECONNREFUSED';
+      throw err;
+    };
+
+    MockWebSocket.handler = (sock, req) => {
+      if (req.method === 'Browser.close') {
+        browserCloseCalled = true;
+        alive = false;
+        sock.receive({ id: req.id, result: {} });
+      }
+    };
+
+    const res = await runCdpCli(wsDir, ['close', '--port', '9222', '--json'], {
+      nodeVersion: '22.12.0',
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+      isPortAvailableImpl: async () => !alive,
+    });
+    assert.equal(res.exitCode, 0, JSON.stringify(res.data));
+    assert.equal(browserCloseCalled, true);
+    assert.equal(res.data.closed, true);
+    assert.equal(res.data.port_released, true);
+    assert.equal(res.data.already_stopped, false);
+
+    // Calling close again when Chrome is already stopped succeeds idempotently
+    const second = await closeCdpBrowser({
+      root: wsDir,
+      port: 9222,
+      httpRequestImpl: mockHttp,
+      WebSocketImpl: MockWebSocket,
+      isPortAvailableImpl: async () => true,
+    });
+    assert.equal(second.ok, true);
+    assert.equal(second.closed, false);
+    assert.equal(second.already_stopped, true);
+    assert.equal(second.port_released, true);
   } finally {
     MockWebSocket.handler = null;
     fs.rmSync(wsDir, { recursive: true, force: true });

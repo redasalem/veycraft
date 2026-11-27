@@ -21,7 +21,7 @@ export const DEFAULT_TIMEOUT_MS = 20000;
 export const DEFAULT_MAX_CHARS = 12000;
 export const DEFAULT_LOGIN_URL = 'https://www.linkedin.com/login';
 export const MIN_CDP_NODE_MAJOR = 22;
-export const CDP_SUBCOMMANDS = Object.freeze(['status', 'login', 'open', 'snapshot', 'eval', 'click', 'fill', 'upload', 'help']);
+export const CDP_SUBCOMMANDS = Object.freeze(['status', 'login', 'close', 'open', 'snapshot', 'eval', 'click', 'fill', 'upload', 'help']);
 
 const CLOUD_METADATA_HOSTS = new Set([
   '169.254.169.254',
@@ -441,50 +441,148 @@ export function buildChromeLaunchArgs({
     `--remote-debugging-port=${validPort}`,
     `--remote-debugging-address=${CDP_HOST}`,
     `--user-data-dir=${profileDir}`,
-    '--new-window',
-    '--window-size=1280,900',
     '--no-first-run',
     '--no-default-browser-check',
+    '--new-window',
+    '--window-size=1280,900',
     initialUrl,
   ];
 }
 
-export async function closeCdpBrowser({
+export function buildLoginFallbackCommand({
+  binary = null,
   port = DEFAULT_CDP_PORT,
-  httpRequestImpl = httpRequestLocalCdp,
-  WebSocketImpl = globalThis.WebSocket,
+  profileDir,
+  url = DEFAULT_LOGIN_URL,
+  platform = process.platform,
 } = {}) {
   const validPort = validateCdpPort(port);
-  const version = await fetchCdpJson(validPort, '/json/version', { timeoutMs: 2000, httpRequestImpl });
-  const wsUrl = version?.webSocketDebuggerUrl;
-  if (typeof wsUrl !== 'string' || !wsUrl) {
-    throw new Error(`No browser-level webSocketDebuggerUrl found on ${CDP_HOST}:${validPort}.`);
+  const safeUrl = url || DEFAULT_LOGIN_URL;
+  if (!binary) {
+    return `node ./bin/cli.mjs cdp login "${safeUrl}" --port ${validPort}`;
   }
-  const client = new CdpClient(wsUrl, { port: validPort, WebSocketImpl, defaultTimeoutMs: 5000 });
-  await client.connect();
-  try {
-    await client.send('Browser.close', {}, { timeoutMs: 3000 }).catch(() => {});
-  } finally {
-    await client.close();
+  const args = [
+    `--remote-debugging-port=${validPort}`,
+    `--user-data-dir="${profileDir}"`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--new-window',
+    `"${safeUrl}"`,
+  ].join(' ');
+  if (platform === 'win32') {
+    return `& "${binary}" ${args}`;
   }
-  return { closed: true, port: validPort };
+  return `"${binary}" ${args}`;
 }
 
-export function buildWindowsDesktopLaunchSpec(binary, args) {
+export async function closeCdpBrowser({
+  root = null,
+  port = DEFAULT_CDP_PORT,
+  portExplicit = false,
+  home = os.homedir(),
+  timeoutMs = 3000,
+  httpRequestImpl = httpRequestLocalCdp,
+  WebSocketImpl = globalThis.WebSocket,
+  isPortAvailableImpl = isLocalPortAvailable,
+} = {}) {
+  const requestedPort = validateCdpPort(port);
+  const profileDir = root ? resolveChromeProfileDir(root, { home }) : null;
+
+  const probe = async (candidatePort) => {
+    try {
+      const res = await httpRequestImpl({ port: candidatePort, endpointPath: '/json/version', method: 'GET', timeoutMs: 1200 });
+      if (res.status >= 200 && res.status < 300) {
+        const version = JSON.parse(res.body);
+        if (isObj(version) && (version.Browser || version.webSocketDebuggerUrl || version['Protocol-Version'])) {
+          return version;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  let activePort = requestedPort;
+  let version = await probe(requestedPort);
+  if (!version && !portExplicit && profileDir) {
+    const recordedPort = readRecordedCdpPort(profileDir);
+    if (recordedPort && recordedPort !== requestedPort) {
+      const recVer = await probe(recordedPort);
+      if (recVer) {
+        activePort = recordedPort;
+        version = recVer;
+      }
+    }
+  }
+
+  if (!version) {
+    return {
+      ok: true,
+      closed: false,
+      already_stopped: true,
+      port: activePort,
+      port_released: true,
+      profile_dir: profileDir,
+    };
+  }
+
+  const wsUrl = version?.webSocketDebuggerUrl;
+  let closeSent = false;
+  if (typeof wsUrl === 'string' && wsUrl) {
+    const client = new CdpClient(wsUrl, { port: activePort, WebSocketImpl, defaultTimeoutMs: Math.min(timeoutMs, 3000) });
+    await client.connect();
+    try {
+      await client.send('Browser.close', {}, { timeoutMs: Math.min(timeoutMs, 2500) }).catch(() => {});
+      closeSent = true;
+    } finally {
+      await client.close();
+    }
+  } else {
+    // Fallback: close via active page target if browser-level wsUrl is missing
+    const targets = await fetchCdpJson(activePort, '/json/list', { timeoutMs: 1500, httpRequestImpl }).catch(() => []);
+    const target = selectCdpTarget(targets, { port: activePort });
+    if (target?.webSocketDebuggerUrl) {
+      const client = new CdpClient(target.webSocketDebuggerUrl, { port: activePort, WebSocketImpl, defaultTimeoutMs: Math.min(timeoutMs, 3000) });
+      await client.connect();
+      try {
+        await client.send('Browser.close', {}, { timeoutMs: Math.min(timeoutMs, 2500) }).catch(() => {});
+        closeSent = true;
+      } finally {
+        await client.close();
+      }
+    }
+  }
+
+  // Wait up to timeoutMs (default 3s) for the debugging port to release so workspace/.chrome-profile is unlocked.
+  let portReleased = false;
+  const deadline = Date.now() + Math.max(250, timeoutMs);
+  while (Date.now() < deadline) {
+    const stillAlive = await probe(activePort);
+    if (!stillAlive) {
+      const free = await isPortAvailableImpl(activePort).catch(() => true);
+      if (free) {
+        portReleased = true;
+        break;
+      }
+    }
+    await sleep(150);
+  }
+
+  if (profileDir) {
+    try {
+      const marker = path.join(profileDir, '.veycraft-cdp-port');
+      if (fs.existsSync(marker)) fs.unlinkSync(marker);
+    } catch { /* non-fatal */ }
+  }
+
   return {
-    command: 'powershell.exe',
-    args: [
-      '-NoProfile',
-      '-NonInteractive',
-      '-WindowStyle',
-      'Hidden',
-      '-Command',
-      'Start-Process -FilePath $env:VEYCRAFT_CHROME_BIN -ArgumentList ($env:VEYCRAFT_CHROME_ARGS | ConvertFrom-Json) -WindowStyle Normal',
-    ],
-    envPatch: {
-      VEYCRAFT_CHROME_BIN: binary,
-      VEYCRAFT_CHROME_ARGS: JSON.stringify(args),
-    },
+    ok: true,
+    closed: closeSent,
+    already_stopped: false,
+    port: activePort,
+    port_released: portReleased,
+    profile_dir: profileDir,
   };
 }
 
@@ -527,7 +625,6 @@ export async function ensureCdpChrome({
   port = DEFAULT_CDP_PORT,
   portExplicit = false,
   initialUrl = 'about:blank',
-  desktopShell = false,
   home = os.homedir(),
   env = process.env,
   platform = process.platform,
@@ -652,22 +749,11 @@ export async function ensureCdpChrome({
     initialUrl,
   });
 
-  let child;
-  if (desktopShell && platform === 'win32') {
-    const spec = buildWindowsDesktopLaunchSpec(binary, args);
-    child = spawnImpl(spec.command, spec.args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      env: { ...env, ...spec.envPatch },
-    });
-  } else {
-    child = spawnImpl(binary, args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false,
-    });
-  }
+  const child = spawnImpl(binary, args, {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false,
+  });
   if (child && typeof child.unref === 'function') {
     child.unref();
   }
@@ -690,9 +776,21 @@ export async function ensureCdpChrome({
     }
   }
 
-  throw new Error(
+  const fallbackCommand = buildLoginFallbackCommand({
+    binary,
+    port: launchPort,
+    profileDir,
+    url: initialUrl,
+    platform,
+  });
+  const err = new Error(
     `Launched browser (${binary}) with profile "${profileDir}", but CDP did not become ready on ${CDP_HOST}:${launchPort} within ${launchTimeoutMs}ms.`,
   );
+  err.code = 'CDP_LAUNCH_TIMEOUT';
+  err.fallbackCommand = fallbackCommand;
+  err.port = launchPort;
+  err.profileDir = profileDir;
+  throw err;
 }
 
 export class CdpClient {
@@ -1131,6 +1229,14 @@ function buildClickExpression(selector) {
           const found = findDeep(el.shadowRoot, sel);
           if (found) return found;
         }
+        if (el.tagName === 'IFRAME') {
+          try {
+            if (el.contentDocument) {
+              const nested = findDeep(el.contentDocument, sel);
+              if (nested) return nested;
+            }
+          } catch { /* cross-origin iframe */ }
+        }
       }
       return null;
     };
@@ -1335,6 +1441,7 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
     portExplicit: false,
     maxChars: DEFAULT_MAX_CHARS,
     targetId: null,
+    trigger: null,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     newTab: false,
     noLaunch: false,
@@ -1429,6 +1536,24 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
       parsed.targetId = val;
       continue;
     }
+    if (a === '--trigger') {
+      const next = args[++i];
+      if (!next || next.startsWith('-')) {
+        parsed.error = '--trigger requires a CSS selector for the upload trigger button.';
+        return parsed;
+      }
+      parsed.trigger = next;
+      continue;
+    }
+    if (a.startsWith('--trigger=')) {
+      const val = a.slice(10);
+      if (!val) {
+        parsed.error = '--trigger= requires a CSS selector for the upload trigger button.';
+        return parsed;
+      }
+      parsed.trigger = val;
+      continue;
+    }
     if (a === '--timeout') {
       const next = args[++i];
       const n = next !== undefined && /^\d+$/.test(next) ? Number(next) : NaN;
@@ -1484,8 +1609,8 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
     parsed.error = 'Usage: veycraft cdp click <selector> [--port <n>] [--target <id>] [--json]';
   } else if (parsed.subcommand === 'fill' && (parsed.positionals.length < 2)) {
     parsed.error = 'Usage: veycraft cdp fill <selector> <value> [--port <n>] [--target <id>] [--json]';
-  } else if (parsed.subcommand === 'upload' && (parsed.positionals.length < 2)) {
-    parsed.error = 'Usage: veycraft cdp upload <selector> <filePath> [--port <n>] [--target <id>] [--json]';
+  } else if (parsed.subcommand === 'upload' && (parsed.trigger ? parsed.positionals.length < 1 : parsed.positionals.length < 2)) {
+    parsed.error = 'Usage: veycraft cdp upload <selector> <filePath> [--trigger <buttonSelector>] [--port <n>] [--target <id>] [--json]';
   }
 
   return parsed;
@@ -1495,13 +1620,14 @@ export function getCdpHelpLines() {
   return [
     'Veycraft Native Chrome DevTools Protocol (CDP) CLI (Zero-Dependency · 127.0.0.1 only):',
     '  veycraft cdp status [--port 9222] [--no-launch] [--json]               Ensure Chrome CDP is running & list open tabs',
-    '  veycraft cdp login [url] [--port 9222] [--new-tab] [--json]            Surface visible Chrome window for one-time sign-in (default: LinkedIn login)',
+    '  veycraft cdp login [url] [--port 9222] [--new-tab] [--json]            Reset stale CDP, launch Chrome directly for one-time sign-in (default: LinkedIn login)',
+    '  veycraft cdp close [--port 9222] [--json]                              Cleanly shut down active CDP Chrome (Browser.close) & unlock workspace/.chrome-profile',
     '  veycraft cdp open <url> [--port 9222] [--new-tab] [--target <id>] [--json] Open/navigate tab, surface window, wait for load -> { url, title }',
     '  veycraft cdp snapshot [--max-chars 12000] [--port 9222] [--target <id>] [--json] Extract clean visible text, links & interactive fields',
     '  veycraft cdp eval <js> [--port 9222] [--target <id>] [--json]          Evaluate JS expression on active tab & return serialized result',
-    '  veycraft cdp click <selector> [--port 9222] [--target <id>] [--json]   Click element matching CSS selector (supports open Shadow DOM)',
+    '  veycraft cdp click <selector> [--port 9222] [--target <id>] [--json]   Click element matching CSS selector (supports open Shadow DOM & same-origin iframes)',
     '  veycraft cdp fill <selector> <value> [--port 9222] [--target <id>] [--json] Fill input/textarea/select/checkbox with React/ATS events',
-    '  veycraft cdp upload <selector> <filePath> [--port 9222] [--target <id>] [--json] Attach verified local file (e.g. PDF CV) to <input type="file"> via DOM.setFileInputFiles',
+    '  veycraft cdp upload <selector> <filePath> [--trigger <btnSel>] [--port 9222] [--target <id>] [--json] Attach local file via DOM.setFileInputFiles or CDP File Chooser Interception',
     '',
     'Profile persistence: workspace/.chrome-profile/ (gitignored & excluded from npm pack).',
     'Requirements: Node.js >= 22 (built-in WebSocket) and local Chrome, Chromium, or Microsoft Edge.',
@@ -1513,11 +1639,11 @@ async function connectToActiveTarget({
   port,
   portExplicit = false,
   initialUrl = 'about:blank',
-  desktopShell = false,
   targetId,
   newTab = false,
   noLaunch = false,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  launchTimeoutMs = 15000,
   home = os.homedir(),
   env = process.env,
   platform = process.platform,
@@ -1532,11 +1658,11 @@ async function connectToActiveTarget({
     port,
     portExplicit,
     initialUrl,
-    desktopShell,
     home,
     env,
     platform,
     launch: !noLaunch,
+    launchTimeoutMs,
     httpRequestImpl,
     detectBrowserImpl,
     spawnImpl,
@@ -1616,7 +1742,24 @@ export async function runCdpCli(root, argv = [], {
     };
   }
 
-  const { port, portExplicit, targetId, timeoutMs, maxChars, newTab, noLaunch } = parsed;
+  const { port, portExplicit, targetId, trigger, timeoutMs, maxChars, newTab, noLaunch } = parsed;
+
+  if (parsed.subcommand === 'close') {
+    const closeRes = await closeCdpBrowser({
+      root,
+      port,
+      portExplicit,
+      home,
+      timeoutMs: Math.min(timeoutMs, 3000),
+      httpRequestImpl,
+      WebSocketImpl,
+      isPortAvailableImpl,
+    });
+    const lines = closeRes.already_stopped
+      ? [`No active CDP Chrome found on ${CDP_HOST}:${closeRes.port} (profile already unlocked).`]
+      : [`Closed CDP Chrome on ${CDP_HOST}:${closeRes.port} (port_released=${closeRes.port_released}) — workspace/.chrome-profile unlocked.`];
+    return { exitCode: 0, json: parsed.json, data: closeRes, lines };
+  }
 
   if (parsed.subcommand === 'status') {
     const chrome = await ensureCdpChrome({
@@ -1667,25 +1810,78 @@ export async function runCdpCli(root, argv = [], {
     const isLogin = parsed.subcommand === 'login';
     const rawUrl = parsed.positionals[0] || (isLogin ? DEFAULT_LOGIN_URL : '');
     const safeUrl = validateNavigationUrl(rawUrl, { cdpPort: port });
-    const { chrome, target, client } = await connectToActiveTarget({
-      root,
-      port,
-      portExplicit,
-      initialUrl: safeUrl,
-      desktopShell: isLogin && platform === 'win32',
-      targetId,
-      newTab,
-      noLaunch,
-      timeoutMs,
-      home,
-      env,
-      platform,
-      httpRequestImpl,
-      WebSocketImpl,
-      detectBrowserImpl,
-      spawnImpl,
-      isPortAvailableImpl,
-    });
+
+    // In `cdp login`, close any stale/hidden CDP instance on that port first so Chrome launches fresh with a clean window.
+    let closedStale = false;
+    if (isLogin && !noLaunch) {
+      const closeRes = await closeCdpBrowser({
+        root,
+        port,
+        portExplicit,
+        home,
+        timeoutMs: 3000,
+        httpRequestImpl,
+        WebSocketImpl,
+        isPortAvailableImpl,
+      }).catch(() => null);
+      closedStale = Boolean(closeRes?.closed);
+    }
+
+    let conn;
+    try {
+      conn = await connectToActiveTarget({
+        root,
+        port,
+        portExplicit,
+        initialUrl: safeUrl,
+        targetId,
+        newTab,
+        noLaunch,
+        timeoutMs,
+        launchTimeoutMs: Math.min(timeoutMs, 15000),
+        home,
+        env,
+        platform,
+        httpRequestImpl,
+        WebSocketImpl,
+        detectBrowserImpl,
+        spawnImpl,
+        isPortAvailableImpl,
+      });
+    } catch (err) {
+      if (isLogin) {
+        const profileDir = resolveChromeProfileDir(root, { home });
+        const detectedBin = detectBrowserImpl({ platform, env, home });
+        const fallbackCommand = err?.fallbackCommand || buildLoginFallbackCommand({
+          binary: detectedBin,
+          port: err?.port || port,
+          profileDir: err?.profileDir || profileDir,
+          url: safeUrl,
+          platform,
+        });
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return {
+          exitCode: 1,
+          json: parsed.json,
+          data: {
+            ok: false,
+            mode: 'login',
+            error: errMsg,
+            port: err?.port || port,
+            profile_dir: err?.profileDir || profileDir,
+            fallbackCommand,
+          },
+          lines: [
+            errMsg,
+            `Run this directly in your normal OS terminal, sign in once, and reply "done":`,
+            `  ${fallbackCommand}`,
+          ],
+        };
+      }
+      throw err;
+    }
+
+    const { chrome, target, client } = conn;
     try {
       await client.send('Page.enable');
       await client.send('Runtime.enable');
@@ -1702,11 +1898,21 @@ export async function runCdpCli(root, argv = [], {
         '({ url: String(window.location.href || ""), title: String(document.title || "").trim() })',
         { timeoutMs: Math.min(timeoutMs, 8000) },
       );
+      const fallbackCommand = isLogin
+        ? buildLoginFallbackCommand({
+            binary: chrome.binary || detectBrowserImpl({ platform, env, home }),
+            port: chrome.port,
+            profileDir: chrome.profile_dir,
+            url: safeUrl,
+            platform,
+          })
+        : null;
       const data = {
         ok: true,
         mode: isLogin ? 'login' : 'open',
         port: chrome.port,
         launched: chrome.launched,
+        closed_stale: closedStale,
         profile_dir: chrome.profile_dir,
         target_id: target.id || null,
         url: info?.url || safeUrl,
@@ -1715,6 +1921,7 @@ export async function runCdpCli(root, argv = [], {
         window_surfaced: true,
         window_id: windowSurface.window_id,
         bounds_applied: windowSurface.bounds_applied,
+        ...(fallbackCommand ? { fallbackCommand } : {}),
       };
       return {
         exitCode: 0,
@@ -1897,8 +2104,11 @@ export async function runCdpCli(root, argv = [], {
   }
 
   if (parsed.subcommand === 'upload') {
-    const selector = parsed.positionals[0];
-    const rawFilePath = parsed.positionals.slice(1).join(' ');
+    const hasExplicitTrigger = Boolean(trigger);
+    const selector = hasExplicitTrigger && parsed.positionals.length === 1 ? null : parsed.positionals[0];
+    const rawFilePath = hasExplicitTrigger && parsed.positionals.length === 1
+      ? parsed.positionals[0]
+      : parsed.positionals.slice(1).join(' ');
     const validatedFile = validateLocalUploadPath(rawFilePath, { root, source, home, cwd });
     const { target, client } = await connectToActiveTarget({
       root,
@@ -1916,7 +2126,72 @@ export async function runCdpCli(root, argv = [], {
       spawnImpl,
       isPortAvailableImpl,
     });
+
+    const runFileChooserInterception = async (triggerSelector) => {
+      await client.send('Page.enable', {}, { timeoutMs });
+      await client.send('DOM.enable', {}, { timeoutMs });
+      await client.send('Runtime.enable', {}, { timeoutMs });
+      await client.send('Page.setInterceptFileChooserDialog', { enabled: true }, { timeoutMs });
+      try {
+        const chooserPromise = client.waitForEvent('Page.fileChooserOpened', {
+          timeoutMs: Math.min(timeoutMs, 10000),
+        });
+        const clickRes = await evalInPage(client, buildClickExpression(triggerSelector), { timeoutMs });
+        if (!isObj(clickRes) || !clickRes.ok) {
+          chooserPromise.catch(() => {});
+          const errMsg = clickRes?.error || `Upload trigger element not found for selector: ${triggerSelector}`;
+          return {
+            exitCode: 1,
+            json: parsed.json,
+            data: { ok: false, target_id: target.id || null, selector: selector || triggerSelector, trigger: triggerSelector, error: errMsg },
+            lines: [errMsg],
+          };
+        }
+        const chooserEvt = await chooserPromise;
+        const chooserBackendNodeId = chooserEvt?.backendNodeId;
+        if (!Number.isInteger(chooserBackendNodeId) || chooserBackendNodeId <= 0) {
+          const errMsg = `Page.fileChooserOpened did not provide a valid backendNodeId for trigger: ${triggerSelector}`;
+          return {
+            exitCode: 1,
+            json: parsed.json,
+            data: { ok: false, target_id: target.id || null, selector: selector || triggerSelector, trigger: triggerSelector, error: errMsg },
+            lines: [errMsg],
+          };
+        }
+        await client.send('DOM.setFileInputFiles', {
+          backendNodeId: chooserBackendNodeId,
+          files: [validatedFile.resolved],
+        }, { timeoutMs });
+        const data = {
+          ok: true,
+          uploaded: true,
+          method: 'file_chooser_interception',
+          target_id: target.id || null,
+          selector: selector || triggerSelector,
+          trigger: triggerSelector,
+          backend_node_id: chooserBackendNodeId,
+          file_path: validatedFile.resolved,
+          filename: validatedFile.basename,
+          size_bytes: validatedFile.size,
+          attached_files: [validatedFile.basename],
+        };
+        return {
+          exitCode: 0,
+          json: parsed.json,
+          data,
+          lines: [`Uploaded "${data.filename}" (${data.size_bytes} bytes) via CDP file chooser interception -> ${triggerSelector}`],
+        };
+      } finally {
+        await client.send('Page.setInterceptFileChooserDialog', { enabled: false }, { timeoutMs: 3000 }).catch(() => {});
+      }
+    };
+
     try {
+      // Explicit --trigger without a separate <input type="file"> selector goes straight to File Chooser Interception.
+      if (hasExplicitTrigger && !selector) {
+        return await runFileChooserInterception(trigger);
+      }
+
       await client.send('DOM.enable', {}, { timeoutMs });
       await client.send('Runtime.enable', {}, { timeoutMs });
 
@@ -1932,7 +2207,7 @@ export async function runCdpCli(root, argv = [], {
         }
       }
 
-      // Open Shadow DOM fallback when light-DOM querySelector finds nothing
+      // Deep discovery fallback: light DOM + open Shadow DOM + same-origin iframes
       if (!nodeId) {
         const deepEval = await client.send('Runtime.evaluate', {
           expression: `(() => {
@@ -1946,6 +2221,14 @@ export async function runCdpCli(root, argv = [], {
                 if (el.shadowRoot) {
                   const nested = findDeep(el.shadowRoot);
                   if (nested) return nested;
+                }
+                if (el.tagName === 'IFRAME') {
+                  try {
+                    if (el.contentDocument) {
+                      const inFrame = findDeep(el.contentDocument);
+                      if (inFrame) return inFrame;
+                    }
+                  } catch { /* cross-origin iframe */ }
                 }
               }
               return null;
@@ -1968,7 +2251,11 @@ export async function runCdpCli(root, argv = [], {
         }
       }
 
+      // If no <input type="file"> matched directly, fall back to CDP File Chooser Interception when --trigger is set.
       if (!nodeId && !backendNodeId) {
+        if (hasExplicitTrigger) {
+          return await runFileChooserInterception(trigger);
+        }
         const errMsg = `File input element not found for selector: ${selector}`;
         return {
           exitCode: 1,
@@ -1981,7 +2268,16 @@ export async function runCdpCli(root, argv = [], {
       const setFilesParams = nodeId
         ? { nodeId, files: [validatedFile.resolved] }
         : { backendNodeId, files: [validatedFile.resolved] };
-      await client.send('DOM.setFileInputFiles', setFilesParams, { timeoutMs });
+      try {
+        await client.send('DOM.setFileInputFiles', setFilesParams, { timeoutMs });
+      } catch (setErr) {
+        // Auto-fallback when <selector> matched a trigger button/label instead of <input type="file">
+        const triggerTarget = hasExplicitTrigger ? trigger : selector;
+        if (/not a file input|file input|invalid node/i.test(String(setErr?.message || '')) || hasExplicitTrigger) {
+          return await runFileChooserInterception(triggerTarget);
+        }
+        throw setErr;
+      }
 
       const readBack = await evalInPage(client, `(() => {
         const sel = ${JSON.stringify(String(selector))};
@@ -1994,6 +2290,14 @@ export async function runCdpCli(root, argv = [], {
             if (el.shadowRoot) {
               const nested = findDeep(el.shadowRoot);
               if (nested) return nested;
+            }
+            if (el.tagName === 'IFRAME') {
+              try {
+                if (el.contentDocument) {
+                  const inFrame = findDeep(el.contentDocument);
+                  if (inFrame) return inFrame;
+                }
+              } catch { /* cross-origin iframe */ }
             }
           }
           return null;
@@ -2011,6 +2315,7 @@ export async function runCdpCli(root, argv = [], {
       const data = {
         ok: true,
         uploaded: true,
+        method: 'direct_file_input',
         target_id: target.id || null,
         selector,
         file_path: validatedFile.resolved,
