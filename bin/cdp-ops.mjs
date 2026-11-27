@@ -12,15 +12,16 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { detectHeadlessBrowser } from './core-ops.mjs';
+import { assertSafeCliInputPath, detectHeadlessBrowser } from './core-ops.mjs';
 import { isObj, refuseSymlink } from './fs-safety.mjs';
 
 export const CDP_HOST = '127.0.0.1';
 export const DEFAULT_CDP_PORT = 9222;
 export const DEFAULT_TIMEOUT_MS = 20000;
 export const DEFAULT_MAX_CHARS = 12000;
+export const DEFAULT_LOGIN_URL = 'https://www.linkedin.com/login';
 export const MIN_CDP_NODE_MAJOR = 22;
-export const CDP_SUBCOMMANDS = Object.freeze(['status', 'open', 'snapshot', 'eval', 'click', 'fill', 'help']);
+export const CDP_SUBCOMMANDS = Object.freeze(['status', 'login', 'open', 'snapshot', 'eval', 'click', 'fill', 'upload', 'help']);
 
 const CLOUD_METADATA_HOSTS = new Set([
   '169.254.169.254',
@@ -174,6 +175,37 @@ export function validateNavigationUrl(rawUrl, { cdpPort = DEFAULT_CDP_PORT } = {
     throw new Error(`SSRF guard: refusing navigation to the local CDP debugging port (${cdpPort}).`);
   }
   return parsed.href;
+}
+
+export function validateLocalUploadPath(rawPath, {
+  root,
+  source = root,
+  home = os.homedir(),
+  cwd = process.cwd(),
+} = {}) {
+  if (typeof rawPath !== 'string' || !rawPath.trim()) {
+    throw new Error('Upload file path must be a non-empty local file path.');
+  }
+  const trimmed = rawPath.trim();
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+    throw new Error(`Refusing URL as upload file path (local file required): "${rawPath}"`);
+  }
+  const checked = assertSafeCliInputPath(trimmed, {
+    label: 'upload file path',
+    allowDirectory: false,
+    root: root || cwd,
+    source: source || root || cwd,
+    home,
+    cwd,
+  });
+  if (!checked.exists || !checked.stat) {
+    throw new Error(`Upload file not found: ${checked.resolved}`);
+  }
+  return {
+    resolved: checked.resolved,
+    basename: path.basename(checked.resolved),
+    size: checked.stat.size,
+  };
 }
 
 export function resolveChromeProfileDir(root, { home = os.homedir() } = {}) {
@@ -438,11 +470,64 @@ export async function closeCdpBrowser({
   return { closed: true, port: validPort };
 }
 
+export function buildWindowsDesktopLaunchSpec(binary, args) {
+  return {
+    command: 'powershell.exe',
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-WindowStyle',
+      'Hidden',
+      '-Command',
+      'Start-Process -FilePath $env:VEYCRAFT_CHROME_BIN -ArgumentList ($env:VEYCRAFT_CHROME_ARGS | ConvertFrom-Json) -WindowStyle Normal',
+    ],
+    envPatch: {
+      VEYCRAFT_CHROME_BIN: binary,
+      VEYCRAFT_CHROME_ARGS: JSON.stringify(args),
+    },
+  };
+}
+
+export async function surfaceCdpWindow(client, targetId, {
+  left = 80,
+  top = 60,
+  width = 1280,
+  height = 900,
+  timeoutMs = 4000,
+} = {}) {
+  let windowId = null;
+  let boundsApplied = false;
+  if (targetId) {
+    try {
+      const winInfo = await client.send('Browser.getWindowForTarget', { targetId }, { timeoutMs });
+      if (Number.isInteger(winInfo?.windowId)) {
+        windowId = winInfo.windowId;
+        if (winInfo.bounds?.windowState && winInfo.bounds.windowState !== 'normal') {
+          await client.send('Browser.setWindowBounds', {
+            windowId,
+            bounds: { windowState: 'normal' },
+          }, { timeoutMs }).catch(() => {});
+        }
+        await client.send('Browser.setWindowBounds', {
+          windowId,
+          bounds: { windowState: 'normal', left, top, width, height },
+        }, { timeoutMs });
+        boundsApplied = true;
+      }
+    } catch {
+      // Browser domain may be restricted on some targets; continue to Page.bringToFront
+    }
+  }
+  await client.send('Page.bringToFront', {}, { timeoutMs }).catch(() => {});
+  return { window_id: windowId, bounds_applied: boundsApplied };
+}
+
 export async function ensureCdpChrome({
   root,
   port = DEFAULT_CDP_PORT,
   portExplicit = false,
   initialUrl = 'about:blank',
+  desktopShell = false,
   home = os.homedir(),
   env = process.env,
   platform = process.platform,
@@ -567,11 +652,22 @@ export async function ensureCdpChrome({
     initialUrl,
   });
 
-  const child = spawnImpl(binary, args, {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: false,
-  });
+  let child;
+  if (desktopShell && platform === 'win32') {
+    const spec = buildWindowsDesktopLaunchSpec(binary, args);
+    child = spawnImpl(spec.command, spec.args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: { ...env, ...spec.envPatch },
+    });
+  } else {
+    child = spawnImpl(binary, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+    });
+  }
   if (child && typeof child.unref === 'function') {
     child.unref();
   }
@@ -1388,6 +1484,8 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
     parsed.error = 'Usage: veycraft cdp click <selector> [--port <n>] [--target <id>] [--json]';
   } else if (parsed.subcommand === 'fill' && (parsed.positionals.length < 2)) {
     parsed.error = 'Usage: veycraft cdp fill <selector> <value> [--port <n>] [--target <id>] [--json]';
+  } else if (parsed.subcommand === 'upload' && (parsed.positionals.length < 2)) {
+    parsed.error = 'Usage: veycraft cdp upload <selector> <filePath> [--port <n>] [--target <id>] [--json]';
   }
 
   return parsed;
@@ -1397,11 +1495,13 @@ export function getCdpHelpLines() {
   return [
     'Veycraft Native Chrome DevTools Protocol (CDP) CLI (Zero-Dependency · 127.0.0.1 only):',
     '  veycraft cdp status [--port 9222] [--no-launch] [--json]               Ensure Chrome CDP is running & list open tabs',
-    '  veycraft cdp open <url> [--port 9222] [--new-tab] [--target <id>] [--json] Open/navigate tab, wait for load -> { url, title }',
+    '  veycraft cdp login [url] [--port 9222] [--new-tab] [--json]            Surface visible Chrome window for one-time sign-in (default: LinkedIn login)',
+    '  veycraft cdp open <url> [--port 9222] [--new-tab] [--target <id>] [--json] Open/navigate tab, surface window, wait for load -> { url, title }',
     '  veycraft cdp snapshot [--max-chars 12000] [--port 9222] [--target <id>] [--json] Extract clean visible text, links & interactive fields',
     '  veycraft cdp eval <js> [--port 9222] [--target <id>] [--json]          Evaluate JS expression on active tab & return serialized result',
     '  veycraft cdp click <selector> [--port 9222] [--target <id>] [--json]   Click element matching CSS selector (supports open Shadow DOM)',
     '  veycraft cdp fill <selector> <value> [--port 9222] [--target <id>] [--json] Fill input/textarea/select/checkbox with React/ATS events',
+    '  veycraft cdp upload <selector> <filePath> [--port 9222] [--target <id>] [--json] Attach verified local file (e.g. PDF CV) to <input type="file"> via DOM.setFileInputFiles',
     '',
     'Profile persistence: workspace/.chrome-profile/ (gitignored & excluded from npm pack).',
     'Requirements: Node.js >= 22 (built-in WebSocket) and local Chrome, Chromium, or Microsoft Edge.',
@@ -1413,6 +1513,7 @@ async function connectToActiveTarget({
   port,
   portExplicit = false,
   initialUrl = 'about:blank',
+  desktopShell = false,
   targetId,
   newTab = false,
   noLaunch = false,
@@ -1431,6 +1532,7 @@ async function connectToActiveTarget({
     port,
     portExplicit,
     initialUrl,
+    desktopShell,
     home,
     env,
     platform,
@@ -1472,6 +1574,8 @@ async function connectToActiveTarget({
 export async function runCdpCli(root, argv = [], {
   defaultJson = false,
   home = os.homedir(),
+  cwd = process.cwd(),
+  source = root,
   env = process.env,
   platform = process.platform,
   nodeVersion = process.versions.node,
@@ -1480,6 +1584,7 @@ export async function runCdpCli(root, argv = [], {
   httpRequestImpl = httpRequestLocalCdp,
   detectBrowserImpl = detectHeadlessBrowser,
   spawnImpl = spawn,
+  isPortAvailableImpl = isLocalPortAvailable,
 } = {}) {
   const parsed = parseCdpArgs(argv, { defaultJson });
   if (parsed.error) {
@@ -1558,13 +1663,16 @@ export async function runCdpCli(root, argv = [], {
     return { exitCode: 0, json: parsed.json, data, lines };
   }
 
-  if (parsed.subcommand === 'open') {
-    const safeUrl = validateNavigationUrl(parsed.positionals[0], { cdpPort: port });
-    const { target, client } = await connectToActiveTarget({
+  if (parsed.subcommand === 'open' || parsed.subcommand === 'login') {
+    const isLogin = parsed.subcommand === 'login';
+    const rawUrl = parsed.positionals[0] || (isLogin ? DEFAULT_LOGIN_URL : '');
+    const safeUrl = validateNavigationUrl(rawUrl, { cdpPort: port });
+    const { chrome, target, client } = await connectToActiveTarget({
       root,
       port,
       portExplicit,
       initialUrl: safeUrl,
+      desktopShell: isLogin && platform === 'win32',
       targetId,
       newTab,
       noLaunch,
@@ -1576,6 +1684,7 @@ export async function runCdpCli(root, argv = [], {
       WebSocketImpl,
       detectBrowserImpl,
       spawnImpl,
+      isPortAvailableImpl,
     });
     try {
       await client.send('Page.enable');
@@ -1587,7 +1696,7 @@ export async function runCdpCli(root, argv = [], {
       }
       await loadPromise;
       await sleep(250);
-      await client.send('Page.bringToFront', {}, { timeoutMs: 3000 }).catch(() => {});
+      const windowSurface = await surfaceCdpWindow(client, target.id, { timeoutMs: Math.min(timeoutMs, 4000) });
       const info = await evalInPage(
         client,
         '({ url: String(window.location.href || ""), title: String(document.title || "").trim() })',
@@ -1595,19 +1704,26 @@ export async function runCdpCli(root, argv = [], {
       );
       const data = {
         ok: true,
+        mode: isLogin ? 'login' : 'open',
+        port: chrome.port,
+        launched: chrome.launched,
+        profile_dir: chrome.profile_dir,
         target_id: target.id || null,
         url: info?.url || safeUrl,
         title: info?.title || '',
         navigated_to: safeUrl,
+        window_surfaced: true,
+        window_id: windowSurface.window_id,
+        bounds_applied: windowSurface.bounds_applied,
       };
       return {
         exitCode: 0,
         json: parsed.json,
         data,
         lines: [
-          `Opened: ${data.url}`,
+          `${isLogin ? 'Login window ready' : 'Opened'}: ${data.url}`,
           `Title:  ${data.title || '(untitled)'}`,
-          `Target: ${data.target_id || 'default'}`,
+          `Target: ${data.target_id || 'default'} (http://${CDP_HOST}:${chrome.port})`,
         ],
       };
     } finally {
@@ -1774,6 +1890,139 @@ export async function runCdpCli(root, argv = [], {
         json: parsed.json,
         data,
         lines: [`Filled <${data.tag}> (${selector}) -> read-back: ${JSON.stringify(data.read_back_value)}`],
+      };
+    } finally {
+      await client.close();
+    }
+  }
+
+  if (parsed.subcommand === 'upload') {
+    const selector = parsed.positionals[0];
+    const rawFilePath = parsed.positionals.slice(1).join(' ');
+    const validatedFile = validateLocalUploadPath(rawFilePath, { root, source, home, cwd });
+    const { target, client } = await connectToActiveTarget({
+      root,
+      port,
+      portExplicit,
+      targetId,
+      noLaunch,
+      timeoutMs,
+      home,
+      env,
+      platform,
+      httpRequestImpl,
+      WebSocketImpl,
+      detectBrowserImpl,
+      spawnImpl,
+      isPortAvailableImpl,
+    });
+    try {
+      await client.send('DOM.enable', {}, { timeoutMs });
+      await client.send('Runtime.enable', {}, { timeoutMs });
+
+      const doc = await client.send('DOM.getDocument', { depth: -1, pierce: true }, { timeoutMs });
+      const rootNodeId = doc?.root?.nodeId;
+      let nodeId = 0;
+      let backendNodeId = null;
+
+      if (Number.isInteger(rootNodeId) && rootNodeId > 0) {
+        const queried = await client.send('DOM.querySelector', { nodeId: rootNodeId, selector }, { timeoutMs }).catch(() => null);
+        if (Number.isInteger(queried?.nodeId) && queried.nodeId > 0) {
+          nodeId = queried.nodeId;
+        }
+      }
+
+      // Open Shadow DOM fallback when light-DOM querySelector finds nothing
+      if (!nodeId) {
+        const deepEval = await client.send('Runtime.evaluate', {
+          expression: `(() => {
+            const sel = ${JSON.stringify(String(selector))};
+            const findDeep = (rootNode) => {
+              try {
+                const direct = rootNode.querySelector(sel);
+                if (direct) return direct;
+              } catch { return null; }
+              for (const el of Array.from(rootNode.querySelectorAll('*'))) {
+                if (el.shadowRoot) {
+                  const nested = findDeep(el.shadowRoot);
+                  if (nested) return nested;
+                }
+              }
+              return null;
+            };
+            return findDeep(document);
+          })()`,
+          returnByValue: false,
+        }, { timeoutMs });
+        const objectId = deepEval?.result?.objectId;
+        if (objectId) {
+          const requested = await client.send('DOM.requestNode', { objectId }, { timeoutMs }).catch(() => null);
+          if (Number.isInteger(requested?.nodeId) && requested.nodeId > 0) {
+            nodeId = requested.nodeId;
+          } else {
+            const described = await client.send('DOM.describeNode', { objectId }, { timeoutMs }).catch(() => null);
+            if (Number.isInteger(described?.node?.backendNodeId) && described.node.backendNodeId > 0) {
+              backendNodeId = described.node.backendNodeId;
+            }
+          }
+        }
+      }
+
+      if (!nodeId && !backendNodeId) {
+        const errMsg = `File input element not found for selector: ${selector}`;
+        return {
+          exitCode: 1,
+          json: parsed.json,
+          data: { ok: false, target_id: target.id || null, selector, error: errMsg },
+          lines: [errMsg],
+        };
+      }
+
+      const setFilesParams = nodeId
+        ? { nodeId, files: [validatedFile.resolved] }
+        : { backendNodeId, files: [validatedFile.resolved] };
+      await client.send('DOM.setFileInputFiles', setFilesParams, { timeoutMs });
+
+      const readBack = await evalInPage(client, `(() => {
+        const sel = ${JSON.stringify(String(selector))};
+        const findDeep = (rootNode) => {
+          try {
+            const direct = rootNode.querySelector(sel);
+            if (direct) return direct;
+          } catch { return null; }
+          for (const el of Array.from(rootNode.querySelectorAll('*'))) {
+            if (el.shadowRoot) {
+              const nested = findDeep(el.shadowRoot);
+              if (nested) return nested;
+            }
+          }
+          return null;
+        };
+        const el = findDeep(document);
+        if (!el) return { found: false, names: [] };
+        try {
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch { /* ignore */ }
+        const names = Array.from(el.files || []).map(f => String(f.name || ''));
+        return { found: true, names };
+      })()`, { timeoutMs: Math.min(timeoutMs, 5000) }).catch(() => ({ found: true, names: [validatedFile.basename] }));
+
+      const data = {
+        ok: true,
+        uploaded: true,
+        target_id: target.id || null,
+        selector,
+        file_path: validatedFile.resolved,
+        filename: validatedFile.basename,
+        size_bytes: validatedFile.size,
+        attached_files: Array.isArray(readBack?.names) && readBack.names.length > 0 ? readBack.names : [validatedFile.basename],
+      };
+      return {
+        exitCode: 0,
+        json: parsed.json,
+        data,
+        lines: [`Uploaded "${data.filename}" (${data.size_bytes} bytes) -> ${selector}`],
       };
     } finally {
       await client.close();

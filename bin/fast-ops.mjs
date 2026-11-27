@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import readline from 'node:readline/promises';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import {
   isObj,
   isWithinDir,
@@ -465,6 +467,269 @@ export function compileCandidateBrief(root, { refresh = false, write = true, hom
     bytes: Buffer.byteLength(serialized, 'utf8'),
     est_tokens: Math.ceil(Buffer.byteLength(serialized, 'utf8') / 4),
     brief: finalBrief,
+  };
+}
+
+// ---------------- Auto-Cached Baseline PDF CV Generator ----------------
+
+function escapeHtmlBasic(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderInlineMd(line) {
+  const escaped = escapeHtmlBasic(line);
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '$1');
+}
+
+export function renderBaselineCvHtml(cvMarkdown) {
+  const lines = String(cvMarkdown || '').split(/\r?\n/);
+  let title = 'Candidate Resume';
+  const bodyParts = [];
+  let inList = false;
+
+  const closeList = () => {
+    if (inList) {
+      bodyParts.push('</ul>');
+      inList = false;
+    }
+  };
+
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      closeList();
+      continue;
+    }
+    if (/^#\s+/.test(trimmed)) {
+      closeList();
+      const heading = trimmed.replace(/^#\s+/, '').trim();
+      if (title === 'Candidate Resume' && heading) title = heading;
+      bodyParts.push(`<h1>${renderInlineMd(heading)}</h1>`);
+      continue;
+    }
+    if (/^##\s+/.test(trimmed)) {
+      closeList();
+      bodyParts.push(`<h2>${renderInlineMd(trimmed.replace(/^##\s+/, '').trim())}</h2>`);
+      continue;
+    }
+    if (/^###\s+/.test(trimmed)) {
+      closeList();
+      bodyParts.push(`<h3>${renderInlineMd(trimmed.replace(/^###\s+/, '').trim())}</h3>`);
+      continue;
+    }
+    if (/^[-*•]\s+/.test(trimmed)) {
+      if (!inList) {
+        bodyParts.push('<ul>');
+        inList = true;
+      }
+      bodyParts.push(`<li>${renderInlineMd(trimmed.replace(/^[-*•]\s+/, '').trim())}</li>`);
+      continue;
+    }
+    closeList();
+    bodyParts.push(`<p>${renderInlineMd(trimmed)}</p>`);
+  }
+  closeList();
+
+  return [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '  <meta charset="utf-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+    '  <meta name="referrer" content="no-referrer">',
+    '  <meta name="veycraft-document" content="baseline-resume">',
+    '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src \'none\'; base-uri \'none\'; form-action \'none\'">',
+    `  <title>${escapeHtmlBasic(title)} — Baseline CV</title>`,
+    '  <style>',
+    '    @page { size: A4; margin: 12mm 14mm; }',
+    '    @media print {',
+    '      html, body { width: 210mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+    '      h1, h2, h3 { break-after: avoid; page-break-after: avoid; }',
+    '      li { break-inside: avoid; page-break-inside: avoid; }',
+    '    }',
+    '    body { font: 9.8pt Arial, Helvetica, sans-serif; color: #111; background: #fff; line-height: 1.32; margin: 0; }',
+    '    h1 { font-size: 18pt; margin: 0 0 3pt; }',
+    '    h2 { font-size: 10.8pt; border-bottom: 1px solid #777; margin: 9pt 0 4pt; }',
+    '    h3 { font-size: 9.8pt; margin: 6pt 0 2pt; }',
+    '    p { margin: 2.5pt 0; overflow-wrap: anywhere; }',
+    '    ul { padding-left: 14pt; margin: 3pt 0; }',
+    '    li { margin: 2pt 0; }',
+    '  </style>',
+    '</head>',
+    '<body>',
+    `  ${bodyParts.join('\n  ')}`,
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n');
+}
+
+function findLocalPdfBrowser({ platform = process.platform, env = process.env, home = os.homedir(), existsSync = fs.existsSync } = {}) {
+  const pathMod = platform === 'win32' ? path.win32 : path.posix;
+  const candidates = [];
+  if (platform === 'win32') {
+    const winPF = env.PROGRAMFILES || 'C:\\Program Files';
+    const winPF86 = env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+    const winLocal = env.LOCALAPPDATA || home;
+    candidates.push(
+      pathMod.join(winPF, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      pathMod.join(winPF86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      pathMod.join(winLocal, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      pathMod.join(winPF, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      pathMod.join(winPF86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      pathMod.join(winLocal, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    );
+  } else if (platform === 'darwin') {
+    candidates.push(
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    );
+  } else {
+    candidates.push(
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium',
+      '/opt/google/chrome/chrome',
+      '/usr/bin/microsoft-edge',
+    );
+  }
+  return candidates.find((p) => {
+    try { return Boolean(p && existsSync(p)); } catch { return false; }
+  }) || null;
+}
+
+export function ensureBaselineCvPdf(root, {
+  home = os.homedir(),
+  platform = process.platform,
+  env = process.env,
+  force = false,
+  detectBrowserImpl = findLocalPdfBrowser,
+  renderPdfImpl = null,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  const cvPath = path.join(resolvedRoot, 'context', 'cv.md');
+  const cvData = readOptionalText(cvPath, resolvedRoot, home);
+  if (!cvData || isUntouchedStarterFile(cvPath, cvData.content, resolvedRoot, home)) {
+    return {
+      ok: false,
+      cached: false,
+      pdf_path: null,
+      html_path: null,
+      reason: 'Verified context/cv.md not found or still contains placeholder content.',
+    };
+  }
+
+  const baselineDir = path.join(resolvedRoot, 'logs', 'resumes', '_baseline');
+  const htmlPath = path.join(baselineDir, 'baseline-cv.html');
+  const pdfPath = path.join(baselineDir, 'baseline-cv.pdf');
+  const metaPath = path.join(baselineDir, '.baseline-meta.json');
+  refuseSymlink(baselineDir, resolvedRoot, home);
+
+  const isValidPdf = (filePath) => {
+    try {
+      if (!fs.existsSync(filePath)) return false;
+      const st = fs.lstatSync(filePath);
+      if (st.isSymbolicLink() || !st.isFile() || st.size < 100) return false;
+      const fd = fs.openSync(filePath, 'r');
+      const buf = Buffer.alloc(5);
+      fs.readSync(fd, buf, 0, 5, 0);
+      fs.closeSync(fd);
+      return buf.toString('utf8') === '%PDF-';
+    } catch {
+      return false;
+    }
+  };
+
+  if (!force && isValidPdf(pdfPath) && fs.existsSync(metaPath)) {
+    try {
+      refuseSymlink(metaPath, resolvedRoot, home);
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      if (isObj(meta) && meta.sha === cvData.sha) {
+        const size = fs.lstatSync(pdfPath).size;
+        return {
+          ok: true,
+          cached: true,
+          sha: cvData.sha,
+          pdf_path: pdfPath,
+          html_path: htmlPath,
+          bytes: size,
+        };
+      }
+    } catch { /* regenerate below */ }
+  }
+
+  const html = renderBaselineCvHtml(cvData.content);
+  writeAtomic(htmlPath, html, { boundary: resolvedRoot, home });
+
+  if (typeof renderPdfImpl === 'function') {
+    renderPdfImpl({ htmlPath, pdfPath, root: resolvedRoot });
+  } else {
+    const browser = detectBrowserImpl({ platform, env, home });
+    if (!browser) {
+      return {
+        ok: false,
+        cached: false,
+        sha: cvData.sha,
+        pdf_path: null,
+        html_path: htmlPath,
+        reason: 'Local Chrome/Chromium/Edge not found for headless PDF generation; HTML baseline saved.',
+      };
+    }
+    const tmpProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'veycraft-baseline-pdf-'));
+    try {
+      const fileUrl = pathToFileURL(htmlPath).href;
+      spawnSync(
+        browser,
+        [
+          '--headless=new',
+          '--disable-gpu',
+          '--no-pdf-header-footer',
+          `--user-data-dir=${tmpProfile}`,
+          `--print-to-pdf=${pdfPath}`,
+          fileUrl,
+        ],
+        { stdio: 'pipe', timeout: 30000, windowsHide: true },
+      );
+    } finally {
+      try { fs.rmSync(tmpProfile, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  }
+
+  if (!isValidPdf(pdfPath)) {
+    return {
+      ok: false,
+      cached: false,
+      sha: cvData.sha,
+      pdf_path: null,
+      html_path: htmlPath,
+      reason: `Baseline PDF generation did not produce a valid PDF at ${pdfPath}.`,
+    };
+  }
+
+  const size = fs.lstatSync(pdfPath).size;
+  writeAtomic(
+    metaPath,
+    JSON.stringify({ sha: cvData.sha, generated_at: new Date().toISOString(), bytes: size }, null, 2) + '\n',
+    { boundary: resolvedRoot, home },
+  );
+
+  return {
+    ok: true,
+    cached: false,
+    sha: cvData.sha,
+    pdf_path: pdfPath,
+    html_path: htmlPath,
+    bytes: size,
   };
 }
 
@@ -1320,12 +1585,14 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
   if (command === 'brief') {
     let refresh = false;
     let write = true;
+    let ensureBaselinePdf = false;
     const autopilotPatch = {};
     for (let i = 0; i < args.length; i++) {
       const a = args[i];
       if (a === '--json') json = true;
       else if (a === '--refresh') refresh = true;
       else if (a === '--no-write') write = false;
+      else if (a === '--ensure-baseline-pdf') ensureBaselinePdf = true;
       else if (a === '--autopilot') autopilotPatch.auto_submit = true;
       else if (a === '--no-autopilot') autopilotPatch.auto_submit = false;
       else if (a === '--reuse-cv-threshold') {
@@ -1356,8 +1623,8 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
         json: false,
         exitCode: 0,
         lines: [
-          'Usage: veycraft brief [--refresh] [--no-write] [--autopilot | --no-autopilot] [--reuse-cv-threshold <0..10>] [--tailor-cv-threshold <0..10>] [--json]',
-          'Compiles or reads cached context/brief.json (< 400 tokens, zero PII) with mtime+sha256 invalidation and opt-in autopilot settings (default auto_submit: false).',
+          'Usage: veycraft brief [--refresh] [--no-write] [--ensure-baseline-pdf] [--autopilot | --no-autopilot] [--reuse-cv-threshold <0..10>] [--tailor-cv-threshold <0..10>] [--json]',
+          'Compiles or reads cached context/brief.json (< 400 tokens, zero PII) with mtime+sha256 invalidation, optional auto-cached baseline PDF, and opt-in autopilot settings (default auto_submit: false).',
         ],
       };
     }
@@ -1367,17 +1634,21 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
       home,
       autopilot: Object.keys(autopilotPatch).length > 0 ? autopilotPatch : null,
     });
+    const baselinePdf = ensureBaselinePdf ? ensureBaselineCvPdf(root, { home, force: refresh }) : null;
     const ap = res.brief?.autopilot || DEFAULT_AUTOPILOT_CONFIG;
     return {
       json,
       exitCode: 0,
-      data: res,
+      data: baselinePdf ? { ...res, baseline_pdf: baselinePdf } : res,
       lines: res.brief_ready
         ? [
             `Candidate brief ready (${res.cached ? 'cache hit' : 'compiled'}): ${res.path}`,
             `Size: ${res.bytes} bytes (~${res.est_tokens} tokens) · Headline: ${res.brief.headline}`,
             `Core stack (${res.brief.core_stack.length}): ${res.brief.core_stack.join(', ') || 'none'}`,
             `Autopilot: auto_submit=${ap.auto_submit} (reuse_cv >= ${ap.reuse_cv_threshold}, tailor_cv >= ${ap.tailor_cv_threshold})`,
+            ...(baselinePdf
+              ? [baselinePdf.ok ? `Baseline PDF (${baselinePdf.cached ? 'cached' : 'generated'}): ${baselinePdf.pdf_path} (${baselinePdf.bytes} bytes)` : `Baseline PDF skipped: ${baselinePdf.reason}`]
+              : []),
           ]
         : [`Brief not ready: ${res.reason}`],
     };

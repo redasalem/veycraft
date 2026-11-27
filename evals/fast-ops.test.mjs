@@ -29,6 +29,8 @@ const {
   DEFAULT_AUTOPILOT_CONFIG,
   normalizeAutopilotConfig,
   decideCvStrategy,
+  renderBaselineCvHtml,
+  ensureBaselineCvPdf,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'fast-ops.mjs')).href);
 const {
   PAYLOAD_NAMES,
@@ -762,6 +764,49 @@ test('10. Autopilot config defaults safe (auto_submit: false), preserves across 
     assert.equal(disableRes.status, 0, disableRes.stderr);
     const disabled = JSON.parse(disableRes.stdout);
     assert.equal(disabled.brief.autopilot.auto_submit, false);
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
+  }
+});
+
+test('11. ensureBaselineCvPdf generates, caches by cv.md SHA-256, and invalidates on cv.md edit', () => {
+  const ws = makeTempWs();
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'veycraft-baseline-home-'));
+  try {
+    writeSampleContext(ws);
+
+    const html = renderBaselineCvHtml(fs.readFileSync(path.join(ws, 'context', 'cv.md'), 'utf8'));
+    assert.match(html, /Content-Security-Policy/);
+    assert.match(html, /Full-Stack Engineer/);
+
+    let renderCount = 0;
+    const fakePdfRenderer = ({ pdfPath }) => {
+      renderCount++;
+      fs.mkdirSync(path.dirname(pdfPath), { recursive: true });
+      fs.writeFileSync(pdfPath, '%PDF-1.4\n' + '0'.repeat(200) + '\n%%EOF\n', 'utf8');
+    };
+
+    const first = ensureBaselineCvPdf(ws, { home: fakeHome, renderPdfImpl: fakePdfRenderer });
+    assert.equal(first.ok, true);
+    assert.equal(first.cached, false);
+    assert.equal(renderCount, 1);
+    assert.ok(first.pdf_path.endsWith(path.join('logs', 'resumes', '_baseline', 'baseline-cv.pdf')));
+
+    // Second call hits cache without re-rendering PDF
+    const second = ensureBaselineCvPdf(ws, { home: fakeHome, renderPdfImpl: fakePdfRenderer });
+    assert.equal(second.ok, true);
+    assert.equal(second.cached, true);
+    assert.equal(renderCount, 1);
+    assert.equal(second.sha, first.sha);
+
+    // Editing context/cv.md invalidates baseline PDF cache
+    fs.appendFileSync(path.join(ws, 'context', 'cv.md'), '\n- Added distributed tracing with OpenTelemetry.\n', 'utf8');
+    const third = ensureBaselineCvPdf(ws, { home: fakeHome, renderPdfImpl: fakePdfRenderer });
+    assert.equal(third.ok, true);
+    assert.equal(third.cached, false);
+    assert.equal(renderCount, 2);
+    assert.notEqual(third.sha, first.sha);
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
     fs.rmSync(fakeHome, { recursive: true, force: true });

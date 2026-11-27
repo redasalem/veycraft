@@ -50,10 +50,10 @@ Before pausing to ask the user for a project detail, link, stack item, date, or 
 4. **LinkedIn profile data** (if cached locally or already open/accessible in the active browser session — read-only inspection only).
 - Only ask the user if a mandatory fact or metric is genuinely missing from **all 4 sources** (never fabricate missing metrics or tools). When the user confirms a missing fact, persist it cleanly to `context/` so future tailoring runs resolve it silently on step 1.
 
-### 0.5. Mandatory Zero-Question CV Decision Policy (Baseline Reuse vs. Auto-Tailor)
+### 0.5. Mandatory Zero-Question CV Decision Policy & Auto-Cached Baseline PDF
 After reading the full expanded JD, **NEVER** ask the user whether to reuse the baseline CV or generate a tailored PDF — decide and execute deterministically using `context/brief.json` `autopilot` thresholds (`reuse_cv_threshold: 8.5`, `tailor_cv_threshold: 6.5`):
-- **Direct Strong Match (`score >= 8.5/10` AND core stack/role already covered by baseline CV):** Immediately use the verified baseline PDF CV (`assets/resume.pdf` or `context/resume.pdf`) without regenerating.
-- **Tailor Needed (qualified job `6.5–8.4/10` OR specific JD emphasis/keywords not prominent in baseline CV):** Immediately execute Steps 1–4 below to generate the role-named tailored PDF (`logs/resumes/<folder>/<Candidate-Name>-<Target-Role>.pdf`), verify it against `context/`, and attach it — zero user prompts.
+- **Direct Strong Match (`score >= 8.5/10` AND core stack/role already covered by baseline CV):** Immediately call `node ./bin/cli.mjs brief --ensure-baseline-pdf --json` to retrieve (or generate once and cache by `context/cv.md` SHA-256) `logs/resumes/_baseline/baseline-cv.pdf` (falling back to `assets/resume.pdf` if present) and attach it via `node ./bin/cli.mjs cdp upload <selector> <abs_pdf_path>` with zero extra tailoring work.
+- **Tailor Needed (qualified job `6.5–8.4/10` OR specific JD emphasis/keywords not prominent in baseline CV):** Immediately execute Steps 1–4 below to generate the role-named tailored PDF (`logs/resumes/<folder>/<Candidate-Name>-<Target-Role>.pdf`), verify it against `context/`, and attach it via `node ./bin/cli.mjs cdp upload <selector> <abs_pdf_path>` — zero user prompts.
 
 ### 1. Build the Evidence Map & Tailor `templates/ats-resume-template.html`
 - Create folder `logs/resumes/<company-slug>-<role-slug>-<job-id-slug>/` (or `logs/resumes/quick-tailor-<slug>/` / `logs/resumes/cv-<slug>/`).

@@ -19,6 +19,7 @@ const REPO_ROOT = path.resolve(BIN_DIR, '..');
 const {
   CDP_HOST,
   DEFAULT_CDP_PORT,
+  DEFAULT_LOGIN_URL,
   MIN_CDP_NODE_MAJOR,
   checkCdpRuntimeSupport,
   assertCdpRuntimeSupport,
@@ -27,6 +28,7 @@ const {
   buildCdpHttpUrl,
   validateCdpWsUrl,
   validateNavigationUrl,
+  validateLocalUploadPath,
   resolveChromeProfileDir,
   buildCdpRequest,
   parseCdpMessage,
@@ -34,6 +36,8 @@ const {
   parseCdpArgs,
   CdpClient,
   buildChromeLaunchArgs,
+  buildWindowsDesktopLaunchSpec,
+  surfaceCdpWindow,
   ensureCdpChrome,
   runCdpCli,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'cdp-ops.mjs')).href);
@@ -296,8 +300,12 @@ test('6. End-to-end mock CDP runCdpCli executes status, open, snapshot, eval, cl
     };
 
     MockWebSocket.handler = (sock, req) => {
-      if (req.method === 'Page.enable' || req.method === 'Runtime.enable' || req.method === 'Page.bringToFront') {
+      if (req.method === 'Page.enable' || req.method === 'Runtime.enable' || req.method === 'Page.bringToFront' || req.method === 'Browser.setWindowBounds') {
         sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Browser.getWindowForTarget') {
+        sock.receive({ id: req.id, result: { windowId: 101, bounds: { windowState: 'normal' } } });
         return;
       }
       if (req.method === 'Page.navigate') {
@@ -416,7 +424,7 @@ test('7. Packaging hygiene, .gitignore exclusions, CLI help wiring, and agent ru
 
     const rootHelp = spawnSync(process.execPath, [CLI_PATH, '--help'], { cwd: ws, encoding: 'utf8' });
     assert.equal(rootHelp.status, 0, rootHelp.stderr);
-    assert.match(rootHelp.stdout, /veycraft cdp <status\|open\|snapshot\|eval\|click\|fill>/i);
+    assert.match(rootHelp.stdout, /veycraft cdp <status\|login\|open\|snapshot\|eval\|click\|fill\|upload>/i);
 
     const gitignore = fs.readFileSync(path.join(REPO_ROOT, '.gitignore'), 'utf8');
     assert.match(gitignore, /workspace\/\.chrome-profile\//);
@@ -532,5 +540,192 @@ test('9. Default CDP Chrome launch uses windowsHide: false, --new-window, visibl
     assert.ok(!defaultArgs.some(a => /--headless/i.test(a)));
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('10. cdp upload validates local PDF paths, sends DOM.setFileInputFiles, and supports open Shadow DOM fallback', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-upload-');
+  try {
+    const pdfPath = path.join(wsDir, 'logs', 'resumes', 'Reda-Salem-Full-Stack-Engineer.pdf');
+    fs.mkdirSync(path.dirname(pdfPath), { recursive: true });
+    fs.writeFileSync(pdfPath, '%PDF-1.4\n% synthetic test pdf payload for unit testing\n', 'utf8');
+
+    // Validation blocks missing files, URLs, and parent traversal
+    assert.throws(() => validateLocalUploadPath(path.join(wsDir, 'missing.pdf'), { root: wsDir, cwd: wsDir }), /not found/i);
+    assert.throws(() => validateLocalUploadPath('https://evil.example/resume.pdf', { root: wsDir, cwd: wsDir }), /Refusing URL/i);
+    assert.throws(() => validateLocalUploadPath('../outside.pdf', { root: wsDir, cwd: wsDir }), /parent traversal/i);
+    assert.match(parseCdpArgs(['upload', '#resume']).error, /Usage: veycraft cdp upload/i);
+
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version') {
+        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+      }
+      if (endpointPath === '/json/list') {
+        return {
+          status: 200,
+          body: JSON.stringify([
+            {
+              id: 'TAB-UP',
+              type: 'page',
+              title: 'ATS Form',
+              url: 'https://boards.greenhouse.io/acme/jobs/1',
+              webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-UP',
+            },
+          ]),
+        };
+      }
+      throw new Error(`Unexpected path ${endpointPath}`);
+    };
+
+    let setFilesPayload = null;
+    let simulateShadowDom = false;
+    MockWebSocket.handler = (sock, req) => {
+      if (req.method === 'DOM.enable' || req.method === 'Runtime.enable') {
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'DOM.getDocument') {
+        sock.receive({ id: req.id, result: { root: { nodeId: 1 } } });
+        return;
+      }
+      if (req.method === 'DOM.querySelector') {
+        sock.receive({ id: req.id, result: { nodeId: simulateShadowDom ? 0 : 42 } });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate' && req.params?.returnByValue === false) {
+        sock.receive({ id: req.id, result: { result: { type: 'object', objectId: 'OBJ-SHADOW-99' } } });
+        return;
+      }
+      if (req.method === 'DOM.requestNode') {
+        sock.receive({ id: req.id, result: { nodeId: 99 } });
+        return;
+      }
+      if (req.method === 'DOM.setFileInputFiles') {
+        setFilesPayload = req.params;
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate') {
+        sock.receive({
+          id: req.id,
+          result: { result: { type: 'object', value: { found: true, names: ['Reda-Salem-Full-Stack-Engineer.pdf'] } } },
+        });
+      }
+    };
+
+    const mockDeps = {
+      nodeVersion: '22.12.0',
+      cwd: wsDir,
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+    };
+
+    // Light DOM upload
+    const lightRes = await runCdpCli(wsDir, ['upload', 'input[type="file"]', pdfPath, '--json'], mockDeps);
+    assert.equal(lightRes.exitCode, 0, JSON.stringify(lightRes.data));
+    assert.equal(lightRes.data.uploaded, true);
+    assert.equal(lightRes.data.filename, 'Reda-Salem-Full-Stack-Engineer.pdf');
+    assert.deepEqual(setFilesPayload, { nodeId: 42, files: [pdfPath] });
+
+    // Open Shadow DOM fallback upload
+    simulateShadowDom = true;
+    setFilesPayload = null;
+    const shadowRes = await runCdpCli(wsDir, ['upload', '#shadow-resume', pdfPath, '--json'], mockDeps);
+    assert.equal(shadowRes.exitCode, 0, JSON.stringify(shadowRes.data));
+    assert.deepEqual(setFilesPayload, { nodeId: 99, files: [pdfPath] });
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test('11. cdp login defaults to LinkedIn login, restores Browser.setWindowBounds, and uses injection-safe desktop launch spec on win32', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-login-');
+  try {
+    const parsedDefault = parseCdpArgs(['login', '--json']);
+    assert.equal(parsedDefault.error, null);
+    assert.equal(parsedDefault.subcommand, 'login');
+    assert.deepEqual(parsedDefault.positionals, []);
+
+    const parsedCustom = parseCdpArgs(['login', 'https://www.upwork.com/ab/account-security/login', '--port', '9225']);
+    assert.equal(parsedCustom.error, null);
+    assert.equal(parsedCustom.port, 9225);
+    assert.equal(parsedCustom.positionals[0], 'https://www.upwork.com/ab/account-security/login');
+
+    const launchSpec = buildWindowsDesktopLaunchSpec('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', ['--new-window', DEFAULT_LOGIN_URL]);
+    assert.equal(launchSpec.command, 'powershell.exe');
+    assert.equal(launchSpec.envPatch.VEYCRAFT_CHROME_BIN, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
+    assert.deepEqual(JSON.parse(launchSpec.envPatch.VEYCRAFT_CHROME_ARGS), ['--new-window', DEFAULT_LOGIN_URL]);
+
+    const cdpCalls = [];
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version') {
+        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+      }
+      if (endpointPath === '/json/list') {
+        return {
+          status: 200,
+          body: JSON.stringify([
+            {
+              id: 'TAB-LOGIN',
+              type: 'page',
+              title: 'about:blank',
+              url: 'about:blank',
+              webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-LOGIN',
+            },
+          ]),
+        };
+      }
+      throw new Error(`Unexpected path ${endpointPath}`);
+    };
+
+    MockWebSocket.handler = (sock, req) => {
+      cdpCalls.push({ method: req.method, params: req.params });
+      if (req.method === 'Page.enable' || req.method === 'Runtime.enable' || req.method === 'Page.bringToFront' || req.method === 'Browser.setWindowBounds') {
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Browser.getWindowForTarget') {
+        sock.receive({ id: req.id, result: { windowId: 77, bounds: { windowState: 'minimized' } } });
+        return;
+      }
+      if (req.method === 'Page.navigate') {
+        sock.receive({ id: req.id, result: { frameId: 'F-LOGIN' } });
+        setTimeout(() => sock.receive({ method: 'Page.loadEventFired', params: { timestamp: 1 } }), 10);
+        return;
+      }
+      if (req.method === 'Runtime.evaluate') {
+        sock.receive({
+          id: req.id,
+          result: { result: { type: 'object', value: { url: DEFAULT_LOGIN_URL, title: 'LinkedIn Login' } } },
+        });
+      }
+    };
+
+    const res = await runCdpCli(wsDir, ['login', '--json'], {
+      nodeVersion: '22.12.0',
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+    });
+    assert.equal(res.exitCode, 0, JSON.stringify(res.data));
+    assert.equal(res.data.mode, 'login');
+    assert.equal(res.data.navigated_to, DEFAULT_LOGIN_URL);
+    assert.equal(res.data.window_surfaced, true);
+    assert.equal(res.data.window_id, 77);
+    assert.equal(res.data.bounds_applied, true);
+
+    const boundsCalls = cdpCalls.filter(c => c.method === 'Browser.setWindowBounds');
+    assert.ok(boundsCalls.length >= 2, 'Expected restore from minimized -> normal plus explicit on-screen bounds');
+    assert.deepEqual(boundsCalls[boundsCalls.length - 1].params, {
+      windowId: 77,
+      bounds: { windowState: 'normal', left: 80, top: 60, width: 1280, height: 900 },
+    });
+    assert.ok(cdpCalls.some(c => c.method === 'Page.bringToFront'));
+    assert.equal(typeof surfaceCdpWindow, 'function');
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
   }
 });
