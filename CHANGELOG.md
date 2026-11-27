@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-11-27 — Production CDP Hardening, Dynamic Tech-Recruiter Compensation Engine & Apply-First Exhaustion Ladder
+
+### Added & Fixed
+- **CDP Engine Edge-Case Hardening (`bin/cdp-ops.mjs`, `evals/cdp.test.mjs`):**
+  - Added combobox/typeahead support (`role="combobox"`, `aria-autocomplete`, `--combobox`) typing via `Input.insertText` and selecting visible `[role="option"]` / `[role="listbox"] li` options (with `ArrowDown` + `Enter` fallback).
+  - Added multi-tab ATS switching (`detectNewCdpTarget`, `waitForNewCdpTarget`, `--url-match`, and automatic `new_tab_target_id` / `new_tab_url` detection on `cdp click`).
+  - Added randomized human pacing helpers (`computeHumanJitterMs`, `sleepHumanJitter`, `--jitter-min` / `--jitter-max`), strict submission receipt verification (`verifySubmissionReceipt`), and `empty_required_fields` + `[aria-invalid="true"]` `validation_errors` reporting on every form step (fixing Page 1 Contact Info stalls such as empty `Resident Country*`).
+- **Zero-Config Dynamic Tech-Recruiter Compensation Engine (`skills/09-offer-negotiator.md`, `skills/04-fill-and-apply.md`, `AGENTS.md`, `context/form-answers.yaml.example`):** Added `salary_expectations.mode: dynamic_recruiter` default (Tier 1 posted-band positioning by fit score + Tier 2 4-signal recruiter market calibration, pure numeric digits only, 1-line Recruiter Rationale per card, optional explicit `static_overrides` / `min_acceptable_floor`).
+- **Apply-First Exhaustion Ladder & Zero-Loss 30-Second Manual Handoff (`AGENTS.md`, `skills/00-daily-run.md`, `skills/03-tailor-resume-and-verify.md`, `skills/04-fill-and-apply.md`, `.gitignore`, `package.json`):** Enforced preflight `< 5s` + 60-day duplicate guard, guest-apply preference, 3 distinct interaction strategies, `skip_filter` vs. `manual_handoff` separation (preparing verified PDFs for open qualified manual handoffs with direct ATS URLs, exact PDF paths, pre-computed answers, and one-word logging hook), and strict `workspace/tmp/` scratch isolation (`143/143` unit tests, `133/133` journeys, `20/20` eval assertions, `0/0` npm dependencies).
+
 ## [2.9.0] - 2026-11-27 — Native Zero-Dependency CDP Engine, Auto-Cached Baseline PDF & Opt-In Autopilot Queue Loop
 
 ### Added & Changed
