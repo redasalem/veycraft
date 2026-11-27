@@ -20,7 +20,7 @@
 
 > *(سابقًا `job-hunter-os` — تحويلات GitHub، ومجلدات `~/.job-hunter-os` القديمة، وأوامر `job-hunter` و`job-hunter-os` ما زالت مدعومة بالكامل.)*
 
-![عرض طرفية متحرك لأداة Veycraft v2.8.5: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
+![عرض طرفية متحرك لأداة Veycraft v2.9.0: فحص doctor وتوجيه route وبوابة الأمان pre-submit](assets/demo.svg)
 
 ---
 
@@ -162,7 +162,8 @@ flowchart LR
 |---|---|
 | `veycraft init [--global] [--ide <name>]` | تهيئة مساحة العمل (`~/.veycraft` أو محليًا) وربط مهارات المحررات وMCP بأمان |
 | `veycraft onboard [--non-interactive \| --stdin]` | معالج إعداد في 60 ثانية ينشئ ملفات `context/` وملخص `context/brief.json` (`< 400` توكن) |
-| `veycraft brief [--refresh] [--json]` | بناء/قراءة ملخص المرشّح الخالي من PII مع كاش ذكي عبر `mtimeMs + sha256` |
+| `veycraft brief [--refresh] [--ensure-baseline-pdf] [--autopilot] [--json]` | بناء/قراءة ملخص المرشّح (`mtimeMs + sha256`)، كاش PDF الأساسي، وإعدادات Autopilot الاختيارية |
+| `veycraft cdp <status\|login\|close\|open\|snapshot\|eval\|click\|fill\|upload>` | محرك Chrome CDP محلي بصفر تبعيات على `127.0.0.1` (إدخال موثوق ورفع PDF بدون حوار OS) |
 | `veycraft feed-scan --all [--json]` | مسح خلاصات RSS/Atom/JSON (`حد أقصى 4` متزامنة، محمي من SSRF) ← `logs/radar/YYYY-MM-DD.md` |
 | `veycraft browser-script distill-feed\|distill-form\|batch-fill` | توليد سكربتات استخراج DOM أو تعبئة نماذج موحدة آمنة بلا أي إرسال تلقائي |
 | `veycraft ui [--port <n>] [--no-open]` | تشغيل الواجهة المحلية للقراءة فقط على `127.0.0.1` (الجاهزية، Kanban، التحليلات، الاستوديو، 56 مهارة) |
@@ -235,7 +236,7 @@ veycraft init --global --ide antigravity # ~/.gemini/antigravity/global_workflow
 - **خادم MCP خالٍ من PII بـ 8 أدوات قراءة فقط:** اتصال `stdio` محلي بالكامل (`veycraft_doctor`، `veycraft_route`، `veycraft_audit`، `veycraft_verify`، `veycraft_pre_submit`، `veycraft_career_summary`، `veycraft_career_next`، `veycraft_get_skill`) وموارد `veycraft://` المسموحة.
 - **حماية SSRF مع تثبيت DNS (`SEC-01`) ومحلات محصّنة (`SEC-03`/`SEC-04`):** كل طلب وإعادة توجيه في `feed-scan` يفحص عناوين IP المحلولة ضد الشبكات الداخلية مع حد أقصى للحجم، مع حماية صارمة لـ ZIP/DOCX ومسارات العمل.
 - **الدفاع ضد حقن الأوامر وحقول الفخ (Honeypot):** تنقية أوصاف الوظائف وعروض الفريلانس من محارف BiDi/Unicode الخفية ومعاملتها كـ `UNTRUSTED_EXTERNAL_DATA` مع عزل حقول الـ honeypot وتركها فارغة تمامًا.
-- **عزل صارم في Git وحزم npm:** مجلدات `context/*` (عدا `*.example`) و`logs/` و`logs/radar/` و`tracker/` و`*.pdf` و`browser-profile/` و`.env` محجوبة بـ `.gitignore` وخطاف `.git/hooks/pre-commit` وفحص `npm run pack:check`.
+- **عزل صارم في Git وحزم npm:** مجلدات `context/*` (عدا `*.example`) و`logs/` و`logs/radar/` و`tracker/` و`*.pdf` و`browser-profile/` و`workspace/.chrome-profile/` و`.env` محجوبة بـ `.gitignore` وخطاف `.git/hooks/pre-commit` وفحص `npm run pack:check`.
 - **بوابات موافقة بشرية غير مشروطة (`APPROVE`):** وضع `dry_run: true` افتراضي، وأداة `batch-fill` لا تستدعي `.submit()` ولا تضغط Submit/Publish أبدًا، وكل إجراء حي ينتظر موافقة بشرية صريحة (`APPROVE` / `APPROVE PUBLISH` / `APPROVE <numbers>`).
 
 ![بطاقة الإثبات القابلة لإعادة الإنتاج لمشروع Veycraft](assets/proof-card.svg)
@@ -255,7 +256,7 @@ npm update -g veycraft && veycraft update --global
 # إزالة الأداة العالمية فقط (تبقى بياناتك في ~/.veycraft سليمة)
 npm uninstall -g veycraft
 
-# تشغيل كامل اختبارات التحقق (20/20 تقييم · 133/133 رحلة · 117/117 اختبار وحدة)
+# تشغيل كامل اختبارات التحقق (20/20 تقييم · 133/133 رحلة · 141/141 اختبار وحدة)
 npm run prepublishOnly && node --test evals/*.test.mjs
 ```
 

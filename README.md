@@ -18,7 +18,7 @@ Cuts browser and context token usage by **85%–95%** via a local zero-token fas
 
 > *(Formerly `job-hunter-os` — GitHub redirects, existing `~/.job-hunter-os` homes, and `job-hunter` / `job-hunter-os` CLI aliases remain supported.)*
 
-![Veycraft v2.8.5 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
+![Veycraft v2.9.0 animated terminal demo: doctor health check, intent routing, and deterministic pre-submit safety gate](assets/demo.svg)
 
 ---
 
@@ -140,7 +140,8 @@ Full catalogs: **[56-Skill Catalog](docs/SKILL_CATALOG.md)** · **[Chat &amp; Sl
 |---|---|
 | `veycraft init [--global] [--ide <name>]` | Non-destructively scaffolds workspace (`~/.veycraft` or local) and links IDE skills/rules/MCP |
 | `veycraft onboard [--non-interactive \| --stdin]` | 60-second setup wizard creating verified `context/` files + `< 400`-token `context/brief.json` |
-| `veycraft brief [--refresh] [--json]` | Compiles/reads cached zero-PII candidate brief with `mtimeMs + sha256` invalidation |
+| `veycraft brief [--refresh] [--ensure-baseline-pdf] [--autopilot] [--json]` | Compiles/reads cached zero-PII brief (`mtimeMs + sha256`), caches baseline PDF CV &amp; opt-in autopilot thresholds |
+| `veycraft cdp <status\|login\|close\|open\|snapshot\|eval\|click\|fill\|upload>` | Native `127.0.0.1` zero-dependency Chrome CDP engine (trusted input events &amp; zero-dialog `--trigger` PDF upload) |
 | `veycraft feed-scan --all [--json]` | Scans configured RSS/Atom/JSON feeds (`max 4` concurrent, SSRF-safe) → `logs/radar/YYYY-MM-DD.md` |
 | `veycraft browser-script distill-feed\|distill-form\|batch-fill` | Emits zero-interpolation DOM extraction or non-submitting batch-fill JS payloads |
 | `veycraft ui [--port <n>] [--no-open]` | Launches read-only `127.0.0.1` Web UI (Overview, Kanban, Analytics, Studio, 56 Skills) |
@@ -206,8 +207,8 @@ Veycraft separates **deterministic CLI enforcement** from **agent workflow guard
 - **Zero-PII 8-tool MCP server:** Strictly offline read-only `stdio` contract (`veycraft_doctor`, `veycraft_route`, `veycraft_audit`, `veycraft_verify`, `veycraft_pre_submit`, `veycraft_career_summary`, `veycraft_career_next`, `veycraft_get_skill`) + allowlisted `veycraft://` resources.
 - **SSRF DNS-pinning (SEC-01) &amp; hardened parsers (SEC-03/SEC-04):** Every `feed-scan` fetch and redirect hop validates resolved IPs against private/loopback/link-local/CGNAT ranges with bounded `maxBytes` caps; ZIP/DOCX parsing and workspace paths fail closed.
 - **Prompt-injection &amp; honeypot defense:** External JDs and freelance listings are stripped of BiDi/invisible Unicode and quarantined as `UNTRUSTED_EXTERNAL_DATA`; hidden honeypot inputs are segregated and left strictly blank.
-- **Strict Git &amp; tarball privacy isolation:** `context/*` (except `*.example`), `logs/`, `logs/radar/`, `tracker/`, `*.pdf`, `browser-profile/`, and `.env` are gitignored, blocked by `.git/hooks/pre-commit`, and excluded from npm tarballs (`npm run pack:check`).
-- **Unconditional human `APPROVE` gates:** `dry_run: true` by default; `batch-fill` never invokes `.submit()` or clicks Submit/Publish; every live submission, profile save, bid, or deploy requires fresh explicit `APPROVE` / `APPROVE PUBLISH` / `APPROVE <numbers>`.
+- **Strict Git &amp; tarball privacy isolation:** `context/*` (except `*.example`), `logs/`, `logs/radar/`, `tracker/`, `*.pdf`, `browser-profile/`, `workspace/.chrome-profile/`, and `.env` are gitignored, blocked by `.git/hooks/pre-commit`, and excluded from npm tarballs (`npm run pack:check`).
+- **Unconditional human `APPROVE` gates:** `dry_run: true` by default; `batch-fill` never invokes `.submit()` or clicks Submit/Publish; every live submission, profile save, bid, or deploy requires fresh explicit `APPROVE` / `APPROVE PUBLISH` / `APPROVE <numbers>` (opt-in owner autopilot lives strictly in local gitignored `context/brief.json`).
 
 ![Veycraft Reproducible Proof Card](assets/proof-card.svg)
 
@@ -224,7 +225,7 @@ npm update -g veycraft && veycraft update --global
 # Uninstall CLI only (keeps ~/.veycraft data intact)
 npm uninstall -g veycraft
 
-# Local verification suite (20/20 evals · 133/133 journeys · 117/117 unit tests)
+# Local verification suite (20/20 evals · 133/133 journeys · 141/141 unit tests)
 npm run prepublishOnly && node --test evals/*.test.mjs
 ```
 

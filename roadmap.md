@@ -1,8 +1,9 @@
 # Veycraft Architecture & Release Roadmap
 
-## Completed Milestones (`v1.0` → `v2.8.5`)
+## Completed Milestones (`v1.0` → `v2.9.0`)
 
 - [x] **Zero-Dependency Node.js CLI & Tokenless OIDC Release Pipeline:** Strictly `"dependencies": {}` and `"devDependencies": {}` in [`package.json`](package.json), published on [`npmjs.com/package/veycraft`](https://www.npmjs.com/package/veycraft) via **npm OIDC Trusted Publishing** with Sigstore Provenance (`0` long-lived tokens).
+- [x] **Native Zero-Dependency CDP Engine, Cached Baseline PDF & Opt-In Autopilot (`v2.9.0`):** Loopback-only `veycraft cdp` CLI (`status`, `login`, `close`, `open`, `snapshot`, `eval`, `click`, `fill`, `upload --trigger`) with trusted `Input.dispatchMouseEvent` / `Input.insertText` events, zero-dialog file chooser interception, SHA-256 cached baseline PDF (`veycraft brief --ensure-baseline-pdf`), zero-question CV strategy, and opt-in owner autopilot queue loop.
 - [x] **56 Portable Markdown Skills & 17 Auto-Discovered Wrappers:** Core career-ops playbooks (`00`–`30`, `54`–`56`, `linkedin-growth.md`, `profile-intelligence-engine.md`, `fallback-no-mcp.md`), `4` `meta-*` reliability playbooks, `7` job-board/contract playbooks, and `7` ATS engine playbooks indexed in [`skills/REGISTRY.md`](skills/REGISTRY.md) and [`skills/skills-manifest.json`](skills/skills-manifest.json) with Progressive Disclosure (`<= 7` skills loaded per turn).
 - [x] **4-Pillar Token-Efficiency Fast-Path (`v2.7`–`v2.8`, Track A & Track B):**
   - `veycraft onboard` — 60-second onboarding wizard (interactive TTY, `--stdin`, and CI-safe `--non-interactive`).
@@ -11,7 +12,7 @@
   - `veycraft browser-script` — Read-only DOM distiller (`distill-feed`, `distill-form`) and non-submitting single-shot `batch-fill` ahead of mandatory human `APPROVE` gates.
 - [x] **Universal Freelance & No-Clone GitHub Skills (`v2.5`–`v2.6`):** `/github-remote` ([`skills/54-github-cli-remote-manager.md`](skills/54-github-cli-remote-manager.md)), `/freelance-service` ([`skills/55-freelance-profile-and-service-publisher.md`](skills/55-freelance-profile-and-service-publisher.md)), and `/freelance-bid` ([`skills/56-freelance-offer-radar-and-batch-bidder.md`](skills/56-freelance-offer-radar-and-batch-bidder.md)).
 - [x] **Read-Only Local Web UI & Native 8-Tool MCP Server (`v2.3`–`v2.4`):** Loopback-only `127.0.0.1` dashboard (`npx veycraft ui`) with strict CSP/Host/Origin guards, plus a zero-dependency `stdio` MCP server (`npx veycraft mcp`) exposing `8` read-only offline tools and allowlisted `veycraft://` resources.
-- [x] **Deterministic Multi-OS Evaluation & Security Suite:** `20/20` baseline & live-agent eval assertions, `132/132` synthetic task-journey tests, and `117+` unit/integration tests across Ubuntu, macOS, and Windows (`.github/workflows/validate-repo.yml`) with `0` open CodeQL alerts.
+- [x] **Deterministic Multi-OS Evaluation & Security Suite:** `20/20` baseline & live-agent eval assertions, `133/133` synthetic task-journey tests, and `141/141` unit/integration tests across Ubuntu, macOS, and Windows (`.github/workflows/validate-repo.yml`) with `0` open CodeQL alerts.
 
 ## Next Priorities (Post-Launch Roadmap)
 

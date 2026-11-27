@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-11-27 — Native Zero-Dependency CDP Engine, Auto-Cached Baseline PDF & Opt-In Autopilot Queue Loop
+
+### Added & Changed
+- **Native Zero-Dependency `veycraft cdp` Engine (`bin/cdp-ops.mjs`, `bin/cli.mjs`, `evals/cdp.test.mjs`):** Added a loopback-only (`127.0.0.1`) Chrome DevTools Protocol CLI (`status`, `login`, `close`, `open`, `snapshot`, `eval`, `click`, `fill`, `upload`) with persistent `workspace/.chrome-profile/` isolation (excluded from Git & npm tarballs), trusted browser-level input events (`Input.dispatchMouseEvent` with automatic hidden radio/checkbox `<label>` resolution, `Input.insertText` with live `.value` read-back, and `<select>` option text/value matching), zero-dialog file attachment (`cdp upload --trigger` via `Page.setInterceptFileChooserDialog` + `DOM.setFileInputFiles`), and visible desktop window surfacing (`Browser.setWindowBounds` + `cdp login` / `cdp close`).
+- **Auto-Cached SHA-256 Baseline PDF CV & Zero-Question CV Strategy (`bin/fast-ops.mjs`, `skills/03-tailor-resume-and-verify.md`, `evals/fast-ops.test.mjs`):** Added `veycraft brief --ensure-baseline-pdf` to auto-build and SHA-256 cache `logs/resumes/_baseline/baseline-cv.pdf` from `context/cv.md` via local headless Chrome/Edge, paired with deterministic `decideCvStrategy()` (`reuse_baseline` for `>= 8.5/10` direct strong matches vs. `tailor_pdf` for `6.5–8.4/10` tailored roles).
+- **Opt-In Autopilot & Smooth Continuous Queue Loop (`bin/fast-ops.mjs`, `AGENTS.md`, `skills/00-daily-run.md`, `skills/04-fill-and-apply.md`):** Added opt-in owner autopilot configuration in local gitignored `context/brief.json` (`veycraft brief --autopilot`, preserving safe `APPROVE`-first & `dry_run: true` open-source defaults), continuous ordered queue execution, and background-only trusted CDP retry handling (`141/141` unit tests, `133/133` journeys, `20/20` eval assertions, `0/0` npm dependencies).
+
 ## [2.8.5] - 2026-11-26 — Cold-Start Quickstart Fix (`init` → `onboard` → `feed-scan --all`), Canonical SPDX MIT & Launch Hygiene
 
 ### Fixed & Changed
