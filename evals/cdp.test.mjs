@@ -33,6 +33,11 @@ const {
   buildCdpRequest,
   parseCdpMessage,
   selectCdpTarget,
+  detectNewCdpTarget,
+  waitForNewCdpTarget,
+  computeHumanJitterMs,
+  sleepHumanJitter,
+  verifySubmissionReceipt,
   parseCdpArgs,
   CdpClient,
   buildChromeLaunchArgs,
@@ -1260,6 +1265,295 @@ test('14. Trusted CDP click dispatches Input.dispatchMouseEvent, cdp fill uses I
     assert.equal(typeof clickCdpSelector, 'function');
     assert.equal(typeof fillCdpSelector, 'function');
     assert.equal(typeof dispatchTrustedMouseClick, 'function');
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test('15. Combobox/typeahead support (role="combobox" & --combobox) types via Input.insertText and selects option or ArrowDown+Enter', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-combobox-');
+  try {
+    const parsedFlag = parseCdpArgs(['fill', '#location-combobox', 'Cairo, Egypt', '--combobox', '--json']);
+    assert.equal(parsedFlag.error, null);
+    assert.equal(parsedFlag.combobox, true);
+    assert.deepEqual(parsedFlag.positionals, ['#location-combobox', 'Cairo, Egypt']);
+
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version') {
+        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+      }
+      if (endpointPath === '/json/list') {
+        return {
+          status: 200,
+          body: JSON.stringify([
+            {
+              id: 'TAB-COMBO',
+              type: 'page',
+              title: 'ATS Form',
+              url: 'https://boards.greenhouse.io/example/jobs/123',
+              webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-COMBO',
+            },
+          ]),
+        };
+      }
+      throw new Error(`Unexpected path ${endpointPath}`);
+    };
+
+    const mouseClicks = [];
+    const keyEvents = [];
+    const insertedTexts = [];
+    let optionVisible = true;
+    let liveValue = '';
+
+    MockWebSocket.handler = (sock, req) => {
+      if (req.method === 'Runtime.enable') {
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Input.dispatchMouseEvent') {
+        mouseClicks.push(req.params);
+        if (req.params?.type === 'mouseReleased' && req.params?.x === 420 && req.params?.y === 365) {
+          liveValue = 'Cairo, Egypt';
+        }
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Input.dispatchKeyEvent') {
+        keyEvents.push(req.params);
+        if (req.params?.key === 'Backspace' && req.params?.type === 'rawKeyDown') {
+          liveValue = '';
+        }
+        if (req.params?.key === 'Enter' && req.params?.type === 'rawKeyDown') {
+          liveValue = 'TypeScript';
+        }
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Input.insertText') {
+        insertedTexts.push(req.params?.text);
+        liveValue = String(req.params?.text || '');
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate') {
+        const expr = String(req.params?.expression || '');
+        if (expr.includes('__cdpInspectFill')) {
+          sock.receive({
+            id: req.id,
+            result: {
+              result: {
+                type: 'object',
+                value: {
+                  ok: true,
+                  __cdpInspectFill: true,
+                  selector: expr.includes('#skill-combo') ? '#skill-combo' : '#location-combobox',
+                  tag: 'input',
+                  type: 'text',
+                  role: 'combobox',
+                  is_combobox: true,
+                  is_contenteditable: false,
+                  checked: false,
+                  resolved_via_label: false,
+                  has_coords: true,
+                  x: 420,
+                  y: 320,
+                },
+              },
+            },
+          });
+          return;
+        }
+        if (expr.includes('selectNodeContents')) {
+          sock.receive({ id: req.id, result: { result: { type: 'boolean', value: true } } });
+          return;
+        }
+        if (expr.includes('__cdpComboboxOption')) {
+          sock.receive({
+            id: req.id,
+            result: {
+              result: {
+                type: 'object',
+                value: optionVisible
+                  ? { found: true, __cdpComboboxOption: true, count: 2, text: 'Cairo, Egypt', x: 420, y: 365 }
+                  : { found: false, __cdpComboboxOption: true, count: 0 },
+              },
+            },
+          });
+          return;
+        }
+        if (expr.includes('dispatchChange')) {
+          sock.receive({
+            id: req.id,
+            result: { result: { type: 'object', value: { found: true, tag: 'input', type: 'text', value: liveValue } } },
+          });
+        }
+      }
+    };
+
+    const mockDeps = {
+      nodeVersion: '22.12.0',
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+    };
+
+    // 1. Auto-detected role="combobox" clicks matching [role="option"] at (420, 365)
+    optionVisible = true;
+    const optRes = await runCdpCli(wsDir, ['fill', '#location-combobox', 'Cairo', '--json'], mockDeps);
+    assert.equal(optRes.exitCode, 0, JSON.stringify(optRes.data));
+    assert.equal(optRes.data.trusted, true);
+    assert.equal(optRes.data.combobox, true);
+    assert.equal(optRes.data.method, 'cdp_combobox_option');
+    assert.equal(optRes.data.selected_option, 'Cairo, Egypt');
+    assert.equal(optRes.data.read_back_value, 'Cairo, Egypt');
+    assert.ok(insertedTexts.includes('Cairo'));
+    assert.ok(mouseClicks.some(m => m.type === 'mousePressed' && m.x === 420 && m.y === 365));
+
+    // 2. Explicit --combobox with no visible option falls back to ArrowDown + Enter
+    optionVisible = false;
+    keyEvents.length = 0;
+    const enterRes = await runCdpCli(wsDir, ['fill', '#skill-combo', 'TypeScript', '--combobox', '--json'], mockDeps);
+    assert.equal(enterRes.exitCode, 0, JSON.stringify(enterRes.data));
+    assert.equal(enterRes.data.combobox, true);
+    assert.equal(enterRes.data.method, 'cdp_combobox_enter');
+    assert.equal(enterRes.data.read_back_value, 'TypeScript');
+    assert.ok(keyEvents.some(k => k.key === 'ArrowDown' && k.type === 'rawKeyDown'));
+    assert.ok(keyEvents.some(k => k.key === 'Enter' && k.type === 'rawKeyDown'));
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test('16. Multi-tab ATS target switching, human jitter helper, and strict submission receipt verification', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-multitab-');
+  try {
+    const beforeTabs = [
+      { id: 'TAB-LI', type: 'page', title: 'LinkedIn', url: 'https://www.linkedin.com/jobs/view/123/', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-LI' },
+    ];
+    const afterTabs = [
+      { id: 'TAB-GH', type: 'page', title: 'Greenhouse Apply', url: 'https://boards.greenhouse.io/acme/jobs/789', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-GH' },
+      ...beforeTabs,
+    ];
+
+    // 1. detectNewCdpTarget & waitForNewCdpTarget switch to newly opened ATS tab
+    const detected = detectNewCdpTarget(beforeTabs, afterTabs, { port: 9222 });
+    assert.equal(detected?.id, 'TAB-GH');
+    assert.equal(detected?.url, 'https://boards.greenhouse.io/acme/jobs/789');
+
+    let pollCount = 0;
+    let activatedPath = null;
+    const switched = await waitForNewCdpTarget({
+      port: 9222,
+      beforeTargetIds: ['TAB-LI'],
+      timeoutMs: 1000,
+      pollIntervalMs: 30,
+      sleepImpl: async () => {},
+      httpRequestImpl: async ({ endpointPath }) => {
+        if (endpointPath.startsWith('/json/activate/')) {
+          activatedPath = endpointPath;
+          return { status: 200, body: 'Target activated' };
+        }
+        pollCount++;
+        return { status: 200, body: JSON.stringify(pollCount >= 2 ? afterTabs : beforeTabs) };
+      },
+    });
+    assert.equal(switched.switched, true);
+    assert.equal(switched.target?.id, 'TAB-GH');
+    assert.equal(activatedPath, '/json/activate/TAB-GH');
+
+    // 2. --url-match and --jitter-min / --jitter-max CLI flag parsing
+    const parsedMulti = parseCdpArgs(['snapshot', '--url-match', 'greenhouse.io', '--jitter-min', '10', '--jitter-max', '20', '--json']);
+    assert.equal(parsedMulti.error, null);
+    assert.equal(parsedMulti.urlMatch, 'greenhouse.io');
+    assert.equal(parsedMulti.jitterMinMs, 10);
+    assert.equal(parsedMulti.jitterMaxMs, 20);
+
+    const badJitter = parseCdpArgs(['click', '#apply', '--jitter-min', '500', '--jitter-max', '100']);
+    assert.match(badJitter.error || '', /--jitter-min cannot exceed --jitter-max/i);
+
+    // 3. computeHumanJitterMs & sleepHumanJitter deterministic bounds
+    assert.equal(computeHumanJitterMs(3000, 9000, { randomImpl: () => 0 }), 3000);
+    assert.equal(computeHumanJitterMs(3000, 9000, { randomImpl: () => 0.999999 }), 9000);
+    let sleptMs = 0;
+    const jitterRes = await sleepHumanJitter(25, 55, {
+      randomImpl: () => 0.5,
+      sleepImpl: async (ms) => { sleptMs = ms; },
+    });
+    assert.ok(jitterRes.delay_ms >= 25 && jitterRes.delay_ms <= 55);
+    assert.equal(sleptMs, jitterRes.delay_ms);
+
+    // 4. cdp click detects newly spawned ATS tab and returns new_tab_target_id + new_tab_url
+    let listCallCount = 0;
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version') {
+        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+      }
+      if (endpointPath === '/json/list') {
+        listCallCount++;
+        // Call 1 (connect) & Call 2 (before click): LinkedIn only; Call 3 (after click): Greenhouse tab opened!
+        return { status: 200, body: JSON.stringify(listCallCount >= 3 ? afterTabs : beforeTabs) };
+      }
+      throw new Error(`Unexpected path ${endpointPath}`);
+    };
+    MockWebSocket.handler = (sock, req) => {
+      if (req.method === 'Runtime.enable' || req.method === 'Input.dispatchMouseEvent') {
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate') {
+        const expr = String(req.params?.expression || '');
+        if (expr.includes('__cdpInspectClick')) {
+          sock.receive({
+            id: req.id,
+            result: {
+              result: {
+                type: 'object',
+                value: {
+                  ok: true,
+                  __cdpInspectClick: true,
+                  selector: '#external-apply',
+                  tag: 'a',
+                  type: '',
+                  text: 'Apply on company site',
+                  url_before: 'https://www.linkedin.com/jobs/view/123/',
+                  resolved_via_label: false,
+                  has_coords: true,
+                  x: 200,
+                  y: 300,
+                },
+              },
+            },
+          });
+          return;
+        }
+        sock.receive({ id: req.id, result: { result: { type: 'string', value: 'https://www.linkedin.com/jobs/view/123/' } } });
+      }
+    };
+    const clickNewTab = await runCdpCli(wsDir, ['click', '#external-apply', '--jitter-min', '1', '--jitter-max', '2', '--json'], {
+      nodeVersion: '22.12.0',
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+    });
+    assert.equal(clickNewTab.exitCode, 0, JSON.stringify(clickNewTab.data));
+    assert.equal(clickNewTab.data.new_tab_target_id, 'TAB-GH');
+    assert.equal(clickNewTab.data.new_tab_url, 'https://boards.greenhouse.io/acme/jobs/789');
+    assert.ok(clickNewTab.data.jitter_delay_ms >= 1 && clickNewTab.data.jitter_delay_ms <= 2);
+
+    // 5. verifySubmissionReceipt enforces strict receipt proof
+    const okReceipt = verifySubmissionReceipt('You applied on company site 11/27/2026 — Submitted resume', { modalClosed: true });
+    assert.equal(okReceipt.confirmed, true);
+    assert.equal(okReceipt.status, 'submitted');
+
+    const failedNoSignal = verifySubmissionReceipt('Review your application Submit application', { modalClosed: false });
+    assert.equal(failedNoSignal.confirmed, false);
+    assert.equal(failedNoSignal.status, 'failed_unconfirmed');
+
+    const failedModalStuck = verifySubmissionReceipt('You applied on 11/27/2026', { modalClosed: false });
+    assert.equal(failedModalStuck.confirmed, false);
+    assert.equal(failedModalStuck.status, 'failed_unconfirmed');
   } finally {
     MockWebSocket.handler = null;
     fs.rmSync(wsDir, { recursive: true, force: true });

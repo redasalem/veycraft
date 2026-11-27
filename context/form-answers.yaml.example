@@ -1,6 +1,20 @@
 # Example facts below are NOT verified owner answers. Review every fact before setting true.
 owner_verified: false
 resume_pdf_path: "./assets/resume.pdf"
+
+# Zero-Config Dynamic Tech-Recruiter Compensation Engine (default; set static_overrides/min_acceptable_floor only if desired)
+salary_expectations:
+  mode: "dynamic_recruiter"
+  static_overrides: null
+  min_acceptable_floor: null
+  numeric_digits_only: true
+
+strict_truth_rules:
+  unlisted_skill_years: 0
+  unlisted_skill_yes_no: "No"
+  work_authorization_abroad: "No"
+  remote_contractor_ready: "Yes"
+
 questions:
   - match: ["years of experience", "how many years"]
     answer: "5"

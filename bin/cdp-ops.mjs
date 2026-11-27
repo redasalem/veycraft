@@ -273,10 +273,17 @@ export function parseCdpMessage(raw) {
   throw new Error('CDP message frame missing both numeric "id" and string "method".');
 }
 
-export function selectCdpTarget(targets, { targetId = null, urlMatch = null, port = DEFAULT_CDP_PORT } = {}) {
+export function selectCdpTarget(targets, {
+  targetId = null,
+  urlMatch = null,
+  excludeTargetIds = [],
+  port = DEFAULT_CDP_PORT,
+} = {}) {
   if (!Array.isArray(targets)) return null;
+  const excluded = new Set(Array.isArray(excludeTargetIds) ? excludeTargetIds.map(String) : []);
   const pages = targets.filter((t) => {
     if (!isObj(t) || t.type !== 'page' || typeof t.webSocketDebuggerUrl !== 'string') return false;
+    if (excluded.size > 0 && t.id && excluded.has(String(t.id))) return false;
     try {
       validateCdpWsUrl(t.webSocketDebuggerUrl, port);
       return true;
@@ -309,6 +316,119 @@ export function selectCdpTarget(targets, { targetId = null, urlMatch = null, por
   const firstNonInternal = pages.find(t => !isInternalUrl(t.url));
   if (firstNonInternal) return firstNonInternal;
   return pages[0];
+}
+
+export function detectNewCdpTarget(beforeTargets, afterTargets, {
+  port = DEFAULT_CDP_PORT,
+  preferUrlMatch = null,
+} = {}) {
+  const beforeIds = new Set(
+    (Array.isArray(beforeTargets) ? beforeTargets : [])
+      .map(t => (typeof t === 'string' ? t : t?.id))
+      .filter(Boolean)
+      .map(String),
+  );
+  return selectCdpTarget(afterTargets, {
+    excludeTargetIds: [...beforeIds],
+    urlMatch: preferUrlMatch,
+    port,
+  });
+}
+
+export async function waitForNewCdpTarget({
+  port = DEFAULT_CDP_PORT,
+  beforeTargetIds = [],
+  timeoutMs = 5000,
+  pollIntervalMs = 200,
+  preferUrlMatch = null,
+  activate = true,
+  httpRequestImpl = httpRequestLocalCdp,
+  sleepImpl = sleep,
+} = {}) {
+  const deadline = Date.now() + Math.max(100, Number(timeoutMs) || 5000);
+  const poll = Math.max(25, Math.min(1000, Number(pollIntervalMs) || 200));
+  while (Date.now() <= deadline) {
+    const targets = await fetchCdpJson(port, '/json/list', { timeoutMs: 2500, httpRequestImpl }).catch(() => []);
+    const found = detectNewCdpTarget(beforeTargetIds, targets, { port, preferUrlMatch });
+    if (found) {
+      if (activate && found.id) {
+        await httpRequestImpl({
+          port,
+          endpointPath: `/json/activate/${encodeURIComponent(String(found.id))}`,
+          method: 'GET',
+          timeoutMs: 2000,
+        }).catch(() => {});
+      }
+      return { switched: true, target: found };
+    }
+    if (Date.now() + poll > deadline) break;
+    await sleepImpl(poll);
+  }
+  return { switched: false, target: null };
+}
+
+export function computeHumanJitterMs(minMs = 3000, maxMs = 9000, { randomImpl = Math.random } = {}) {
+  const lo = Math.max(0, Math.floor(Number.isFinite(Number(minMs)) ? Number(minMs) : 3000));
+  const hi = Math.max(lo, Math.floor(Number.isFinite(Number(maxMs)) ? Number(maxMs) : lo));
+  if (hi === lo) return lo;
+  const r = Number(randomImpl());
+  const clamped = Number.isFinite(r) ? Math.max(0, Math.min(0.999999, r)) : 0.5;
+  return lo + Math.floor(clamped * (hi - lo + 1));
+}
+
+export async function sleepHumanJitter(minMs = 3000, maxMs = 9000, {
+  randomImpl = Math.random,
+  sleepImpl = sleep,
+} = {}) {
+  const lo = Math.max(0, Math.floor(Number.isFinite(Number(minMs)) ? Number(minMs) : 3000));
+  const hi = Math.max(lo, Math.floor(Number.isFinite(Number(maxMs)) ? Number(maxMs) : lo));
+  const delayMs = computeHumanJitterMs(lo, hi, { randomImpl });
+  if (delayMs > 0) {
+    await sleepImpl(delayMs);
+  }
+  return { delay_ms: delayMs, min_ms: lo, max_ms: hi };
+}
+
+const STRICT_RECEIPT_PATTERNS = [
+  /your application (?:was|has been) sent/i,
+  /\bapplication sent\b/i,
+  /\bapplication submitted\b/i,
+  /\bapplication received\b/i,
+  /\byou applied on\b/i,
+  /\bthank you for applying\b/i,
+  /\bthanks for applying\b/i,
+  /\bwe(?:'ve| have) received your application\b/i,
+  /\bconfirmation (?:id|number|code)\b/i,
+];
+
+const RECEIPT_URL_PATTERN = /(?:confirmation|thank[-_]?you|application[-_]?submitted|submitted=true|applied=true)/i;
+
+export function verifySubmissionReceipt(snapshotText = '', { modalClosed = true, url = '' } = {}) {
+  const text = String(snapshotText || '').replace(/\s+/g, ' ').trim();
+  const cleanUrl = String(url || '').trim();
+  let matchedSignal = null;
+  for (const re of STRICT_RECEIPT_PATTERNS) {
+    const m = text.match(re);
+    if (m) {
+      matchedSignal = m[0];
+      break;
+    }
+  }
+  const urlMatched = !matchedSignal && RECEIPT_URL_PATTERN.test(cleanUrl);
+  if (urlMatched) matchedSignal = `url:${cleanUrl}`;
+
+  const confirmed = Boolean(matchedSignal) && (Boolean(modalClosed) || /your application (?:was|has been) sent|\bapplication sent\b|\bthank you for applying\b/i.test(text));
+  return {
+    confirmed,
+    status: confirmed ? 'submitted' : 'failed_unconfirmed',
+    modal_closed: Boolean(modalClosed),
+    matched_signal: matchedSignal,
+    reason: confirmed
+      ? null
+      : (!matchedSignal
+        ? 'No explicit confirmation signal found in post-submit DOM or URL.'
+        : 'Application modal remained open without a final sent confirmation banner.'),
+  };
 }
 
 export function httpRequestLocalCdp({
@@ -1584,18 +1704,65 @@ function buildInspectTargetForFillExpression(selector) {
     }
     const rect = clickTarget.getBoundingClientRect();
     const hasCoords = rect.width > 0 && rect.height > 0;
+    const role = String(el.getAttribute?.('role') || '').toLowerCase();
+    const hasAutoComplete = Boolean(el.getAttribute?.('aria-autocomplete'));
+    const hasExpandedControls = Boolean(el.getAttribute?.('aria-controls')) && el.getAttribute?.('aria-expanded') !== null;
+    const isCombobox = role === 'combobox' || hasAutoComplete || hasExpandedControls;
     return {
       ok: true,
       __cdpInspectFill: true,
       selector,
       tag,
       type: el.getAttribute?.('contenteditable') === 'true' ? 'contenteditable' : (type || tag),
+      role,
+      is_combobox: isCombobox,
       is_contenteditable: el.getAttribute?.('contenteditable') === 'true',
       checked: Boolean(el.checked),
       resolved_via_label: resolvedViaLabel,
       has_coords: hasCoords,
       x: hasCoords ? Math.round(offsetX + rect.left + rect.width / 2) : null,
       y: hasCoords ? Math.round(offsetY + rect.top + rect.height / 2) : null,
+    };
+  })()`;
+}
+
+function buildFindComboboxOptionExpression(value) {
+  return `(() => {
+    const wanted = ${JSON.stringify(String(value || ''))}.trim().toLowerCase();
+    const OPTION_SEL = '[role="option"], [role="listbox"] li, [class*="select__option" i], [data-test-single-typeahead-entity-form-search-result]';
+    const collect = (root, offsetX = 0, offsetY = 0, out = []) => {
+      for (const el of Array.from(root.querySelectorAll(OPTION_SEL))) {
+        const cs = window.getComputedStyle(el);
+        if (!cs || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) continue;
+        const text = String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (!text) continue;
+        out.push({ el, text, offsetX, offsetY });
+      }
+      for (const node of Array.from(root.querySelectorAll('*'))) {
+        if (node.shadowRoot) collect(node.shadowRoot, offsetX, offsetY, out);
+      }
+      return out;
+    };
+    const options = collect(document);
+    if (options.length === 0) return { found: false, __cdpComboboxOption: true, count: 0 };
+    const norm = (s) => s.toLowerCase();
+    const pick = options.find(o => norm(o.text) === wanted)
+      || options.find(o => norm(o.text).startsWith(wanted))
+      || options.find(o => norm(o.text).includes(wanted))
+      || options[0];
+    if (typeof pick.el.scrollIntoView === 'function') {
+      pick.el.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+    const r = pick.el.getBoundingClientRect();
+    return {
+      found: true,
+      __cdpComboboxOption: true,
+      count: options.length,
+      text: pick.text.slice(0, 120),
+      x: Math.round(pick.offsetX + r.left + r.width / 2),
+      y: Math.round(pick.offsetY + r.top + r.height / 2),
     };
   })()`;
 }
@@ -1751,6 +1918,9 @@ export async function clickCdpSelector(client, selector, { timeoutMs = DEFAULT_T
 export async function fillCdpSelector(client, selector, value, {
   timeoutMs = DEFAULT_TIMEOUT_MS,
   platform = process.platform,
+  combobox = false,
+  optionWaitMs = 450,
+  sleepImpl = sleep,
 } = {}) {
   const strValue = String(value ?? '');
   const info = await evalInPage(client, buildInspectTargetForFillExpression(selector), { timeoutMs });
@@ -1795,6 +1965,102 @@ export async function fillCdpSelector(client, selector, value, {
     }
     const jsCheck = await evalInPage(client, buildFillExpression(selector, strValue), { timeoutMs });
     return isObj(jsCheck) ? jsCheck : { ok: false, error: `Failed to set ${info.type}: ${selector}` };
+  }
+
+  // 2.5. Combobox / Typeahead (role="combobox", aria-autocomplete, React-Select, LinkedIn Location/Skills)
+  const isCombobox = Boolean(combobox || info.is_combobox);
+  if (isCombobox && info.has_coords && Number.isFinite(info.x) && Number.isFinite(info.y)) {
+    try {
+      await dispatchTrustedMouseClick(client, info.x, info.y, { timeoutMs: Math.min(timeoutMs, 5000) });
+      await evalInPage(client, buildPrepareClearAndSelectExpression(selector), { timeoutMs: 4000 }).catch(() => {});
+      const selectAllMod = platform === 'darwin' ? 4 : 2;
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        modifiers: selectAllMod,
+        key: 'a',
+        code: 'KeyA',
+        windowsVirtualKeyCode: 65,
+      }, { timeoutMs: 3000 }).catch(() => {});
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        modifiers: selectAllMod,
+        key: 'a',
+        code: 'KeyA',
+        windowsVirtualKeyCode: 65,
+      }, { timeoutMs: 3000 }).catch(() => {});
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        key: 'Backspace',
+        code: 'Backspace',
+        windowsVirtualKeyCode: 8,
+      }, { timeoutMs: 3000 }).catch(() => {});
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        key: 'Backspace',
+        code: 'Backspace',
+        windowsVirtualKeyCode: 8,
+      }, { timeoutMs: 3000 }).catch(() => {});
+
+      if (strValue.length > 0) {
+        await client.send('Input.insertText', { text: strValue }, { timeoutMs: Math.min(timeoutMs, 8000) });
+      }
+      if (optionWaitMs > 0) {
+        await sleepImpl(optionWaitMs);
+      }
+
+      const opt = await evalInPage(client, buildFindComboboxOptionExpression(strValue), { timeoutMs: 4000 }).catch(() => null);
+      let selectionMethod = 'cdp_combobox_enter';
+      let selectedOptionText = null;
+      if (opt?.found && Number.isFinite(opt.x) && Number.isFinite(opt.y)) {
+        await dispatchTrustedMouseClick(client, opt.x, opt.y, { timeoutMs: Math.min(timeoutMs, 5000) });
+        selectionMethod = 'cdp_combobox_option';
+        selectedOptionText = opt.text || strValue;
+      } else {
+        await client.send('Input.dispatchKeyEvent', {
+          type: 'rawKeyDown',
+          key: 'ArrowDown',
+          code: 'ArrowDown',
+          windowsVirtualKeyCode: 40,
+        }, { timeoutMs: 3000 }).catch(() => {});
+        await client.send('Input.dispatchKeyEvent', {
+          type: 'keyUp',
+          key: 'ArrowDown',
+          code: 'ArrowDown',
+          windowsVirtualKeyCode: 40,
+        }, { timeoutMs: 3000 }).catch(() => {});
+        await client.send('Input.dispatchKeyEvent', {
+          type: 'rawKeyDown',
+          key: 'Enter',
+          code: 'Enter',
+          windowsVirtualKeyCode: 13,
+        }, { timeoutMs: 3000 }).catch(() => {});
+        await client.send('Input.dispatchKeyEvent', {
+          type: 'keyUp',
+          key: 'Enter',
+          code: 'Enter',
+          windowsVirtualKeyCode: 13,
+        }, { timeoutMs: 3000 }).catch(() => {});
+      }
+
+      const rb = await evalInPage(client, buildReadBackAndCommitFillExpression(selector, { dispatchChange: false }), { timeoutMs: 4000 }).catch(() => null);
+      const readBackVal = rb?.found ? String(rb.value || '') : (selectedOptionText || strValue);
+      if (readBackVal.length > 0 || strValue.length === 0) {
+        return {
+          ok: true,
+          filled: true,
+          trusted: true,
+          combobox: true,
+          method: selectionMethod,
+          selector,
+          tag: info.tag,
+          type: 'combobox',
+          selected_option: selectedOptionText,
+          read_back_value: readBackVal,
+        };
+      }
+    } catch {
+      // Fall through to standard text/native-setter path
+    }
   }
 
   // 3. Text / number / email / textarea / contenteditable: trusted CDP focus click + clear + Input.insertText
@@ -1868,7 +2134,11 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
     portExplicit: false,
     maxChars: DEFAULT_MAX_CHARS,
     targetId: null,
+    urlMatch: null,
     trigger: null,
+    combobox: false,
+    jitterMinMs: null,
+    jitterMaxMs: null,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     newTab: false,
     noLaunch: false,
@@ -1902,6 +2172,68 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
     }
     if (a === '--no-launch') {
       parsed.noLaunch = true;
+      continue;
+    }
+    if (a === '--combobox') {
+      parsed.combobox = true;
+      continue;
+    }
+    if (a === '--url-match') {
+      const next = args[++i];
+      if (!next || next.startsWith('-')) {
+        parsed.error = '--url-match requires a URL substring.';
+        return parsed;
+      }
+      parsed.urlMatch = next;
+      continue;
+    }
+    if (a.startsWith('--url-match=')) {
+      const val = a.slice(12);
+      if (!val) {
+        parsed.error = '--url-match= requires a URL substring.';
+        return parsed;
+      }
+      parsed.urlMatch = val;
+      continue;
+    }
+    if (a === '--jitter-min') {
+      const next = args[++i];
+      const n = next !== undefined && /^\d+$/.test(next) ? Number(next) : NaN;
+      if (!Number.isInteger(n) || n < 0 || n > 120000) {
+        parsed.error = '--jitter-min requires an integer between 0 and 120000 ms.';
+        return parsed;
+      }
+      parsed.jitterMinMs = n;
+      continue;
+    }
+    if (a.startsWith('--jitter-min=')) {
+      const raw = a.slice(13);
+      const n = raw && /^\d+$/.test(raw) ? Number(raw) : NaN;
+      if (!Number.isInteger(n) || n < 0 || n > 120000) {
+        parsed.error = '--jitter-min= requires an integer between 0 and 120000 ms.';
+        return parsed;
+      }
+      parsed.jitterMinMs = n;
+      continue;
+    }
+    if (a === '--jitter-max') {
+      const next = args[++i];
+      const n = next !== undefined && /^\d+$/.test(next) ? Number(next) : NaN;
+      if (!Number.isInteger(n) || n < 0 || n > 120000) {
+        parsed.error = '--jitter-max requires an integer between 0 and 120000 ms.';
+        return parsed;
+      }
+      parsed.jitterMaxMs = n;
+      continue;
+    }
+    if (a.startsWith('--jitter-max=')) {
+      const raw = a.slice(13);
+      const n = raw && /^\d+$/.test(raw) ? Number(raw) : NaN;
+      if (!Number.isInteger(n) || n < 0 || n > 120000) {
+        parsed.error = '--jitter-max= requires an integer between 0 and 120000 ms.';
+        return parsed;
+      }
+      parsed.jitterMaxMs = n;
       continue;
     }
     if (a === '--port') {
@@ -2040,6 +2372,11 @@ export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
     parsed.error = 'Usage: veycraft cdp upload <selector> <filePath> [--trigger <buttonSelector>] [--port <n>] [--target <id>] [--json]';
   }
 
+  if (parsed.jitterMinMs !== null && parsed.jitterMaxMs !== null && parsed.jitterMinMs > parsed.jitterMaxMs) {
+    parsed.error = '--jitter-min cannot exceed --jitter-max.';
+    return parsed;
+  }
+
   return parsed;
 }
 
@@ -2049,12 +2386,12 @@ export function getCdpHelpLines() {
     '  veycraft cdp status [--port 9222] [--no-launch] [--json]               Ensure Chrome CDP is running & list open tabs',
     '  veycraft cdp login [url] [--port 9222] [--new-tab] [--json]            Reset stale CDP, launch Chrome directly for one-time sign-in (default: LinkedIn login)',
     '  veycraft cdp close [--port 9222] [--json]                              Cleanly shut down active CDP Chrome (Browser.close) & unlock workspace/.chrome-profile',
-    '  veycraft cdp open <url> [--port 9222] [--new-tab] [--target <id>] [--json] Open/navigate tab, surface window, wait for load -> { url, title }',
-    '  veycraft cdp snapshot [--max-chars 12000] [--port 9222] [--target <id>] [--json] Extract clean visible text, links & interactive fields',
-    '  veycraft cdp eval <js> [--port 9222] [--target <id>] [--json]          Evaluate JS expression on active tab & return serialized result',
-    '  veycraft cdp click <selector> [--port 9222] [--target <id>] [--json]   Click element matching CSS selector (supports open Shadow DOM & same-origin iframes)',
-    '  veycraft cdp fill <selector> <value> [--port 9222] [--target <id>] [--json] Fill input/textarea/select/checkbox with React/ATS events',
-    '  veycraft cdp upload <selector> <filePath> [--trigger <btnSel>] [--port 9222] [--target <id>] [--json] Attach local file via DOM.setFileInputFiles or CDP File Chooser Interception',
+    '  veycraft cdp open <url> [--port 9222] [--new-tab] [--target <id>] [--url-match <s>] [--jitter-min <ms> --jitter-max <ms>] [--json]',
+    '  veycraft cdp snapshot [--max-chars 12000] [--port 9222] [--target <id>] [--url-match <s>] [--json] Extract clean visible text, links & interactive fields',
+    '  veycraft cdp eval <js> [--port 9222] [--target <id>] [--url-match <s>] [--json] Evaluate JS expression on active tab & return serialized result',
+    '  veycraft cdp click <selector> [--port 9222] [--target <id>] [--url-match <s>] [--jitter-min <ms> --jitter-max <ms>] [--json] Trusted mouse click + new-tab detection',
+    '  veycraft cdp fill <selector> <value> [--combobox] [--port 9222] [--target <id>] [--url-match <s>] [--jitter-min <ms> --jitter-max <ms>] [--json]',
+    '  veycraft cdp upload <selector> <filePath> [--trigger <btnSel>] [--port 9222] [--target <id>] [--url-match <s>] [--json] Attach local file via DOM.setFileInputFiles or File Chooser Interception',
     '',
     'Profile persistence: workspace/.chrome-profile/ (gitignored & excluded from npm pack).',
     'Requirements: Node.js >= 22 (built-in WebSocket) and local Chrome, Chromium, or Microsoft Edge.',
@@ -2067,6 +2404,7 @@ async function connectToActiveTarget({
   portExplicit = false,
   initialUrl = 'about:blank',
   targetId,
+  urlMatch = null,
   newTab = false,
   noLaunch = false,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -2102,7 +2440,7 @@ async function connectToActiveTarget({
     target = await createCdpBlankTab(activePort, { httpRequestImpl });
   } else {
     const targets = await fetchCdpJson(activePort, '/json/list', { timeoutMs: 4000, httpRequestImpl });
-    target = selectCdpTarget(targets, { targetId, port: activePort });
+    target = selectCdpTarget(targets, { targetId, urlMatch, port: activePort });
     if (!target) {
       if (targetId) {
         throw new Error(`No CDP page target found matching --target "${targetId}" on ${CDP_HOST}:${activePort}.`);
@@ -2169,7 +2507,13 @@ export async function runCdpCli(root, argv = [], {
     };
   }
 
-  const { port, portExplicit, targetId, trigger, timeoutMs, maxChars, newTab, noLaunch } = parsed;
+  const { port, portExplicit, targetId, urlMatch, trigger, combobox, jitterMinMs, jitterMaxMs, timeoutMs, maxChars, newTab, noLaunch } = parsed;
+  const applyOptionalJitter = async () => {
+    if (jitterMinMs === null && jitterMaxMs === null) return null;
+    const min = jitterMinMs ?? jitterMaxMs ?? 0;
+    const max = jitterMaxMs ?? jitterMinMs ?? min;
+    return sleepHumanJitter(min, max);
+  };
 
   if (parsed.subcommand === 'close') {
     const closeRes = await closeCdpBrowser({
@@ -2256,12 +2600,14 @@ export async function runCdpCli(root, argv = [], {
 
     let conn;
     try {
+      await applyOptionalJitter();
       conn = await connectToActiveTarget({
         root,
         port,
         portExplicit,
         initialUrl: safeUrl,
         targetId,
+        urlMatch,
         newTab,
         noLaunch,
         timeoutMs,
@@ -2371,6 +2717,7 @@ export async function runCdpCli(root, argv = [], {
       port,
       portExplicit,
       targetId,
+      urlMatch,
       noLaunch,
       timeoutMs,
       home,
@@ -2409,6 +2756,7 @@ export async function runCdpCli(root, argv = [], {
       port,
       portExplicit,
       targetId,
+      urlMatch,
       noLaunch,
       timeoutMs,
       home,
@@ -2440,11 +2788,13 @@ export async function runCdpCli(root, argv = [], {
 
   if (parsed.subcommand === 'click') {
     const selector = parsed.positionals[0];
-    const { target, client } = await connectToActiveTarget({
+    const jitter = await applyOptionalJitter();
+    const { chrome, target, client } = await connectToActiveTarget({
       root,
       port,
       portExplicit,
       targetId,
+      urlMatch,
       noLaunch,
       timeoutMs,
       home,
@@ -2457,6 +2807,7 @@ export async function runCdpCli(root, argv = [], {
     });
     try {
       await client.send('Runtime.enable');
+      const beforeTargets = await fetchCdpJson(chrome.port, '/json/list', { timeoutMs: 2500, httpRequestImpl }).catch(() => []);
       const res = await clickCdpSelector(client, selector, { timeoutMs });
       if (!isObj(res) || !res.ok) {
         const errMsg = res?.error || `Failed to click selector "${selector}".`;
@@ -2468,17 +2819,24 @@ export async function runCdpCli(root, argv = [], {
         };
       }
       await sleep(200);
+      const afterTargets = await fetchCdpJson(chrome.port, '/json/list', { timeoutMs: 2500, httpRequestImpl }).catch(() => []);
+      const newTabTarget = detectNewCdpTarget(beforeTargets, afterTargets, { port: chrome.port });
       const urlAfter = await evalInPage(client, 'String(window.location.href || "")', { timeoutMs: 5000 }).catch(() => res.url_before);
       const data = {
         ...res,
         target_id: target.id || null,
         url_after: urlAfter,
+        ...(newTabTarget ? { new_tab_target_id: newTabTarget.id || null, new_tab_url: newTabTarget.url || '' } : {}),
+        ...(jitter ? { jitter_delay_ms: jitter.delay_ms } : {}),
       };
       return {
         exitCode: 0,
         json: parsed.json,
         data,
-        lines: [`Clicked <${data.tag}> (${selector})${data.text ? ` "${data.text}"` : ''}`],
+        lines: [
+          `Clicked <${data.tag}> (${selector})${data.text ? ` "${data.text}"` : ''}`,
+          ...(newTabTarget ? [`New tab opened: ${newTabTarget.url || '(loading)'} (--target ${newTabTarget.id})`] : []),
+        ],
       };
     } finally {
       await client.close();
@@ -2488,11 +2846,13 @@ export async function runCdpCli(root, argv = [], {
   if (parsed.subcommand === 'fill') {
     const selector = parsed.positionals[0];
     const value = parsed.positionals.slice(1).join(' ');
+    const jitter = await applyOptionalJitter();
     const { target, client } = await connectToActiveTarget({
       root,
       port,
       portExplicit,
       targetId,
+      urlMatch,
       noLaunch,
       timeoutMs,
       home,
@@ -2505,7 +2865,7 @@ export async function runCdpCli(root, argv = [], {
     });
     try {
       await client.send('Runtime.enable');
-      const res = await fillCdpSelector(client, selector, value, { timeoutMs, platform });
+      const res = await fillCdpSelector(client, selector, value, { timeoutMs, platform, combobox });
       if (!isObj(res) || !res.ok) {
         const errMsg = res?.error || `Failed to fill selector "${selector}".`;
         return {
@@ -2518,6 +2878,7 @@ export async function runCdpCli(root, argv = [], {
       const data = {
         ...res,
         target_id: target.id || null,
+        ...(jitter ? { jitter_delay_ms: jitter.delay_ms } : {}),
       };
       return {
         exitCode: 0,
@@ -2537,11 +2898,13 @@ export async function runCdpCli(root, argv = [], {
       ? parsed.positionals[0]
       : parsed.positionals.slice(1).join(' ');
     const validatedFile = validateLocalUploadPath(rawFilePath, { root, source, home, cwd });
+    await applyOptionalJitter();
     const { target, client } = await connectToActiveTarget({
       root,
       port,
       portExplicit,
       targetId,
+      urlMatch,
       noLaunch,
       timeoutMs,
       home,

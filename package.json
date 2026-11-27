@@ -90,6 +90,7 @@
     "!.cursor/mcp.json",
     "!**/*.veycraft.bak",
     "!workspace/.chrome-profile/**",
+    "!workspace/tmp/**",
     ".trae/",
     ".roo/",
     ".continue/",
