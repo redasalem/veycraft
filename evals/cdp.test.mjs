@@ -33,6 +33,7 @@ const {
   selectCdpTarget,
   parseCdpArgs,
   CdpClient,
+  buildChromeLaunchArgs,
   ensureCdpChrome,
   runCdpCli,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'cdp-ops.mjs')).href);
@@ -478,6 +479,57 @@ test('8. ensureCdpChrome auto-resolves fallback port when 127.0.0.1:9222 is occu
       }),
       /already in use/i,
     );
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('9. Default CDP Chrome launch uses windowsHide: false, --new-window, visible URL, and never passes --headless', async () => {
+  const ws = makeTempDir('veycraft-cdp-launch-');
+  try {
+    let callCount = 0;
+    const httpMock = async ({ port, endpointPath }) => {
+      if (port === 9222 && endpointPath === '/json/version') {
+        callCount++;
+        if (callCount >= 2) {
+          return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+        }
+      }
+      const err = new Error('connect ECONNREFUSED');
+      err.code = 'ECONNREFUSED';
+      throw err;
+    };
+
+    let capturedSpawn = null;
+    const spawnMock = (binary, args, options) => {
+      capturedSpawn = { binary, args, options };
+      return { unref() {} };
+    };
+
+    const res = await ensureCdpChrome({
+      root: ws,
+      port: 9222,
+      portExplicit: true,
+      initialUrl: 'https://www.linkedin.com/login',
+      httpRequestImpl: httpMock,
+      detectBrowserImpl: () => 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      isPortAvailableImpl: async () => true,
+      spawnImpl: spawnMock,
+    });
+
+    assert.equal(res.launched, true);
+    assert.ok(capturedSpawn, 'spawnImpl must be invoked');
+    assert.equal(capturedSpawn.options.windowsHide, false);
+    assert.equal(capturedSpawn.options.detached, true);
+    assert.equal(capturedSpawn.options.stdio, 'ignore');
+    assert.ok(capturedSpawn.args.includes('--new-window'), 'Must include --new-window so Chrome creates a visible window');
+    assert.ok(capturedSpawn.args.includes('https://www.linkedin.com/login'), 'Must pass initial URL');
+    assert.ok(!capturedSpawn.args.some(a => /--headless|--no-startup-window/i.test(a)), 'Must never pass --headless or --no-startup-window');
+
+    const defaultArgs = buildChromeLaunchArgs({ port: 9222, profileDir: path.join(ws, 'workspace', '.chrome-profile') });
+    assert.ok(defaultArgs.includes('--new-window'));
+    assert.ok(defaultArgs.includes('about:blank'));
+    assert.ok(!defaultArgs.some(a => /--headless/i.test(a)));
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
   }

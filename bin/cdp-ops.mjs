@@ -396,10 +396,53 @@ export function isLocalPortAvailable(port) {
   });
 }
 
+export function buildChromeLaunchArgs({
+  port = DEFAULT_CDP_PORT,
+  profileDir,
+  initialUrl = 'about:blank',
+} = {}) {
+  const validPort = validateCdpPort(port);
+  if (typeof profileDir !== 'string' || !profileDir.trim()) {
+    throw new Error('profileDir must be a non-empty string.');
+  }
+  return [
+    `--remote-debugging-port=${validPort}`,
+    `--remote-debugging-address=${CDP_HOST}`,
+    `--user-data-dir=${profileDir}`,
+    '--new-window',
+    '--window-size=1280,900',
+    '--no-first-run',
+    '--no-default-browser-check',
+    initialUrl,
+  ];
+}
+
+export async function closeCdpBrowser({
+  port = DEFAULT_CDP_PORT,
+  httpRequestImpl = httpRequestLocalCdp,
+  WebSocketImpl = globalThis.WebSocket,
+} = {}) {
+  const validPort = validateCdpPort(port);
+  const version = await fetchCdpJson(validPort, '/json/version', { timeoutMs: 2000, httpRequestImpl });
+  const wsUrl = version?.webSocketDebuggerUrl;
+  if (typeof wsUrl !== 'string' || !wsUrl) {
+    throw new Error(`No browser-level webSocketDebuggerUrl found on ${CDP_HOST}:${validPort}.`);
+  }
+  const client = new CdpClient(wsUrl, { port: validPort, WebSocketImpl, defaultTimeoutMs: 5000 });
+  await client.connect();
+  try {
+    await client.send('Browser.close', {}, { timeoutMs: 3000 }).catch(() => {});
+  } finally {
+    await client.close();
+  }
+  return { closed: true, port: validPort };
+}
+
 export async function ensureCdpChrome({
   root,
   port = DEFAULT_CDP_PORT,
   portExplicit = false,
+  initialUrl = 'about:blank',
   home = os.homedir(),
   env = process.env,
   platform = process.platform,
@@ -518,14 +561,11 @@ export async function ensureCdpChrome({
   }
 
   fs.mkdirSync(profileDir, { recursive: true });
-  const args = [
-    `--remote-debugging-port=${launchPort}`,
-    `--remote-debugging-address=${CDP_HOST}`,
-    `--user-data-dir=${profileDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    'about:blank',
-  ];
+  const args = buildChromeLaunchArgs({
+    port: launchPort,
+    profileDir,
+    initialUrl,
+  });
 
   const child = spawnImpl(binary, args, {
     detached: true,
@@ -1372,6 +1412,7 @@ async function connectToActiveTarget({
   root,
   port,
   portExplicit = false,
+  initialUrl = 'about:blank',
   targetId,
   newTab = false,
   noLaunch = false,
@@ -1389,6 +1430,7 @@ async function connectToActiveTarget({
     root,
     port,
     portExplicit,
+    initialUrl,
     home,
     env,
     platform,
@@ -1522,6 +1564,7 @@ export async function runCdpCli(root, argv = [], {
       root,
       port,
       portExplicit,
+      initialUrl: safeUrl,
       targetId,
       newTab,
       noLaunch,
@@ -1544,6 +1587,7 @@ export async function runCdpCli(root, argv = [], {
       }
       await loadPromise;
       await sleep(250);
+      await client.send('Page.bringToFront', {}, { timeoutMs: 3000 }).catch(() => {});
       const info = await evalInPage(
         client,
         '({ url: String(window.location.href || ""), title: String(document.title || "").trim() })',
