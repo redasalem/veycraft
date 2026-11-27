@@ -26,6 +26,9 @@ const {
   scanAllConfiguredFeeds,
   runOnboardingWizard,
   BRIEF_MAX_BYTES,
+  DEFAULT_AUTOPILOT_CONFIG,
+  normalizeAutopilotConfig,
+  decideCvStrategy,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'fast-ops.mjs')).href);
 const {
   PAYLOAD_NAMES,
@@ -692,5 +695,75 @@ test('9. Cold-start init -> onboard -> brief replaces untouched .example starter
     assert.ok(fs.readFileSync(path.join(isoProj, 'context', 'profile.md'), 'utf8').includes('Staff Distributed Systems Engineer'));
   } finally {
     fs.rmSync(tmpBase, { recursive: true, force: true });
+  }
+});
+
+test('10. Autopilot config defaults safe (auto_submit: false), preserves across brief recompiles, and drives zero-question CV decisions', () => {
+  const ws = makeTempWs();
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'veycraft-autopilot-home-'));
+  try {
+    writeSampleContext(ws);
+
+    // Default compile must be fail-safe (auto_submit: false)
+    const initial = compileCandidateBrief(ws, { home: fakeHome });
+    assert.equal(initial.brief_ready, true);
+    assert.deepEqual(initial.brief.autopilot, DEFAULT_AUTOPILOT_CONFIG);
+    assert.equal(initial.brief.autopilot.auto_submit, false);
+    assert.equal(initial.brief.autopilot.reuse_cv_threshold, 8.5);
+    assert.equal(initial.brief.autopilot.tailor_cv_threshold, 6.5);
+
+    // normalizeAutopilotConfig rejects truthy strings and out-of-range thresholds safely
+    assert.deepEqual(normalizeAutopilotConfig({ auto_submit: 'true', reuse_cv_threshold: 99, tailor_cv_threshold: -2 }), {
+      auto_submit: false,
+      reuse_cv_threshold: 8.5,
+      tailor_cv_threshold: 6.5,
+    });
+    assert.deepEqual(normalizeAutopilotConfig({ auto_submit: true, reuse_cv_threshold: 7.0, tailor_cv_threshold: 8.0 }), {
+      auto_submit: true,
+      reuse_cv_threshold: 7.0,
+      tailor_cv_threshold: 7.0,
+    });
+
+    // Zero-question CV decision policy
+    assert.equal(decideCvStrategy(9.0, { coreStackCovered: true, jdEmphasisMismatch: false }).action, 'reuse_baseline');
+    assert.equal(decideCvStrategy(8.5, { coreStackCovered: true, jdEmphasisMismatch: false }).action, 'reuse_baseline');
+    assert.equal(decideCvStrategy(8.8, { coreStackCovered: true, jdEmphasisMismatch: true }).action, 'tailor_pdf');
+    assert.equal(decideCvStrategy(8.6, { coreStackCovered: false, jdEmphasisMismatch: false }).action, 'tailor_pdf');
+    assert.equal(decideCvStrategy(7.5).action, 'tailor_pdf');
+    assert.equal(decideCvStrategy(6.5).action, 'tailor_pdf');
+    assert.equal(decideCvStrategy(6.4).action, 'skip');
+
+    // Opt-in via CLI `veycraft brief --autopilot` persists in context/brief.json
+    const env = { ...process.env, HOME: fakeHome, USERPROFILE: fakeHome, VEYCRAFT_HOME: path.join(fakeHome, '.veycraft'), NO_COLOR: '1' };
+    const enableRes = spawnSync(
+      process.execPath,
+      [CLI_PATH, 'brief', '--autopilot', '--reuse-cv-threshold', '8.5', '--tailor-cv-threshold', '6.5', '--json'],
+      { cwd: ws, env, encoding: 'utf8', timeout: 10000 },
+    );
+    assert.equal(enableRes.status, 0, enableRes.stderr);
+    const enabled = JSON.parse(enableRes.stdout);
+    assert.equal(enabled.brief.autopilot.auto_submit, true);
+    assert.ok(enabled.est_tokens <= 400);
+
+    // Editing context/cv.md invalidates cache and recompiles WITHOUT wiping user's opt-in autopilot setting
+    fs.appendFileSync(path.join(ws, 'context', 'cv.md'), '\n- Built deterministic test harness with zero dependencies.\n', 'utf8');
+    const recompiled = compileCandidateBrief(ws, { home: fakeHome });
+    assert.equal(recompiled.cached, false);
+    assert.equal(recompiled.brief.autopilot.auto_submit, true);
+    assert.equal(recompiled.brief.autopilot.reuse_cv_threshold, 8.5);
+    assert.equal(recompiled.brief.autopilot.tailor_cv_threshold, 6.5);
+
+    // Disabling via --no-autopilot returns to safe default
+    const disableRes = spawnSync(
+      process.execPath,
+      [CLI_PATH, 'brief', '--no-autopilot', '--json'],
+      { cwd: ws, env, encoding: 'utf8', timeout: 10000 },
+    );
+    assert.equal(disableRes.status, 0, disableRes.stderr);
+    const disabled = JSON.parse(disableRes.stdout);
+    assert.equal(disabled.brief.autopilot.auto_submit, false);
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   }
 });

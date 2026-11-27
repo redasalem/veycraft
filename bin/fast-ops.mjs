@@ -40,7 +40,71 @@ function isUntouchedStarterFile(absPath, content, resolvedRoot, home) {
 
 export const BRIEF_SCHEMA_VERSION = 1;
 export const BRIEF_MAX_BYTES = 1550; // Strictly < 400 tokens (~bytes/4)
+export const DEFAULT_AUTOPILOT_CONFIG = Object.freeze({
+  auto_submit: false,
+  reuse_cv_threshold: 8.5,
+  tailor_cv_threshold: 6.5,
+});
 const MAX_LOCAL_FEED_BYTES = 2 * 1024 * 1024; // 2 MB
+
+export function normalizeAutopilotConfig(raw) {
+  const src = isObj(raw) ? raw : {};
+  const autoSubmit = src.auto_submit === true;
+  const parseThreshold = (val, fallback) => {
+    const n = Number(val);
+    if (!Number.isFinite(n) || n < 0 || n > 10) return fallback;
+    return Math.round(n * 10) / 10;
+  };
+  let reuse = parseThreshold(src.reuse_cv_threshold, DEFAULT_AUTOPILOT_CONFIG.reuse_cv_threshold);
+  let tailor = parseThreshold(src.tailor_cv_threshold, DEFAULT_AUTOPILOT_CONFIG.tailor_cv_threshold);
+  if (tailor > reuse) {
+    tailor = reuse;
+  }
+  return {
+    auto_submit: autoSubmit,
+    reuse_cv_threshold: reuse,
+    tailor_cv_threshold: tailor,
+  };
+}
+
+export function decideCvStrategy(matchScore, {
+  autopilot = null,
+  coreStackCovered = true,
+  jdEmphasisMismatch = false,
+} = {}) {
+  const cfg = normalizeAutopilotConfig(autopilot);
+  const score = Number(matchScore);
+  if (!Number.isFinite(score) || score < 0 || score > 10) {
+    throw new Error(`Invalid matchScore "${matchScore}": expected a number between 0 and 10.`);
+  }
+  if (score >= cfg.reuse_cv_threshold && coreStackCovered && !jdEmphasisMismatch) {
+    return {
+      action: 'reuse_baseline',
+      score,
+      reuse_cv_threshold: cfg.reuse_cv_threshold,
+      tailor_cv_threshold: cfg.tailor_cv_threshold,
+      reason: `Direct strong match (${score}/10 >= ${cfg.reuse_cv_threshold}/10) with core stack covered by baseline CV.`,
+    };
+  }
+  if (score >= cfg.tailor_cv_threshold) {
+    return {
+      action: 'tailor_pdf',
+      score,
+      reuse_cv_threshold: cfg.reuse_cv_threshold,
+      tailor_cv_threshold: cfg.tailor_cv_threshold,
+      reason: score >= cfg.reuse_cv_threshold
+        ? `Strong match (${score}/10) with specific JD emphasis/keywords not prominent in baseline CV; generating tailored PDF.`
+        : `Qualified role (${score}/10 >= ${cfg.tailor_cv_threshold}/10 and < ${cfg.reuse_cv_threshold}/10); generating tailored PDF.`,
+    };
+  }
+  return {
+    action: 'skip',
+    score,
+    reuse_cv_threshold: cfg.reuse_cv_threshold,
+    tailor_cv_threshold: cfg.tailor_cv_threshold,
+    reason: `Score ${score}/10 is below tailor threshold (${cfg.tailor_cv_threshold}/10).`,
+  };
+}
 
 const BRIEF_SOURCES = [
   'context/cv.md',
@@ -257,7 +321,7 @@ function trimBriefToBudget(brief, maxBytes = BRIEF_MAX_BYTES) {
   return copy;
 }
 
-export function compileCandidateBrief(root, { refresh = false, write = true, home = os.homedir() } = {}) {
+export function compileCandidateBrief(root, { refresh = false, write = true, home = os.homedir(), autopilot = null } = {}) {
   const resolvedRoot = path.resolve(root);
   const briefPath = path.join(resolvedRoot, 'context', 'brief.json');
 
@@ -297,30 +361,49 @@ export function compileCandidateBrief(root, { refresh = false, write = true, hom
 
   const combinedHash = sha256Short(JSON.stringify(sourceMap));
 
-  if (!refresh && fs.existsSync(briefPath)) {
+  let existingBrief = null;
+  let existingRaw = null;
+  if (fs.existsSync(briefPath)) {
     try {
       refuseSymlink(briefPath, resolvedRoot, home);
-      const existingRaw = fs.readFileSync(briefPath, 'utf8');
-      const existing = JSON.parse(existingRaw);
-      if (
-        isObj(existing) &&
-        existing.schema_version === BRIEF_SCHEMA_VERSION &&
-        existing._cache?.hash === combinedHash &&
-        Buffer.byteLength(existingRaw, 'utf8') <= BRIEF_MAX_BYTES + 64
-      ) {
-        return {
-          ok: true,
-          brief_ready: true,
-          cached: true,
-          path: briefPath,
-          bytes: Buffer.byteLength(existingRaw, 'utf8'),
-          est_tokens: Math.ceil(Buffer.byteLength(existingRaw, 'utf8') / 4),
-          brief: existing,
-        };
-      }
+      existingRaw = fs.readFileSync(briefPath, 'utf8');
+      const parsedExisting = JSON.parse(existingRaw);
+      if (isObj(parsedExisting)) existingBrief = parsedExisting;
     } catch {
-      // Cache corrupt or unreadable; recompile cleanly below.
+      existingBrief = null;
+      existingRaw = null;
     }
+  }
+
+  const hasExplicitAutopilot = isObj(autopilot) && Object.keys(autopilot).length > 0;
+  const resolvedAutopilot = normalizeAutopilotConfig({
+    ...(isObj(existingBrief?.autopilot) ? existingBrief.autopilot : DEFAULT_AUTOPILOT_CONFIG),
+    ...(hasExplicitAutopilot ? autopilot : {}),
+  });
+
+  if (
+    !refresh &&
+    !hasExplicitAutopilot &&
+    existingBrief &&
+    existingRaw &&
+    existingBrief.schema_version === BRIEF_SCHEMA_VERSION &&
+    existingBrief._cache?.hash === combinedHash &&
+    isObj(existingBrief.autopilot) &&
+    Buffer.byteLength(existingRaw, 'utf8') <= BRIEF_MAX_BYTES + 64
+  ) {
+    const normalizedCached = {
+      ...existingBrief,
+      autopilot: normalizeAutopilotConfig(existingBrief.autopilot),
+    };
+    return {
+      ok: true,
+      brief_ready: true,
+      cached: true,
+      path: briefPath,
+      bytes: Buffer.byteLength(existingRaw, 'utf8'),
+      est_tokens: Math.ceil(Buffer.byteLength(existingRaw, 'utf8') / 4),
+      brief: normalizedCached,
+    };
   }
 
   let factsObj = null;
@@ -361,6 +444,7 @@ export function compileCandidateBrief(root, { refresh = false, write = true, hom
     },
     verified_links: extractVerifiedLinks(loaded['context/profile.md'], loaded['context/cv.md']),
     forbidden_unverified_claims: forbidden,
+    autopilot: resolvedAutopilot,
     _cache: {
       schema_version: BRIEF_SCHEMA_VERSION,
       hash: combinedHash,
@@ -1236,12 +1320,35 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
   if (command === 'brief') {
     let refresh = false;
     let write = true;
+    const autopilotPatch = {};
     for (let i = 0; i < args.length; i++) {
       const a = args[i];
       if (a === '--json') json = true;
       else if (a === '--refresh') refresh = true;
       else if (a === '--no-write') write = false;
-      else if (a === '--help' || a === '-h') help = true;
+      else if (a === '--autopilot') autopilotPatch.auto_submit = true;
+      else if (a === '--no-autopilot') autopilotPatch.auto_submit = false;
+      else if (a === '--reuse-cv-threshold') {
+        const raw = args[++i];
+        const n = raw !== undefined ? Number(raw) : NaN;
+        if (!Number.isFinite(n) || n < 0 || n > 10) throw new Error(`Invalid --reuse-cv-threshold value (expected 0..10): "${raw}".`);
+        autopilotPatch.reuse_cv_threshold = n;
+      } else if (a.startsWith('--reuse-cv-threshold=')) {
+        const raw = a.slice(21);
+        const n = raw ? Number(raw) : NaN;
+        if (!Number.isFinite(n) || n < 0 || n > 10) throw new Error(`Invalid --reuse-cv-threshold= value (expected 0..10): "${raw}".`);
+        autopilotPatch.reuse_cv_threshold = n;
+      } else if (a === '--tailor-cv-threshold') {
+        const raw = args[++i];
+        const n = raw !== undefined ? Number(raw) : NaN;
+        if (!Number.isFinite(n) || n < 0 || n > 10) throw new Error(`Invalid --tailor-cv-threshold value (expected 0..10): "${raw}".`);
+        autopilotPatch.tailor_cv_threshold = n;
+      } else if (a.startsWith('--tailor-cv-threshold=')) {
+        const raw = a.slice(22);
+        const n = raw ? Number(raw) : NaN;
+        if (!Number.isFinite(n) || n < 0 || n > 10) throw new Error(`Invalid --tailor-cv-threshold= value (expected 0..10): "${raw}".`);
+        autopilotPatch.tailor_cv_threshold = n;
+      } else if (a === '--help' || a === '-h') help = true;
       else throw new Error(`Unknown option for \`veycraft brief\`: "${a}".`);
     }
     if (help) {
@@ -1249,12 +1356,18 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
         json: false,
         exitCode: 0,
         lines: [
-          'Usage: veycraft brief [--refresh] [--no-write] [--json]',
-          'Compiles or reads cached context/brief.json (< 400 tokens, zero PII) with mtime+sha256 invalidation.',
+          'Usage: veycraft brief [--refresh] [--no-write] [--autopilot | --no-autopilot] [--reuse-cv-threshold <0..10>] [--tailor-cv-threshold <0..10>] [--json]',
+          'Compiles or reads cached context/brief.json (< 400 tokens, zero PII) with mtime+sha256 invalidation and opt-in autopilot settings (default auto_submit: false).',
         ],
       };
     }
-    const res = compileCandidateBrief(root, { refresh, write, home });
+    const res = compileCandidateBrief(root, {
+      refresh,
+      write,
+      home,
+      autopilot: Object.keys(autopilotPatch).length > 0 ? autopilotPatch : null,
+    });
+    const ap = res.brief?.autopilot || DEFAULT_AUTOPILOT_CONFIG;
     return {
       json,
       exitCode: 0,
@@ -1264,6 +1377,7 @@ export async function runFastOpsCli(root, command, rawArgs = [], { home = os.hom
             `Candidate brief ready (${res.cached ? 'cache hit' : 'compiled'}): ${res.path}`,
             `Size: ${res.bytes} bytes (~${res.est_tokens} tokens) · Headline: ${res.brief.headline}`,
             `Core stack (${res.brief.core_stack.length}): ${res.brief.core_stack.join(', ') || 'none'}`,
+            `Autopilot: auto_submit=${ap.auto_submit} (reuse_cv >= ${ap.reuse_cv_threshold}, tailor_cv >= ${ap.tailor_cv_threshold})`,
           ]
         : [`Brief not ready: ${res.reason}`],
     };

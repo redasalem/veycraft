@@ -55,6 +55,15 @@ When filling an application form, **NEVER** pause to ask the user for a fact, li
 4. **LinkedIn profile data** (if locally cached or already open/accessible in the browser session — read-only inspection only).
 - Only pause to ask the user when a **mandatory** field is genuinely missing from **all 4 sources** (never fabricate salary, visa, legal, or Loom URL answers). Always keep the mandatory **Live DOM Read-Back Table** and explicit job-specific **`APPROVE`** gate before final Submit 100% intact.
 
+### 0.6. Mandatory Zero-Question CV Selection & Opt-In Owner Autopilot Mode
+- **Zero-Question CV Selection:** Before uploading, never ask the user whether to reuse the baseline PDF or tailor a new one. Apply the deterministic thresholds in `context/brief.json` `autopilot` (`reuse_cv_threshold: 8.5`, `tailor_cv_threshold: 6.5`):
+  - **Direct Strong Match (`score >= 8.5/10` and core stack/role already covered by baseline CV):** immediately attach the verified baseline PDF CV without regenerating.
+  - **Tailor Needed (`score 6.5–8.4/10` OR specific JD keywords/emphasis not prominent in baseline CV):** immediately generate and verify the role-named tailored PDF (`skills/03-tailor-resume-and-verify.md`) and attach it with zero prompts.
+- **Opt-In Owner Autopilot Mode (Safe `APPROVE` Gate Remains Default):**
+  - When `autopilot.auto_submit` is `false` or unset in `context/brief.json` (the default open-source setting) or `dry_run: true`, follow the unconditional **Hard Stop Before Final Submit** below (display Live DOM Read-Back Table and wait for explicit job-specific `APPROVE`).
+  - Only when the owner explicitly opts in via local gitignored `context/brief.json` (`"autopilot": { "auto_submit": true, "reuse_cv_threshold": 8.5, "tailor_cv_threshold": 6.5 }`) with `dry_run: false`, OR gives an explicit `AUTOPILOT` directive, that explicit owner opt-in authorizes single-pass end-to-end execution: inspect full JD -> decide and reuse/generate PDF CV -> populate verified fields -> complete internal Live DOM Read-Back verification -> run `node ./bin/cli.mjs pre-submit` & `career reserve` -> observe `3–9 s` pacing and execute the final Submit action once -> verify the live confirmation receipt (`skills/meta-self-verification.md`) -> log to `logs/applications-log.json` (and Notion sync preview if configured) -> report the completed submission summary.
+  - **Hard-Blocker Pauses ONLY:** Even in Autopilot Mode, ALWAYS pause immediately if hitting a login wall, CAPTCHA/2FA/anti-bot challenge, `pre-submit` cap/blacklist/duplicate violation, or a mandatory question whose truthful answer is missing from all 4 verified fact sources (never fabricate answers).
+
 ### 1. Redirect, Iframe & Portal Check
 - If clicking Apply opens a new tab, switch to it (`browser_tabs`), take a `browser_snapshot`, verify HTTPS hostname and that company + role match the original posting.
 - **Embedded ATS Iframes (e.g., Greenhouse `#grnhse_iframe`):** If the employer embeds the ATS inside an `<iframe>`, verify the frame tree in `browser_snapshot` and switch/target inside that frame (`skills/meta-dom-recovery.md`) before filling fields or uploading files.

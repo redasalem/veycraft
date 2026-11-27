@@ -1975,7 +1975,7 @@ Core & Verification Commands:
   veycraft career sync <subcommand> [--help]       Local Notion sync preview, approval, reservation & recovery (alias: \`veycraft notion-sync\`)
   veycraft pre-submit [--draft <f> | --text <t>] [--platform <p> --company <c> --title <t> --url <u> --job-id <id>] [--json] Pre-submit cap, dedup, blacklist & word-cap gate
   veycraft onboard [--cv <p>] [--role <t>] [--stack <a,b>] [--min-budget <n>] [--non-interactive] [--json] 60-second setup wizard + context/brief.json compiler
-  veycraft brief [--refresh] [--no-write] [--json] Compile or read cached context/brief.json (< 400 tokens, zero PII)
+  veycraft brief [--refresh] [--no-write] [--autopilot | --no-autopilot] [--json] Compile/read context/brief.json (< 400 tokens, zero PII, opt-in autopilot)
   veycraft feed-scan (--all | --url <u> | --file <p>) [--top <n>] [--min-budget <n>] [--json] Zero-token SSRF-safe RSS/Atom/JSON radar & daily digest
   veycraft browser-script <distill-feed|distill-form|batch-fill> [--json] Output read-only DOM distiller or non-submitting batch-fill payload
   veycraft cdp <status|open|snapshot|eval|click|fill> [--port 9222] [--json] Native 127.0.0.1 Chrome DevTools Protocol browser CLI (zero MCP lock-in)
