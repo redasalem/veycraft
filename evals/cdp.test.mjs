@@ -39,6 +39,9 @@ const {
   buildLoginFallbackCommand,
   closeCdpBrowser,
   surfaceCdpWindow,
+  clickCdpSelector,
+  fillCdpSelector,
+  dispatchTrustedMouseClick,
   ensureCdpChrome,
   runCdpCli,
 } = await import(pathToFileURL(path.join(BIN_DIR, 'cdp-ops.mjs')).href);
@@ -349,11 +352,11 @@ test('6. End-to-end mock CDP runCdpCli executes status, open, snapshot, eval, cl
           });
           return;
         }
-        if (expr.includes('clicked: true')) {
+        if (expr.includes('__cdpInspectClick') || expr.includes('clicked: true')) {
           sock.receive({ id: req.id, result: { result: { type: 'object', value: { ok: true, clicked: true, selector: '#next-btn', tag: 'button', text: 'Next', url_before: 'https://www.linkedin.com/jobs/view/123/' } } } });
           return;
         }
-        if (expr.includes('filled: true')) {
+        if (expr.includes('__cdpInspectFill') || expr.includes('filled: true')) {
           sock.receive({ id: req.id, result: { result: { type: 'object', value: { ok: true, filled: true, selector: '#full_name', tag: 'input', type: 'text', read_back_value: 'Alex Morgan' } } } });
           return;
         }
@@ -888,7 +891,7 @@ test('12. cdp upload --trigger and button auto-fallback intercept Page.fileChoos
         sock.receive({ id: req.id, result: { result: { type: 'object', subtype: 'null', value: null } } });
         return;
       }
-      if (req.method === 'Runtime.evaluate' && String(req.params?.expression || '').includes('clicked: true')) {
+      if (req.method === 'Runtime.evaluate' && (String(req.params?.expression || '').includes('__cdpInspectClick') || String(req.params?.expression || '').includes('clicked: true'))) {
         sock.receive({
           id: req.id,
           result: { result: { type: 'object', value: { ok: true, clicked: true, selector: '#upload-btn', tag: 'button', text: 'Upload resume' } } },
@@ -997,6 +1000,266 @@ test('13. cdp close sends Browser.close, waits for port release to unlock worksp
     assert.equal(second.closed, false);
     assert.equal(second.already_stopped, true);
     assert.equal(second.port_released, true);
+  } finally {
+    MockWebSocket.handler = null;
+    fs.rmSync(wsDir, { recursive: true, force: true });
+  }
+});
+
+test('14. Trusted CDP click dispatches Input.dispatchMouseEvent, cdp fill uses Input.insertText, and <select> matches option text', async () => {
+  const wsDir = makeTempDir('veycraft-cdp-trusted-');
+  try {
+    const mockHttp = async ({ endpointPath }) => {
+      if (endpointPath === '/json/version') {
+        return { status: 200, body: JSON.stringify({ Browser: 'Chrome/158.0.0.0', 'Protocol-Version': '1.3' }) };
+      }
+      if (endpointPath === '/json/list') {
+        return {
+          status: 200,
+          body: JSON.stringify([
+            {
+              id: 'TAB-TRUSTED',
+              type: 'page',
+              title: 'LinkedIn Easy Apply',
+              url: 'https://www.linkedin.com/jobs/view/4493805011/',
+              webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/TAB-TRUSTED',
+            },
+          ]),
+        };
+      }
+      throw new Error(`Unexpected path ${endpointPath}`);
+    };
+
+    const mouseEvents = [];
+    const keyEvents = [];
+    const insertedTexts = [];
+    let currentValue = '';
+    let currentChecked = false;
+
+    MockWebSocket.handler = (sock, req) => {
+      if (req.method === 'Runtime.enable') {
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Input.dispatchMouseEvent') {
+        mouseEvents.push(req.params);
+        if (req.params?.type === 'mouseReleased' && req.params?.x === 320 && req.params?.y === 240) {
+          currentChecked = true;
+        }
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Input.dispatchKeyEvent') {
+        keyEvents.push(req.params);
+        if (req.params?.key === 'Backspace' && req.params?.type === 'rawKeyDown') {
+          currentValue = '';
+        }
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Input.insertText') {
+        insertedTexts.push(req.params?.text);
+        currentValue += String(req.params?.text || '');
+        sock.receive({ id: req.id, result: {} });
+        return;
+      }
+      if (req.method === 'Runtime.evaluate') {
+        const expr = String(req.params?.expression || '');
+        if (expr === 'String(window.location.href || "")') {
+          sock.receive({ id: req.id, result: { result: { type: 'string', value: 'https://www.linkedin.com/jobs/view/4493805011/' } } });
+          return;
+        }
+        if (expr.includes('__cdpInspectClick')) {
+          const isHiddenRadio = expr.includes('#radio-yes');
+          sock.receive({
+            id: req.id,
+            result: {
+              result: {
+                type: 'object',
+                value: {
+                  ok: true,
+                  __cdpInspectClick: true,
+                  selector: isHiddenRadio ? '#radio-yes' : '#review-btn',
+                  tag: isHiddenRadio ? 'input' : 'button',
+                  type: isHiddenRadio ? 'radio' : '',
+                  text: isHiddenRadio ? 'Yes' : 'Review',
+                  url_before: 'https://www.linkedin.com/jobs/view/4493805011/',
+                  resolved_via_label: isHiddenRadio,
+                  has_coords: true,
+                  x: isHiddenRadio ? 320 : 510,
+                  y: isHiddenRadio ? 240 : 620,
+                },
+              },
+            },
+          });
+          return;
+        }
+        if (expr.includes('__cdpInspectFill')) {
+          if (expr.includes('#hourly-rate')) {
+            sock.receive({
+              id: req.id,
+              result: {
+                result: {
+                  type: 'object',
+                  value: {
+                    ok: true,
+                    __cdpInspectFill: true,
+                    selector: '#hourly-rate',
+                    tag: 'input',
+                    type: 'text',
+                    is_contenteditable: false,
+                    checked: false,
+                    resolved_via_label: false,
+                    has_coords: true,
+                    x: 410,
+                    y: 310,
+                  },
+                },
+              },
+            });
+            return;
+          }
+          if (expr.includes('#contract-select')) {
+            sock.receive({
+              id: req.id,
+              result: {
+                result: {
+                  type: 'object',
+                  value: {
+                    ok: true,
+                    __cdpInspectFill: true,
+                    selector: '#contract-select',
+                    tag: 'select',
+                    type: 'select',
+                    is_contenteditable: false,
+                    checked: false,
+                    resolved_via_label: false,
+                    has_coords: true,
+                    x: 410,
+                    y: 410,
+                  },
+                },
+              },
+            });
+            return;
+          }
+          if (expr.includes('#radio-yes')) {
+            sock.receive({
+              id: req.id,
+              result: {
+                result: {
+                  type: 'object',
+                  value: {
+                    ok: true,
+                    __cdpInspectFill: true,
+                    selector: '#radio-yes',
+                    tag: 'input',
+                    type: 'radio',
+                    is_contenteditable: false,
+                    checked: currentChecked,
+                    resolved_via_label: true,
+                    has_coords: true,
+                    x: 320,
+                    y: 240,
+                  },
+                },
+              },
+            });
+            return;
+          }
+        }
+        if (expr.includes('selectNodeContents')) {
+          sock.receive({ id: req.id, result: { result: { type: 'boolean', value: true } } });
+          return;
+        }
+        if (expr.includes('dispatchChange')) {
+          const isRadio = expr.includes('#radio-yes');
+          sock.receive({
+            id: req.id,
+            result: {
+              result: {
+                type: 'object',
+                value: isRadio
+                  ? { found: true, tag: 'input', type: 'radio', checked: currentChecked, value: currentChecked }
+                  : { found: true, tag: 'input', type: 'text', value: currentValue },
+              },
+            },
+          });
+          return;
+        }
+        if (expr.includes('selected_text')) {
+          sock.receive({
+            id: req.id,
+            result: {
+              result: {
+                type: 'object',
+                value: {
+                  ok: true,
+                  filled: true,
+                  selector: '#contract-select',
+                  tag: 'select',
+                  type: 'select',
+                  read_back_value: 'yes_opt_val',
+                  selected_text: 'Yes',
+                },
+              },
+            },
+          });
+        }
+      }
+    };
+
+    const mockDeps = {
+      nodeVersion: '22.12.0',
+      WebSocketImpl: MockWebSocket,
+      fetchImpl: () => {},
+      httpRequestImpl: mockHttp,
+    };
+
+    // 1. Trusted CDP click on visible button -> mouseMoved, mousePressed, mouseReleased at (510, 620)
+    const clickRes = await runCdpCli(wsDir, ['click', '#review-btn', '--json'], mockDeps);
+    assert.equal(clickRes.exitCode, 0, JSON.stringify(clickRes.data));
+    assert.equal(clickRes.data.trusted, true);
+    assert.equal(clickRes.data.method, 'cdp_mouse');
+    assert.deepEqual(
+      mouseEvents.slice(0, 3).map(e => ({ type: e.type, x: e.x, y: e.y, button: e.button, clickCount: e.clickCount })),
+      [
+        { type: 'mouseMoved', x: 510, y: 620, button: 'none', clickCount: 0 },
+        { type: 'mousePressed', x: 510, y: 620, button: 'left', clickCount: 1 },
+        { type: 'mouseReleased', x: 510, y: 620, button: 'left', clickCount: 1 },
+      ],
+    );
+
+    // 2. Trusted CDP click on hidden radio resolves associated <label> coordinates (320, 240)
+    mouseEvents.length = 0;
+    const radioClick = await runCdpCli(wsDir, ['click', '#radio-yes', '--json'], mockDeps);
+    assert.equal(radioClick.exitCode, 0, JSON.stringify(radioClick.data));
+    assert.equal(radioClick.data.trusted, true);
+    assert.equal(radioClick.data.method, 'cdp_mouse_label');
+    assert.equal(mouseEvents[1].x, 320);
+    assert.equal(mouseEvents[1].y, 240);
+
+    // 3. Trusted CDP fill on text input uses focus click + select-all/Backspace + Input.insertText
+    mouseEvents.length = 0;
+    currentValue = '999';
+    const fillTextRes = await runCdpCli(wsDir, ['fill', '#hourly-rate', '50', '--json'], mockDeps);
+    assert.equal(fillTextRes.exitCode, 0, JSON.stringify(fillTextRes.data));
+    assert.equal(fillTextRes.data.trusted, true);
+    assert.equal(fillTextRes.data.method, 'cdp_insert_text');
+    assert.equal(fillTextRes.data.read_back_value, '50');
+    assert.deepEqual(insertedTexts, ['50']);
+    assert.ok(keyEvents.some(k => k.key === 'Backspace'), 'Expected Backspace key event to clear existing input');
+
+    // 4. <select> matches option text ("Yes") via native HTMLSelectElement setter
+    const fillSelectRes = await runCdpCli(wsDir, ['fill', '#contract-select', 'Yes', '--json'], mockDeps);
+    assert.equal(fillSelectRes.exitCode, 0, JSON.stringify(fillSelectRes.data));
+    assert.equal(fillSelectRes.data.method, 'select_native_setter');
+    assert.equal(fillSelectRes.data.selected_text, 'Yes');
+
+    // Exports verified
+    assert.equal(typeof clickCdpSelector, 'function');
+    assert.equal(typeof fillCdpSelector, 'function');
+    assert.equal(typeof dispatchTrustedMouseClick, 'function');
   } finally {
     MockWebSocket.handler = null;
     fs.rmSync(wsDir, { recursive: true, force: true });

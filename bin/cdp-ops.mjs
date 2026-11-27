@@ -1432,6 +1432,433 @@ function buildFillExpression(selector, value) {
   })()`;
 }
 
+function buildInspectTargetForClickExpression(selector) {
+  return `(() => {
+    const selector = ${JSON.stringify(String(selector))};
+    const findDeep = (root, sel, offsetX = 0, offsetY = 0) => {
+      try {
+        const direct = root.querySelector(sel);
+        if (direct) return { el: direct, root, offsetX, offsetY };
+      } catch (e) {
+        return { __selectorError: e.message };
+      }
+      for (const node of Array.from(root.querySelectorAll('*'))) {
+        if (node.shadowRoot) {
+          const found = findDeep(node.shadowRoot, sel, offsetX, offsetY);
+          if (found) return found;
+        }
+        if (node.tagName === 'IFRAME') {
+          try {
+            if (node.contentDocument) {
+              const frRect = node.getBoundingClientRect();
+              const nested = findDeep(node.contentDocument, sel, offsetX + frRect.left, offsetY + frRect.top);
+              if (nested) return nested;
+            }
+          } catch { /* cross-origin iframe */ }
+        }
+      }
+      return null;
+    };
+    const found = findDeep(document, selector);
+    if (found && found.__selectorError) {
+      return { ok: false, error: 'Invalid CSS selector: ' + found.__selectorError };
+    }
+    if (!found || !found.el) {
+      return { ok: false, error: 'Element not found for selector: ' + selector };
+    }
+    const { el, root, offsetX, offsetY } = found;
+    if (el.disabled || el.getAttribute?.('aria-disabled') === 'true') {
+      return { ok: false, error: 'Element is disabled: ' + selector };
+    }
+    const tag = String(el.tagName || '').toLowerCase();
+    const type = String(el.getAttribute?.('type') || '').toLowerCase();
+    let clickTarget = el;
+    let resolvedViaLabel = false;
+    if (tag === 'input' && (type === 'radio' || type === 'checkbox')) {
+      const r0 = el.getBoundingClientRect();
+      if (r0.width <= 0 || r0.height <= 0) {
+        let lbl = null;
+        if (el.id) {
+          const escId = String(el.id).replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
+          lbl = root.querySelector?.('label[for="' + escId + '"]') || document.querySelector('label[for="' + escId + '"]');
+        }
+        if (!lbl && typeof el.closest === 'function') lbl = el.closest('label');
+        if (lbl) {
+          clickTarget = lbl;
+          resolvedViaLabel = true;
+        }
+      }
+    }
+    if (typeof clickTarget.scrollIntoView === 'function') {
+      clickTarget.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+    const rect = clickTarget.getBoundingClientRect();
+    const hasCoords = rect.width > 0 && rect.height > 0;
+    return {
+      ok: true,
+      __cdpInspectClick: true,
+      selector,
+      tag,
+      type,
+      text: String(clickTarget.innerText || clickTarget.textContent || el.value || el.getAttribute?.('aria-label') || '').replace(/\\s+/g, ' ').trim().slice(0, 120),
+      url_before: String(window.location.href || ''),
+      resolved_via_label: resolvedViaLabel,
+      has_coords: hasCoords,
+      x: hasCoords ? Math.round(offsetX + rect.left + rect.width / 2) : null,
+      y: hasCoords ? Math.round(offsetY + rect.top + rect.height / 2) : null,
+    };
+  })()`;
+}
+
+function buildInspectTargetForFillExpression(selector) {
+  return `(() => {
+    const selector = ${JSON.stringify(String(selector))};
+    const HONEYPOT_RE = /honeypot|trap|bot[_-]?check|website_url_honeypot|hp[_-]?field/i;
+    const findDeep = (root, sel, offsetX = 0, offsetY = 0) => {
+      try {
+        const direct = root.querySelector(sel);
+        if (direct) return { el: direct, root, offsetX, offsetY };
+      } catch (e) {
+        return { __selectorError: e.message };
+      }
+      for (const node of Array.from(root.querySelectorAll('*'))) {
+        if (node.shadowRoot) {
+          const found = findDeep(node.shadowRoot, sel, offsetX, offsetY);
+          if (found) return found;
+        }
+        if (node.tagName === 'IFRAME') {
+          try {
+            if (node.contentDocument) {
+              const frRect = node.getBoundingClientRect();
+              const nested = findDeep(node.contentDocument, sel, offsetX + frRect.left, offsetY + frRect.top);
+              if (nested) return nested;
+            }
+          } catch { /* cross-origin iframe */ }
+        }
+      }
+      return null;
+    };
+    const found = findDeep(document, selector);
+    if (found && found.__selectorError) {
+      return { ok: false, error: 'Invalid CSS selector: ' + found.__selectorError };
+    }
+    if (!found || !found.el) {
+      return { ok: false, error: 'Element not found for selector: ' + selector };
+    }
+    const { el, root, offsetX, offsetY } = found;
+    const tag = String(el.tagName || '').toLowerCase();
+    const type = String(el.getAttribute?.('type') || (tag === 'textarea' ? 'textarea' : tag === 'select' ? 'select' : '')).toLowerCase();
+    const name = String(el.getAttribute?.('name') || '');
+    const id = String(el.id || '');
+    if (tag === 'button' || type === 'submit' || type === 'button' || type === 'reset' || type === 'image') {
+      return { ok: false, error: 'Refusing to fill non-editable button/submit element: ' + selector };
+    }
+    if (type === 'hidden' || el.hidden || HONEYPOT_RE.test(name) || HONEYPOT_RE.test(id)) {
+      return { ok: false, error: 'Refusing to fill hidden or honeypot element: ' + selector };
+    }
+    if (type === 'file') {
+      return { ok: false, error: 'Cannot set <input type="file"> via fill; use veycraft cdp upload.' };
+    }
+    if (el.disabled || el.readOnly) {
+      return { ok: false, error: 'Element is disabled or read-only: ' + selector };
+    }
+    let clickTarget = el;
+    let resolvedViaLabel = false;
+    if (tag === 'input' && (type === 'radio' || type === 'checkbox')) {
+      const r0 = el.getBoundingClientRect();
+      if (r0.width <= 0 || r0.height <= 0) {
+        let lbl = null;
+        if (el.id) {
+          const escId = String(el.id).replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
+          lbl = root.querySelector?.('label[for="' + escId + '"]') || document.querySelector('label[for="' + escId + '"]');
+        }
+        if (!lbl && typeof el.closest === 'function') lbl = el.closest('label');
+        if (lbl) {
+          clickTarget = lbl;
+          resolvedViaLabel = true;
+        }
+      }
+    }
+    if (typeof clickTarget.scrollIntoView === 'function') {
+      clickTarget.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+    const rect = clickTarget.getBoundingClientRect();
+    const hasCoords = rect.width > 0 && rect.height > 0;
+    return {
+      ok: true,
+      __cdpInspectFill: true,
+      selector,
+      tag,
+      type: el.getAttribute?.('contenteditable') === 'true' ? 'contenteditable' : (type || tag),
+      is_contenteditable: el.getAttribute?.('contenteditable') === 'true',
+      checked: Boolean(el.checked),
+      resolved_via_label: resolvedViaLabel,
+      has_coords: hasCoords,
+      x: hasCoords ? Math.round(offsetX + rect.left + rect.width / 2) : null,
+      y: hasCoords ? Math.round(offsetY + rect.top + rect.height / 2) : null,
+    };
+  })()`;
+}
+
+function buildPrepareClearAndSelectExpression(selector) {
+  return `(() => {
+    const selector = ${JSON.stringify(String(selector))};
+    const findDeep = (root, sel) => {
+      try {
+        const direct = root.querySelector(sel);
+        if (direct) return direct;
+      } catch { return null; }
+      for (const node of Array.from(root.querySelectorAll('*'))) {
+        if (node.shadowRoot) {
+          const found = findDeep(node.shadowRoot, sel);
+          if (found) return found;
+        }
+        if (node.tagName === 'IFRAME') {
+          try { if (node.contentDocument) { const n = findDeep(node.contentDocument, sel); if (n) return n; } } catch {}
+        }
+      }
+      return null;
+    };
+    const el = findDeep(document, selector);
+    if (!el) return false;
+    if (typeof el.focus === 'function') el.focus();
+    if (el.getAttribute?.('contenteditable') === 'true') {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const selObj = window.getSelection();
+      if (selObj) { selObj.removeAllRanges(); selObj.addRange(range); }
+      return true;
+    }
+    if (typeof el.select === 'function') {
+      try { el.select(); } catch {}
+    }
+    return true;
+  })()`;
+}
+
+function buildReadBackAndCommitFillExpression(selector, { dispatchChange = true } = {}) {
+  return `(() => {
+    const selector = ${JSON.stringify(String(selector))};
+    const dispatchChange = ${JSON.stringify(Boolean(dispatchChange))};
+    const findDeep = (root, sel) => {
+      try {
+        const direct = root.querySelector(sel);
+        if (direct) return direct;
+      } catch { return null; }
+      for (const node of Array.from(root.querySelectorAll('*'))) {
+        if (node.shadowRoot) {
+          const found = findDeep(node.shadowRoot, sel);
+          if (found) return found;
+        }
+        if (node.tagName === 'IFRAME') {
+          try { if (node.contentDocument) { const n = findDeep(node.contentDocument, sel); if (n) return n; } } catch {}
+        }
+      }
+      return null;
+    };
+    const el = findDeep(document, selector);
+    if (!el) return { found: false };
+    const tag = String(el.tagName || '').toLowerCase();
+    const type = String(el.getAttribute?.('type') || (tag === 'textarea' ? 'textarea' : tag === 'select' ? 'select' : '')).toLowerCase();
+    if (dispatchChange) {
+      try {
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event('blur', { bubbles: true }));
+      } catch {}
+    }
+    const isEditable = el.getAttribute?.('contenteditable') === 'true';
+    const isCheck = type === 'checkbox' || type === 'radio';
+    return {
+      found: true,
+      tag,
+      type: isEditable ? 'contenteditable' : (type || tag),
+      checked: isCheck ? Boolean(el.checked) : undefined,
+      value: isCheck
+        ? Boolean(el.checked)
+        : type === 'password'
+          ? '[REDACTED]'
+          : isEditable
+            ? String(el.textContent || '')
+            : String(el.value || ''),
+    };
+  })()`;
+}
+
+export async function dispatchTrustedMouseClick(client, x, y, { timeoutMs = 5000 } = {}) {
+  const cx = Math.round(Number(x));
+  const cy = Math.round(Number(y));
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) {
+    throw new Error(`Invalid click coordinates (${x}, ${y}).`);
+  }
+  await client.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: cx,
+    y: cy,
+    button: 'none',
+    clickCount: 0,
+  }, { timeoutMs });
+  await client.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: cx,
+    y: cy,
+    button: 'left',
+    clickCount: 1,
+  }, { timeoutMs });
+  await client.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: cx,
+    y: cy,
+    button: 'left',
+    clickCount: 1,
+  }, { timeoutMs });
+  return { x: cx, y: cy };
+}
+
+export async function clickCdpSelector(client, selector, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  const info = await evalInPage(client, buildInspectTargetForClickExpression(selector), { timeoutMs });
+  if (isObj(info) && info.clicked === true && info.ok === true) {
+    return info;
+  }
+  if (!isObj(info) || !info.ok) {
+    return { ok: false, error: info?.error || `Element not found for selector: ${selector}` };
+  }
+  if (info.has_coords && Number.isFinite(info.x) && Number.isFinite(info.y)) {
+    try {
+      await dispatchTrustedMouseClick(client, info.x, info.y, { timeoutMs: Math.min(timeoutMs, 5000) });
+      return {
+        ok: true,
+        clicked: true,
+        trusted: true,
+        method: info.resolved_via_label ? 'cdp_mouse_label' : 'cdp_mouse',
+        selector,
+        tag: info.tag,
+        text: info.text,
+        x: info.x,
+        y: info.y,
+        url_before: info.url_before,
+      };
+    } catch {
+      // Fall through to synthetic JS click fallback
+    }
+  }
+  const fallback = await evalInPage(client, buildClickExpression(selector), { timeoutMs });
+  if (isObj(fallback) && fallback.ok) {
+    return { ...fallback, trusted: false, method: 'js_click_fallback' };
+  }
+  return isObj(fallback) ? fallback : { ok: false, error: `Failed to click selector: ${selector}` };
+}
+
+export async function fillCdpSelector(client, selector, value, {
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  platform = process.platform,
+} = {}) {
+  const strValue = String(value ?? '');
+  const info = await evalInPage(client, buildInspectTargetForFillExpression(selector), { timeoutMs });
+  if (isObj(info) && info.filled === true && info.ok === true) {
+    return info;
+  }
+  if (!isObj(info) || !info.ok) {
+    return { ok: false, error: info?.error || `Element not found for selector: ${selector}` };
+  }
+
+  // 1. <select>: match by option.value OR trimmed case-insensitive option.textContent via native setter + input/change
+  if (info.tag === 'select') {
+    const selRes = await evalInPage(client, buildFillExpression(selector, strValue), { timeoutMs });
+    if (isObj(selRes) && selRes.ok) {
+      return { ...selRes, method: 'select_native_setter' };
+    }
+    return isObj(selRes) ? selRes : { ok: false, error: `Failed to select option for: ${selector}` };
+  }
+
+  // 2. Radio / checkbox: trusted CDP click on input or resolved <label>
+  if (info.type === 'checkbox' || info.type === 'radio') {
+    const wantChecked = /^(?:true|1|yes|on|checked)$/i.test(strValue.trim());
+    if (Boolean(info.checked) !== wantChecked && info.has_coords && Number.isFinite(info.x) && Number.isFinite(info.y)) {
+      try {
+        await dispatchTrustedMouseClick(client, info.x, info.y, { timeoutMs: Math.min(timeoutMs, 5000) });
+        const rb = await evalInPage(client, buildReadBackAndCommitFillExpression(selector, { dispatchChange: false }), { timeoutMs: 4000 });
+        if (rb?.found && Boolean(rb.checked) === wantChecked) {
+          return {
+            ok: true,
+            filled: true,
+            trusted: true,
+            method: info.resolved_via_label ? 'cdp_mouse_label' : 'cdp_mouse',
+            selector,
+            tag: info.tag,
+            type: info.type,
+            read_back_value: Boolean(rb.checked),
+          };
+        }
+      } catch {
+        // Fall through to JS fallback below
+      }
+    }
+    const jsCheck = await evalInPage(client, buildFillExpression(selector, strValue), { timeoutMs });
+    return isObj(jsCheck) ? jsCheck : { ok: false, error: `Failed to set ${info.type}: ${selector}` };
+  }
+
+  // 3. Text / number / email / textarea / contenteditable: trusted CDP focus click + clear + Input.insertText
+  if (info.has_coords && Number.isFinite(info.x) && Number.isFinite(info.y)) {
+    try {
+      await dispatchTrustedMouseClick(client, info.x, info.y, { timeoutMs: Math.min(timeoutMs, 5000) });
+      await evalInPage(client, buildPrepareClearAndSelectExpression(selector), { timeoutMs: 4000 }).catch(() => {});
+      const selectAllMod = platform === 'darwin' ? 4 : 2; // 4 = Meta (Cmd), 2 = Ctrl
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        modifiers: selectAllMod,
+        key: 'a',
+        code: 'KeyA',
+        windowsVirtualKeyCode: 65,
+      }, { timeoutMs: 3000 }).catch(() => {});
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        modifiers: selectAllMod,
+        key: 'a',
+        code: 'KeyA',
+        windowsVirtualKeyCode: 65,
+      }, { timeoutMs: 3000 }).catch(() => {});
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        key: 'Backspace',
+        code: 'Backspace',
+        windowsVirtualKeyCode: 8,
+      }, { timeoutMs: 3000 }).catch(() => {});
+      await client.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        key: 'Backspace',
+        code: 'Backspace',
+        windowsVirtualKeyCode: 8,
+      }, { timeoutMs: 3000 }).catch(() => {});
+
+      if (strValue.length > 0) {
+        await client.send('Input.insertText', { text: strValue }, { timeoutMs: Math.min(timeoutMs, 8000) });
+      }
+      const rb = await evalInPage(client, buildReadBackAndCommitFillExpression(selector, { dispatchChange: true }), { timeoutMs: 4000 });
+      const expectedReadBack = info.type === 'password' ? '[REDACTED]' : strValue;
+      if (rb?.found && rb.value === expectedReadBack) {
+        return {
+          ok: true,
+          filled: true,
+          trusted: true,
+          method: 'cdp_insert_text',
+          selector,
+          tag: info.tag,
+          type: info.type,
+          read_back_value: rb.value,
+        };
+      }
+    } catch {
+      // Fall through to native-setter fallback below
+    }
+  }
+
+  const fallback = await evalInPage(client, buildFillExpression(selector, strValue), { timeoutMs });
+  if (isObj(fallback) && fallback.ok) {
+    return { ...fallback, trusted: false, method: 'native_setter_fallback' };
+  }
+  return isObj(fallback) ? fallback : { ok: false, error: `Failed to fill selector: ${selector}` };
+}
+
 export function parseCdpArgs(argv = [], { defaultJson = false } = {}) {
   const args = Array.isArray(argv) ? argv : [];
   const parsed = {
@@ -2030,7 +2457,7 @@ export async function runCdpCli(root, argv = [], {
     });
     try {
       await client.send('Runtime.enable');
-      const res = await evalInPage(client, buildClickExpression(selector), { timeoutMs });
+      const res = await clickCdpSelector(client, selector, { timeoutMs });
       if (!isObj(res) || !res.ok) {
         const errMsg = res?.error || `Failed to click selector "${selector}".`;
         return {
@@ -2078,7 +2505,7 @@ export async function runCdpCli(root, argv = [], {
     });
     try {
       await client.send('Runtime.enable');
-      const res = await evalInPage(client, buildFillExpression(selector, value), { timeoutMs });
+      const res = await fillCdpSelector(client, selector, value, { timeoutMs, platform });
       if (!isObj(res) || !res.ok) {
         const errMsg = res?.error || `Failed to fill selector "${selector}".`;
         return {
@@ -2136,7 +2563,7 @@ export async function runCdpCli(root, argv = [], {
         const chooserPromise = client.waitForEvent('Page.fileChooserOpened', {
           timeoutMs: Math.min(timeoutMs, 10000),
         });
-        const clickRes = await evalInPage(client, buildClickExpression(triggerSelector), { timeoutMs });
+        const clickRes = await clickCdpSelector(client, triggerSelector, { timeoutMs });
         if (!isObj(clickRes) || !clickRes.ok) {
           chooserPromise.catch(() => {});
           const errMsg = clickRes?.error || `Upload trigger element not found for selector: ${triggerSelector}`;
